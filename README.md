@@ -27,9 +27,17 @@ If you’re interested in collaborating or contributing, please join our growing
 
 ---
 
+## 🚀 Getting Started
+
+1. **Install and load the package** (instructions forthcoming when the package is published to CRAN).  
+2. **Explore the documentation** for available functions and workflows (see `/R/` and `/man/` folders).  
+3. **Use example datasets** such as `toy_mpd_od` to test your workflow or build your own experiments.  
+
+---
+
 ## 🛠️ Contributing
 
-We welcome contributions of all kinds—code, documentation, ideas and more!  
+We welcome contributions of all kinds — **code, documentation, issues, examples, or methodological ideas**.
 Please read our [Contributing Guidelines](CONTRIBUTING.md) for step-by-step instructions on how to:
 
 - Fork and clone the repository
@@ -41,6 +49,8 @@ Please read our [Contributing Guidelines](CONTRIBUTING.md) for step-by-step inst
 If you’re new to open source, our guidelines are designed to make it easy for you to get started.  
 If you have questions, open an issue or start a discussion!
 
+---
+
 ## 🙋 License
 
 This repository uses a dual-licensing approach:
@@ -50,16 +60,22 @@ This repository uses a dual-licensing approach:
 
 See the [LICENSE](LICENSE) file for full details.
 
+---
+
 ## 🗂️ Repository Structure
 
 To be updated.
 
 - `assets/` — Images, diagrams, and other media files
-- `.github/` — Community health files (issue/PR templates, workflows)
-- `CONTRIBUTING.md` — How to contribute to this project
-- `CODE_OF_CONDUCT.md` — Community standards and expectations
-- `LICENSE` — Licensing information
-- `README.md` — Project overview and instructions
+- `R/` — Core package functions  
+- `data-raw/` — Scripts for building example datasets  
+- `man/` — Documentation for all exported functions  
+- `tests/` — Automated test files  
+- `.github/` — Community health files (issue and pull request templates)  
+- `CONTRIBUTING.md` — Contribution guidance  
+- `CODE_OF_CONDUCT.md` — Community standards and expectations  
+- `LICENSE` — Licensing information  
+- `README.md` — Package overview and usage instructions  
 
 ## 🎉 Acknowledging Contributors
 
