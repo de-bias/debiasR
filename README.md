@@ -7,7 +7,7 @@
 
 # DEBIAS Template Repository
 
-Checking if changing the visibility to private still works!
+Checking if changing the visibility to private still works! It seems it works.
 
 Welcome to the DEBIAS template repository!  
 
