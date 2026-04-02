@@ -17,6 +17,13 @@ if (!requireNamespace("debiasR", quietly = TRUE)) {
 
 library(debiasR)
 library(dplyr)
+
+has_rstanarm <- requireNamespace("rstanarm", quietly = TRUE)
+if (!has_rstanarm) {
+  cat("This vignette requires the optional 'rstanarm' package. Install it to run the Bayesian walkthrough.\n")
+  knitr::knit_exit()
+}
+
 library(rstanarm)
 
 data(simulated_mpd.od)
