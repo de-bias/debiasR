@@ -1,16 +1,28 @@
 #' Selection Rate II weighting (Zagheni & Weber 2012) with k calibration
 #'
-#' Implements the "Selection Rate II" correction:
-#'   CF(p; k) = p (e^{-k} - 1) / (e^{-k p} - 1)
+#' Notation used throughout:
+#' \itemize{
+#'   \item \eqn{P_i^{(O)}, P_j^{(D)}}: population at origin \eqn{i} and destination \eqn{j}
+#'   \item \eqn{U_i^{(O)}, U_j^{(D)}}: active users at origin \eqn{i} and destination \eqn{j}
+#'   \item \eqn{p_i^{(O)} = U_i^{(O)}/P_i^{(O)}} and \eqn{p_j^{(D)} = U_j^{(D)}/P_j^{(D)}}: penetration
+#'   \item \eqn{F_{ij}^{mpd}} and \eqn{F_{ij}^{adj}}: observed and adjusted flows
+#'   \item \eqn{k > 0}: selection-rate curvature parameter
+#' }
 #'
-#' where p is a penetration rate in [0,1] (e.g. Internet or platform
+#' Implements the "Selection Rate II" correction:
+#' \deqn{CF(p; k) = p \frac{e^{-k} - 1}{e^{-k p} - 1}}
+#'
+#' where \eqn{p} is a penetration rate between 0 and 1 (e.g. Internet or platform
 #' penetration), and k > 0 controls how strongly selection bias increases
 #' as p decreases.
 #'
 #' For OD flows:
-#'   - weight_by = "origin":    p = U_o / P_o, weight = CF(p; k)
-#'   - weight_by = "destination": p = U_d / P_d, weight = CF(p; k)
-#'   - weight_by = "both":      weight = sqrt(CF_origin * CF_destination)
+#'   - \code{weight_by = "origin"}: \eqn{w_{ij} = CF(p_i^{(O)}; k)}
+#'   - \code{weight_by = "destination"}: \eqn{w_{ij} = CF(p_j^{(D)}; k)}
+#'   - \code{weight_by = "both"}: \eqn{w_{ij} = \sqrt{CF(p_i^{(O)}; k)\,CF(p_j^{(D)}; k)}}
+#'
+#' Adjusted flows are:
+#' \deqn{F_{ij}^{adj} = F_{ij}^{mpd} \times w_{ij}}
 #'
 #' Supports:
 #'   1) Location-only OD (default).
@@ -43,7 +55,8 @@
 #' @param flow_col_bench Name of benchmark flow column. Default "flow".
 #' @param calibration_aggregate "origin" (default, compare origin totals)
 #'   or "od" (compare OD flows directly).
-#' @param clip_min,clip_max Clamp weights into [clip_min, clip_max].
+#' @param clip_min Lower bound used to clamp weights. Default 0.
+#' @param clip_max Upper bound used to clamp weights. Default Inf.
 #' @param keep_cols Extra columns from mpd_od_df to retain.
 #'
 #' @return Tibble with:
@@ -53,7 +66,7 @@
 #'     - "k" : numeric k used.
 #'     - "k_calibration" : data.frame of k vs loss (if calibrated).
 #' @export
-method3_selection_rateII <- function(mpd_od_df,
+adjust_selection_rate2 <- function(mpd_od_df,
                                      coverage_df,
                                      weight_by = c("origin", "destination", "both"),
                                      group_cols = NULL,
@@ -243,13 +256,15 @@ method3_selection_rateII <- function(mpd_od_df,
       out$weight_destination <- NA_real_
     }
 
-    final_w <- dplyr::case_when(
-      weight_by == "origin"      ~ out$weight_origin,
-      weight_by == "destination" ~ out$weight_destination,
-      weight_by == "both"        ~ suppressWarnings(
+    if (weight_by == "origin") {
+      final_w <- out$weight_origin
+    } else if (weight_by == "destination") {
+      final_w <- out$weight_destination
+    } else {
+      final_w <- suppressWarnings(
         sqrt(out$weight_origin * out$weight_destination)
       )
-    )
+    }
 
     if (weight_by == "both") {
       final_w[!is.finite(out$weight_origin) |

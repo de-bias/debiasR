@@ -14,8 +14,8 @@
 #' @param by_source Logical, if TRUE and mpd_source exists in both inputs (or in adj_df),
 #'   compute metrics per mpd_source as well as overall. Default FALSE.
 #' @param return_joined Logical, return the joined row-level data in the result list. Default TRUE.
-#' @param method_name Optional label for the adjustment method (e.g. "method1_inverse_penetration",
-#'   "method2_selection_rate"). Stored in the output for comparison workflows.
+#' @param method_name Optional label for the adjustment method (e.g. "adjust_inverse_penetration",
+#'   "adjust_selection_rate"). Stored in the output for comparison workflows.
 #'
 #' @return A list with:
 #'   \itemize{
@@ -28,15 +28,15 @@
 #'     \item (optional) data: the joined tibble used for the calculations
 #'   }
 #' @export
-validate_flows <- function(adj_df,
-                           benchmark_od_df,
-                           flow_col_adj   = "flow_adj",
-                           flow_col_bench = "flow",
-                           drop_zeros     = TRUE,
-                           na_rm          = TRUE,
-                           by_source      = FALSE,
-                           return_joined  = TRUE,
-                           method_name    = NA_character_) {
+validate_flow_benchmark <- function(adj_df,
+                                    benchmark_od_df,
+                                    flow_col_adj   = "flow_adj",
+                                    flow_col_bench = "flow",
+                                    drop_zeros     = TRUE,
+                                    na_rm          = TRUE,
+                                    by_source      = FALSE,
+                                    return_joined  = TRUE,
+                                    method_name    = NA_character_) {
 
   # --- Required columns
   req_adj   <- c("origin", "destination", flow_col_adj)
@@ -176,4 +176,69 @@ validate_flows <- function(adj_df,
 
   if (return_joined) out$data <- joined
   out
+}
+
+#' Build a row-level validation table for MPD, adjusted, and benchmark flows
+#'
+#' Joins adjusted-flow output to benchmark OD flows and returns a tidy table with
+#' original MPD flow, adjusted flow, benchmark flow, and two difference columns.
+#'
+#' @param adj_df Data frame with at least \code{origin}, \code{destination},
+#'   an MPD flow column (default \code{"flow"}), and an adjusted flow column
+#'   (default \code{"flow_adj"}). If present, \code{mpd_source} is carried through.
+#' @param benchmark_od_df Data frame with at least \code{origin},
+#'   \code{destination}, and a benchmark flow column (default \code{"flow"}).
+#' @param flow_col_mpd Name of MPD flow column in \code{adj_df}. Default \code{"flow"}.
+#' @param flow_col_adj Name of adjusted flow column in \code{adj_df}. Default \code{"flow_adj"}.
+#' @param flow_col_bench Name of benchmark flow column in \code{benchmark_od_df}.
+#'   Default \code{"flow"}.
+#'
+#' @return A tibble with columns:
+#' \itemize{
+#'   \item \code{origin, destination} (and \code{mpd_source} if present),
+#'   \item \code{mpd_flow},
+#'   \item \code{benchmark_flow},
+#'   \item \code{adj_flow},
+#'   \item \code{diff_mpd_adj = mpd_flow - adj_flow},
+#'   \item \code{diff_adj_benchmark = adj_flow - benchmark_flow}.
+#' }
+#' @export
+validate_flow_all <- function(adj_df,
+                              benchmark_od_df,
+                              flow_col_mpd   = "flow",
+                              flow_col_adj   = "flow_adj",
+                              flow_col_bench = "flow") {
+
+  req_adj <- c("origin", "destination", flow_col_mpd, flow_col_adj)
+  req_bench <- c("origin", "destination", flow_col_bench)
+
+  if (!all(req_adj %in% names(adj_df))) {
+    stop("`adj_df` must contain: ", paste(req_adj, collapse = ", "))
+  }
+  if (!all(req_bench %in% names(benchmark_od_df))) {
+    stop("`benchmark_od_df` must contain: ", paste(req_bench, collapse = ", "))
+  }
+
+  out <- adj_df |>
+    dplyr::select(dplyr::any_of("mpd_source"),
+                  origin,
+                  destination,
+                  !!flow_col_mpd,
+                  !!flow_col_adj) |>
+    dplyr::rename(
+      mpd_flow = !!flow_col_mpd,
+      adj_flow = !!flow_col_adj
+    ) |>
+    dplyr::inner_join(
+      benchmark_od_df |>
+        dplyr::select(origin, destination, !!flow_col_bench) |>
+        dplyr::rename(benchmark_flow = !!flow_col_bench),
+      by = c("origin", "destination")
+    ) |>
+    dplyr::mutate(
+      diff_mpd_adj = .data$mpd_flow - .data$adj_flow,
+      diff_adj_benchmark = .data$adj_flow - .data$benchmark_flow
+    )
+
+  tibble::as_tibble(out)
 }

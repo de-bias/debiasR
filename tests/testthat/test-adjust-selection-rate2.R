@@ -1,14 +1,14 @@
-# tests/testthat/test-method3-selection-rateII.R
-# Tests for method3_selection_rateII()
+# tests/testthat/test-adjust-selection-rate2.R
+# Tests for adjust_selection_rate2()
 
-test_that("method3_selection_rateII basic origin weighting works", {
+test_that("adjust_selection_rate2 basic origin weighting works", {
 
-  data(toy_mpd_od)
-  data(toy_coverage_df)
+  data(simulated_mpd.od)
+  data(simulated_coverage)
 
-  res_o <- method3_selection_rateII(
-    mpd_od_df   = toy_mpd_od,
-    coverage_df = toy_coverage_df,
+  res_o <- adjust_selection_rate2(
+    mpd_od_df   = simulated_mpd.od,
+    coverage_df = simulated_coverage,
     weight_by   = "origin",
     k           = 1
   )
@@ -19,15 +19,15 @@ test_that("method3_selection_rateII basic origin weighting works", {
   expect_true(all(res_o$flow_adj >= 0 | is.na(res_o$flow_adj)))
 })
 
-test_that("method3_selection_rateII destination and both-side weighting work", {
+test_that("adjust_selection_rate2 destination and both-side weighting work", {
 
-  data(toy_mpd_od)
-  data(toy_coverage_df)
+  data(simulated_mpd.od)
+  data(simulated_coverage)
 
   # destination-only
-  res_d <- method3_selection_rateII(
-    mpd_od_df   = toy_mpd_od,
-    coverage_df = toy_coverage_df,
+  res_d <- adjust_selection_rate2(
+    mpd_od_df   = simulated_mpd.od,
+    coverage_df = simulated_coverage,
     weight_by   = "destination",
     k           = 1
   )
@@ -37,9 +37,9 @@ test_that("method3_selection_rateII destination and both-side weighting work", {
   expect_true(all(res_d$flow_adj >= 0 | is.na(res_d$flow_adj)))
 
   # both origin and destination
-  res_b <- method3_selection_rateII(
-    mpd_od_df   = toy_mpd_od,
-    coverage_df = toy_coverage_df,
+  res_b <- adjust_selection_rate2(
+    mpd_od_df   = simulated_mpd.od,
+    coverage_df = simulated_coverage,
     weight_by   = "both",
     k           = 1
   )
@@ -49,21 +49,21 @@ test_that("method3_selection_rateII destination and both-side weighting work", {
   expect_true(all(res_b$flow_adj >= 0 | is.na(res_b$flow_adj)))
 })
 
-test_that("method3_selection_rateII calibrates k when benchmark provided", {
+test_that("adjust_selection_rate2 calibrates k when benchmark provided", {
 
-  data(toy_mpd_od)
-  data(toy_coverage_df)
-  data(toy_benchmark_od)
+  data(simulated_mpd.od)
+  data(simulated_coverage)
+  data(simulated_benchmark.od)
 
   k_grid <- seq(0.5, 2, by = 0.5)
 
-  res_cal <- method3_selection_rateII(
-    mpd_od_df           = toy_mpd_od,
-    coverage_df         = toy_coverage_df,
+  res_cal <- adjust_selection_rate2(
+    mpd_od_df           = simulated_mpd.od,
+    coverage_df         = simulated_coverage,
     weight_by           = "origin",
     k                   = NULL,
     k_grid              = k_grid,
-    benchmark_od_df     = toy_benchmark_od,
+    benchmark_od_df     = simulated_benchmark.od,
     flow_col_bench      = "flow",
     calibration_aggregate = "origin"
   )
@@ -90,9 +90,9 @@ test_that("method3_selection_rateII calibrates k when benchmark provided", {
   expect_equal(k_used, k_diag$k[best_idx])
 
   # Using fixed k_used reproduces same adjusted flows
-  res_fixed <- method3_selection_rateII(
-    mpd_od_df   = toy_mpd_od,
-    coverage_df = toy_coverage_df,
+  res_fixed <- adjust_selection_rate2(
+    mpd_od_df   = simulated_mpd.od,
+    coverage_df = simulated_coverage,
     weight_by   = "origin",
     k           = k_used
   )
@@ -104,19 +104,19 @@ test_that("method3_selection_rateII calibrates k when benchmark provided", {
   )
 })
 
-test_that("method3_selection_rateII handles group_cols when present (synthetic check)", {
+test_that("adjust_selection_rate2 handles group_cols when present (synthetic check)", {
 
-  data(toy_mpd_od)
-  data(toy_coverage_df)
+  data(simulated_mpd.od)
+  data(simulated_coverage)
 
   # Create a simple synthetic grouping to test plumbing
-  toy_mpd_g <- toy_mpd_od
+  toy_mpd_g <- simulated_mpd.od
   toy_mpd_g$age_group <- ifelse(as.integer(factor(toy_mpd_g$origin)) %% 2 == 0, "young", "old")
 
-  toy_cov_g <- toy_coverage_df
+  toy_cov_g <- simulated_coverage
   toy_cov_g$age_group <- ifelse(as.integer(factor(toy_cov_g$origin)) %% 2 == 0, "young", "old")
 
-  res_g <- method3_selection_rateII(
+  res_g <- adjust_selection_rate2(
     mpd_od_df   = toy_mpd_g,
     coverage_df = toy_cov_g,
     weight_by   = "origin",
@@ -129,19 +129,19 @@ test_that("method3_selection_rateII handles group_cols when present (synthetic c
   expect_true("weight_origin" %in% names(res_g))
 })
 
-test_that("method3_selection_rateII errors cleanly with bad inputs", {
+test_that("adjust_selection_rate2 errors cleanly with bad inputs", {
 
-  data(toy_mpd_od)
-  data(toy_coverage_df)
+  data(simulated_mpd.od)
+  data(simulated_coverage)
 
   # Missing required columns in mpd_od_df
-  bad_mpd <- toy_mpd_od
+  bad_mpd <- simulated_mpd.od
   bad_mpd$origin <- NULL
 
   expect_error(
-    method3_selection_rateII(
+    adjust_selection_rate2(
       mpd_od_df   = bad_mpd,
-      coverage_df = toy_coverage_df,
+      coverage_df = simulated_coverage,
       weight_by   = "origin",
       k           = 1
     ),
@@ -150,9 +150,9 @@ test_that("method3_selection_rateII errors cleanly with bad inputs", {
 
   # Invalid k
   expect_error(
-    method3_selection_rateII(
-      mpd_od_df   = toy_mpd_od,
-      coverage_df = toy_coverage_df,
+    adjust_selection_rate2(
+      mpd_od_df   = simulated_mpd.od,
+      coverage_df = simulated_coverage,
       weight_by   = "origin",
       k           = -1
     ),
@@ -161,9 +161,9 @@ test_that("method3_selection_rateII errors cleanly with bad inputs", {
 
   # group_cols not found
   expect_error(
-    method3_selection_rateII(
-      mpd_od_df   = toy_mpd_od,
-      coverage_df = toy_coverage_df,
+    adjust_selection_rate2(
+      mpd_od_df   = simulated_mpd.od,
+      coverage_df = simulated_coverage,
       weight_by   = "origin",
       group_cols  = "age_group",
       k           = 1

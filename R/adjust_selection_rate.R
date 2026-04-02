@@ -1,8 +1,28 @@
-#' Selection-rate weighting (Method 2, Chi et al. with r_t calibration)
+#' Selection-rate weighting (Chi et al. with r_t calibration)
 #'
-#' Implements the Chi et al.-style selection weights:
+#' Implements Chi et al.-style selection weights.
 #'
-#'   W = 1 / ( Income * (U / P) + (1 - Income) * r_t )
+#' Notation used throughout:
+#' \itemize{
+#'   \item \eqn{P_i^{(O)}, P_j^{(D)}}: population at origin \eqn{i} and destination \eqn{j}
+#'   \item \eqn{U_i^{(O)}, U_j^{(D)}}: active users at origin \eqn{i} and destination \eqn{j}
+#'   \item \eqn{p_i^{(O)} = U_i^{(O)}/P_i^{(O)}} and \eqn{p_j^{(D)} = U_j^{(D)}/P_j^{(D)}}: penetration
+#'   \item \eqn{I_i, I_j \in [0,1]}: normalized income covariate
+#'   \item \eqn{r_t > 0}: global selection parameter
+#'   \item \eqn{F_{ij}^{mpd}} and \eqn{F_{ij}^{adj}}: observed and adjusted flows
+#' }
+#'
+#' Origin-side weight:
+#' \deqn{w_i^{(O)}(r_t) = \frac{1}{I_i p_i^{(O)} + (1 - I_i) r_t}}
+#'
+#' Destination-side weight:
+#' \deqn{w_j^{(D)}(r_t) = \frac{1}{I_j p_j^{(D)} + (1 - I_j) r_t}}
+#'
+#' Flow adjustment:
+#' \deqn{F_{ij}^{adj} = F_{ij}^{mpd} \times w_{ij}}
+#' with \eqn{w_{ij} = w_i^{(O)}} for \code{weight_by = "origin"},
+#' \eqn{w_{ij} = w_j^{(D)}} for \code{weight_by = "destination"}, and
+#' \eqn{w_{ij} = \sqrt{w_i^{(O)} w_j^{(D)}}} for \code{weight_by = "both"}.
 #'
 #' with flexible income covariates and optional calibration of r_t
 #' against benchmark OD flows.
@@ -25,7 +45,8 @@
 #'   - Else if `benchmark_od_df` is provided: calibrate r_t by grid search
 #'     to minimize the sum of absolute errors, reproducing Chi et al.'s idea.
 #'     By default aggregates by origin:
-#'       r_t* = argmin_r sum_o | Mig_hat_o(r) - Mig_bench_o |
+#'       \deqn{r_t^\ast = \arg\min_{r \in \mathcal{R}} \sum_i
+#'       \left|\hat{M}_i(r) - M_i^{bench}\right|}
 #'   - Else: fall back to descriptive r_t = sum(U) / sum(P) (transparent).
 #'
 #' @param mpd_od_df Data frame with: origin, destination, flow, mpd_source.
@@ -46,7 +67,8 @@
 #' @param r_grid Numeric vector of candidate r_t values for calibration.
 #'   Default `seq(0, 3, by = 0.01)` as in Chi et al.
 #' @param calibration_aggregate "origin" (default, Chi et al. style) or "od".
-#' @param clip_min,clip_max Clamp weights into [clip_min, clip_max].
+#' @param clip_min Lower bound used to clamp weights. Default 0.
+#' @param clip_max Upper bound used to clamp weights. Default Inf.
 #' @param keep_cols Extra columns from `mpd_od_df` to keep.
 #'
 #' @return Tibble with:
@@ -56,7 +78,7 @@
 #'     - "r_global": numeric r_t used.
 #'     - "r_calibration": data.frame of (r, loss) if calibration was run.
 #' @export
-method2_selection_rate <- function(mpd_od_df,
+adjust_selection_rate <- function(mpd_od_df,
                                    coverage_df,
                                    covariates_df = NULL,
                                    income_col = NULL,
@@ -330,13 +352,15 @@ method2_selection_rate <- function(mpd_od_df,
       out$weight_destination <- NA_real_
     }
 
-    final_w <- dplyr::case_when(
-      weight_by == "origin"      ~ out$weight_origin,
-      weight_by == "destination" ~ out$weight_destination,
-      weight_by == "both"        ~ suppressWarnings(
+    if (weight_by == "origin") {
+      final_w <- out$weight_origin
+    } else if (weight_by == "destination") {
+      final_w <- out$weight_destination
+    } else {
+      final_w <- suppressWarnings(
         sqrt(out$weight_origin * out$weight_destination)
       )
-    )
+    }
     if (weight_by == "both") {
       final_w[!is.finite(out$weight_origin) |
                 !is.finite(out$weight_destination)] <- NA_real_

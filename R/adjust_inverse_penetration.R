@@ -1,13 +1,20 @@
-#' Method 1: Inverse penetration rate weights
+#' Inverse penetration rate weights
 #'
 #' Adjusts MPD-derived OD flows using inverse penetration weights derived from
 #' coverage information on population and active users at origins and/or
 #' destinations.
 #'
+#' Notation used throughout:
+#' \itemize{
+#'   \item \eqn{P_i^{(O)}, P_j^{(D)}}: population at origin \eqn{i} and destination \eqn{j}
+#'   \item \eqn{U_i^{(O)}, U_j^{(D)}}: active users at origin \eqn{i} and destination \eqn{j}
+#'   \item \eqn{F_{ij}^{mpd}}: observed MPD flow from \eqn{i} to \eqn{j}
+#'   \item \eqn{F_{ij}^{adj}}: adjusted flow
+#' }
+#'
 #' The coverage data frame is expected to contain, at minimum:
 #' \itemize{
-#'   \item \code{origin}, \code{origin_population}, \code{origin_user_count}
-#'   \item \code{destination}, \code{destination_population}, \code{destination_user_count}
+#'   \item \code{origin}, \code{population}, \code{user_count}
 #' }
 #' possibly with a \code{mpd_source} column for source-specific coverage.
 #'
@@ -36,8 +43,7 @@
 #'   If present, \code{mpd_source} is used to match coverage by source.
 #' @param coverage_df Data frame with at least:
 #'   \itemize{
-#'     \item \code{origin, origin_population, origin_user_count}
-#'     \item \code{destination, destination_population, destination_user_count}
+#'     \item \code{origin, population, user_count}
 #'   }
 #'   and optionally \code{mpd_source}.
 #' @param flow_col Name of the MPD flow column in \code{mpd_od_df}. Default "flow".
@@ -54,7 +60,7 @@
 #'   }
 #'
 #' @export
-method1_inverse_penetration <- function(mpd_od_df,
+adjust_inverse_penetration <- function(mpd_od_df,
                                         coverage_df,
                                         flow_col  = "flow",
                                         weight_by = c("origin", "destination", "both")) {
@@ -71,22 +77,18 @@ method1_inverse_penetration <- function(mpd_od_df,
   has_source <- "mpd_source" %in% names(mpd_od_df) &&
     "mpd_source" %in% names(coverage_df)
 
+  # coverage requirements
+  req_cov <- c("origin", "population", "user_count")
+  if (!all(req_cov %in% names(coverage_df))) {
+    stop("`coverage_df` must contain: ", paste(req_cov, collapse = ", "))
+  }
+
   # origin-side requirements
   if (weight_by %in% c("origin", "both")) {
-    req_cov_o <- c("origin", "origin_population", "origin_user_count")
+    req_cov_o <- c("origin", "population", "user_count")
     if (!all(req_cov_o %in% names(coverage_df))) {
       stop("`coverage_df` must contain origin columns: ",
            paste(req_cov_o, collapse = ", "),
-           " for weight_by = '", weight_by, "'.")
-    }
-  }
-
-  # destination-side requirements
-  if (weight_by %in% c("destination", "both")) {
-    req_cov_d <- c("destination", "destination_population", "destination_user_count")
-    if (!all(req_cov_d %in% names(coverage_df))) {
-      stop("`coverage_df` must contain destination columns: ",
-           paste(req_cov_d, collapse = ", "),
            " for weight_by = '", weight_by, "'.")
     }
   }
@@ -97,18 +99,18 @@ method1_inverse_penetration <- function(mpd_od_df,
     if (has_source) {
       cov_o <- coverage_df |>
         dplyr::select(origin, mpd_source,
-                      origin_population, origin_user_count) |>
+                      population, user_count) |>
         dplyr::distinct() |>
         dplyr::mutate(
-          weight_origin = origin_population / origin_user_count
+          weight_origin = population / user_count
         )
     } else {
       cov_o <- coverage_df |>
         dplyr::select(origin,
-                      origin_population, origin_user_count) |>
+                      population, user_count) |>
         dplyr::distinct() |>
         dplyr::mutate(
-          weight_origin = origin_population / origin_user_count
+          weight_origin = population / user_count
         )
     }
   } else {
@@ -120,19 +122,21 @@ method1_inverse_penetration <- function(mpd_od_df,
   if (weight_by %in% c("destination", "both")) {
     if (has_source) {
       cov_d <- coverage_df |>
-        dplyr::select(destination, mpd_source,
-                      destination_population, destination_user_count) |>
+        dplyr::select(origin, mpd_source,
+                      population, user_count) |>
+        dplyr::rename(destination = origin) |>
         dplyr::distinct() |>
         dplyr::mutate(
-          weight_destination = destination_population / destination_user_count
+          weight_destination = population / user_count
         )
     } else {
       cov_d <- coverage_df |>
-        dplyr::select(destination,
-                      destination_population, destination_user_count) |>
+        dplyr::select(origin,
+                      population, user_count) |>
+        dplyr::rename(destination = origin) |>
         dplyr::distinct() |>
         dplyr::mutate(
-          weight_destination = destination_population / destination_user_count
+          weight_destination = population / user_count
         )
     }
   } else {

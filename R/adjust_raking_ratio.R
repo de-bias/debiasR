@@ -1,7 +1,16 @@
-#' Method 4: Raking ratio / IPF adjustment of OD flows
+#' Raking ratio / IPF adjustment of OD flows
 #'
 #' Adjusts observed OD flows so that their margins match given benchmark
 #' totals using iterative proportional fitting (IPF), also known as raking.
+#'
+#' Notation used throughout:
+#' \itemize{
+#'   \item \eqn{F_{ij}^{mpd}}: observed MPD flow from origin \eqn{i} to destination \eqn{j}
+#'   \item \eqn{F_{ij}^{adj}}: adjusted flow
+#'   \item \eqn{T_i^{(O)}}: target total outflow for origin \eqn{i}
+#'   \item \eqn{T_j^{(D)}}: target total inflow for destination \eqn{j}
+#'   \item \eqn{w_{ij}}: multiplicative IPF weight
+#' }
 #'
 #' This is a generic implementation that covers:
 #' \enumerate{
@@ -16,7 +25,7 @@
 #' The method operates on aggregated flows (no microdata) and is deliberately
 #' transparent:
 #'
-#' \deqn{F_{ij}^{adj} = F_{ij}^{obs} \times w_{ij}}
+#' \deqn{F_{ij}^{adj} = F_{ij}^{mpd} \times w_{ij}}
 #'
 #' where the cell weights \eqn{w_{ij}} are determined so that:
 #'
@@ -29,8 +38,6 @@
 #'
 #' with \eqn{T_i^{(O)}} and \eqn{T_j^{(D)}} provided by the user, typically
 #' from census or high-quality benchmark flows or populations.
-#'
-#' @section Inputs:
 #'
 #' @param mpd_od_df Data frame with at least:
 #'   \code{origin, destination, flow}; an \code{mpd_source} column is carried
@@ -62,8 +69,8 @@
 #'
 #' @param max_iter Maximum IPF iterations. Default 200.
 #' @param tol Convergence tolerance on relative margin differences. Default 1e-6.
-#' @param clip_min,clip_max Clamp resulting cell weights into
-#'   \code{[clip_min, clip_max]} to avoid extreme corrections. Defaults 0, Inf.
+#' @param clip_min Lower bound used to clamp resulting cell weights. Default 0.
+#' @param clip_max Upper bound used to clamp resulting cell weights. Default Inf.
 #' @param keep_cols Optional character vector of extra columns from
 #'   \code{mpd_od_df} to keep in the output.
 #'
@@ -74,9 +81,11 @@
 #'     \item flow_adj: raked flow
 #'     \item weight_ipf: multiplicative weight = flow_adj / flow
 #'   }
-#'   Attributes:
-#'     \item \code{"ipf_converged"}: logical
-#'     \item \code{"ipf_iterations"}: iterations used
+#'   The output also includes attributes:
+#'   \itemize{
+#'     \item \code{"ipf_converged"}: logical.
+#'     \item \code{"ipf_iterations"}: iterations used.
+#'   }
 #'
 #' @details
 #' - If only \code{origin_targets} is supplied, raking enforces origin margins.
@@ -88,7 +97,7 @@
 #'   will not be matched exactly. This is by design and should be inspected.
 #'
 #' @export
-method4_raking_ratio <- function(mpd_od_df,
+adjust_raking_ratio <- function(mpd_od_df,
                                  origin_targets = NULL,
                                  destination_targets = NULL,
                                  benchmark_od_df = NULL,

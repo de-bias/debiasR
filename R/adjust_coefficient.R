@@ -1,21 +1,29 @@
-#' Method 5: Global coefficient calibration with multiple model families
+#' Global coefficient calibration with multiple model families
 #'
 #' Calibrate a multiplicative coefficient that links MPD-derived flows to
 #' benchmark flows, following the "coefficient" approach in Chi et al.
 #'
+#' Notation used throughout:
+#' \itemize{
+#'   \item \eqn{F_{ij}^{mpd}}: observed MPD flow from origin \eqn{i} to destination \eqn{j}
+#'   \item \eqn{F_{ij}^{bench}}: benchmark flow for the same OD pair
+#'   \item \eqn{F_{ij}^{adj}}: adjusted flow
+#'   \item \eqn{\beta > 0}: multiplicative calibration coefficient
+#' }
+#'
 #' All supported families enforce a proportional structure
-#' \deqn{E[F^{bench}_{ij}] = \beta F^{mpd}_{ij}}
+#' \deqn{E[F_{ij}^{bench}] = \beta F_{ij}^{mpd}}
 #' but differ in the assumed distribution for counts:
 #' \itemize{
 #'   \item \code{"ols"}: linear regression (baseline).
-#'   \item \code{"poisson"}: Poisson GLM with \code{offset(log(F^{mpd}))}.
-#'   \item \code{"negbin"}: Negative Binomial GLM with \code{offset(log(F^{mpd}))}.
-#'   \item \code{"zinb"}: Zero-inflated NB with \code{offset(log(F^{mpd}))}.
+#'   \item \code{"poisson"}: Poisson GLM with \code{offset(log(F_{ij}^{mpd}))}.
+#'   \item \code{"negbin"}: Negative Binomial GLM with \code{offset(log(F_{ij}^{mpd}))}.
+#'   \item \code{"zinb"}: Zero-inflated NB with \code{offset(log(F_{ij}^{mpd}))}.
 #' }
 #'
 #' For \code{"poisson"}, \code{"negbin"}, and \code{"zinb"}, we fit:
-#' \deqn{\log(\mu_{ij}) = \alpha + \log(F^{mpd}_{ij})}
-#' so that \eqn{\mu_{ij} = \exp(\alpha) F^{mpd}_{ij}} and
+#' \deqn{\log(\mu_{ij}) = \alpha + \log(F_{ij}^{mpd})}
+#' so that \eqn{\mu_{ij} = \exp(\alpha) F_{ij}^{mpd}} and
 #' \eqn{\beta = \exp(\alpha)}.
 #'
 #' @param mpd_od_df Data frame of MPD flows with at least:
@@ -42,7 +50,7 @@
 #'   if \code{FALSE} (default), fit through the origin
 #'   \eqn{F^{bench} = \beta F^{mpd}}.
 #'   if \code{TRUE}, fit \eqn{F^{bench} = \alpha + \beta F^{mpd}} and derive a
-#'   flow-specific correction factor \eqn{CF_{ij} = \hat{F}^{bench}_{ij}/F^{mpd}_{ij}}.
+#'   flow-specific correction factor \eqn{CF_{ij} = \hat{F}_{ij}^{bench}/F_{ij}^{mpd}}.
 #'   Ignored for count models, where the functional form is fixed as above.
 #'
 #' @param by_source Logical; if \code{TRUE} and both inputs contain
@@ -71,7 +79,7 @@
 #' - If a required package is unavailable, an informative error is thrown.
 #'
 #' @export
-method5_coefficient <- function(mpd_od_df,
+adjust_coefficient <- function(mpd_od_df,
                                 benchmark_od_df,
                                 flow_col_mpd   = "flow",
                                 flow_col_bench = "flow",
@@ -257,7 +265,7 @@ method5_coefficient <- function(mpd_od_df,
     })
 
     coef_tbl <- do.call(rbind, lapply(fits, `[[`, "summary"))
-    betas    <- setNames(coef_tbl$beta, coef_tbl$mpd_source)
+    betas    <- stats::setNames(coef_tbl$beta, coef_tbl$mpd_source)
 
   } else {
     fit <- fit_one(mpd_od_df, benchmark_od_df, src_label = NA_character_)

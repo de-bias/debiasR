@@ -14,13 +14,17 @@ RoxygenNote: 7.3.2
 Depends: R (>= 4.2)
 Imports:
     dplyr,
-    tidyr,
     tibble,
+    magrittr,
     rlang,
     stats
 Suggests:
     knitr,
     rmarkdown,
+    MASS,
+    pscl,
+    brms,
+    rstanarm,
     testthat (>= 3.2.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
