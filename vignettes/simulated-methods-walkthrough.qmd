@@ -12,9 +12,21 @@ execute:
 
 ## Purpose
 
-This walkthrough runs and visualizes the implemented `debiasR` correction methods using simulated package datasets.
+This walkthrough runs and visualises the implemented `debiasR` correction methods using simulated package datasets.
+The current simulated MPD data are calibrated to empirical OD support to match
+zero-mass and upper-tail quantiles more closely.
 
 ## Setup
+```{r}
+# safest in dev:
+devtools::load_all(".")   # reloads current checkout
+library(debiasR)
+
+# quick check:
+"validate_flow_benchmark" %in% getNamespaceExports("debiasR")
+
+```
+
 
 ```{r}
 pkg_root <- if (file.exists("DESCRIPTION")) "." else ".."
@@ -36,6 +48,7 @@ data("simulated_mpd.od", package = "debiasR")
 data("simulated_benchmark.od", package = "debiasR")
 data("simulated_coverage", package = "debiasR")
 data("simulated_covariates", package = "debiasR")
+data("simulated_distance", package = "debiasR")
 data("simulated_active.users", package = "debiasR")
 data("simulated_pop", package = "debiasR")
 
@@ -45,6 +58,7 @@ tibble(
     "simulated_benchmark.od",
     "simulated_coverage",
     "simulated_covariates",
+    "simulated_distance",
     "simulated_active.users",
     "simulated_pop"
   ),
@@ -53,8 +67,33 @@ tibble(
     nrow(simulated_benchmark.od),
     nrow(simulated_coverage),
     nrow(simulated_covariates),
+    nrow(simulated_distance),
     nrow(simulated_active.users),
     nrow(simulated_pop)
+  )
+)
+```
+
+## Simulated Distribution Check
+
+```{r}
+tibble(
+  series = c("benchmark_flow", "mpd_flow"),
+  zero_share = c(
+    mean(simulated_benchmark.od$flow == 0),
+    mean(simulated_mpd.od$flow == 0)
+  ),
+  q50_log1p = c(
+    quantile(log1p(simulated_benchmark.od$flow), 0.5),
+    quantile(log1p(simulated_mpd.od$flow), 0.5)
+  ),
+  q90_log1p = c(
+    quantile(log1p(simulated_benchmark.od$flow), 0.9),
+    quantile(log1p(simulated_mpd.od$flow), 0.9)
+  ),
+  q99_log1p = c(
+    quantile(log1p(simulated_benchmark.od$flow), 0.99),
+    quantile(log1p(simulated_mpd.od$flow), 0.99)
   )
 )
 ```
@@ -98,7 +137,7 @@ plot_adj_vs_benchmark <- function(adj_df, benchmark_df, title_text) {
 }
 
 collect_metrics <- function(method_name, adj_df) {
-  v <- validate_flows(
+  v <- validate_flow_benchmark(
     adj_df = adj_df,
     benchmark_od_df = simulated_benchmark.od,
     method_name = method_name,
@@ -213,8 +252,41 @@ adj_m5 <- adjust_coefficient(
 list(coef = attr(adj_m5, "coef"))
 ```
 
+
 ```{r}
 plot_adj_vs_benchmark(adj_m5, simulated_benchmark.od, "Method 5: Adjusted vs Benchmark")
+```
+
+## 6) `adjust_multilevel_bayes` (prototype)
+
+```{r}
+adj_m6 <- NULL
+
+if (requireNamespace("rstanarm", quietly = TRUE)) {
+  adj_m6 <- adjust_multilevel_bayes(
+    mpd_od_df = simulated_mpd.od,
+    coverage_df = simulated_coverage,
+    covariates_df = simulated_covariates,
+    distance_df = simulated_distance,
+    random_intercept = "origin",
+    model_family = "poisson",
+    flow_adj_summary = "median",
+    iter = 500,
+    chains = 2,
+    seed = 123,
+    refresh = 0
+  )
+
+  attr(adj_m6, "coefficients")
+} else {
+  "Install 'rstanarm' to run the Method 6 prototype section."
+}
+```
+
+```{r}
+if (!is.null(adj_m6)) {
+  plot_adj_vs_benchmark(adj_m6, simulated_benchmark.od, "Method 6: Adjusted vs Benchmark")
+}
 ```
 
 ## Compare Validation Metrics Across Methods
@@ -225,7 +297,8 @@ metrics_tbl <- bind_rows(
   collect_metrics("adjust_selection_rate", adj_m2),
   collect_metrics("adjust_selection_rate2", adj_m3),
   collect_metrics("adjust_raking_ratio", adj_m4),
-  collect_metrics("adjust_coefficient", adj_m5)
+  collect_metrics("adjust_coefficient", adj_m5),
+  if (!is.null(adj_m6)) collect_metrics("adjust_multilevel_bayes", adj_m6)
 ) |>
   arrange(desc(pearson_r))
 
@@ -246,15 +319,39 @@ metrics_tbl |>
   theme_plot_tufte()
 ```
 
+## Validation Helper Examples
+
+### `validate_flow_benchmark`
+
+```{r}
+val_benchmark_m1 <- validate_flow_benchmark(
+  adj_df = adj_m1,
+  benchmark_od_df = simulated_benchmark.od,
+  method_name = "adjust_inverse_penetration",
+  return_joined = FALSE
+)
+
+val_benchmark_m1
+```
+
+### `validate_flow_all`
+
+```{r}
+val_all_m1 <- validate_flow_all(
+  adj_df = adj_m1,
+  benchmark_od_df = simulated_benchmark.od
+)
+
+val_all_m1 |>
+  select(origin, destination, mpd_flow, adj_flow, benchmark_flow, diff_mpd_adj, diff_adj_benchmark) |>
+  slice_head(n = 10)
+```
+
 ## `measure_bias` Example
 
 ```{r}
-coverage_for_bias <- simulated_pop |>
-  inner_join(
-    simulated_active.users |>
-      select(origin, user_count),
-    by = "origin"
-  )
+coverage_for_bias <- simulated_coverage |>
+  select(origin, population, user_count)
 
 bias_df <- measure_bias(coverage_for_bias)
 bias_df
