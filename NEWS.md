@@ -1,0 +1,8 @@
+# debiasR NEWS
+
+## 0.0.0.9000
+
+### Breaking changes
+
+- The validation API now uses `validate_flow_benchmark()` for summary metrics and `validate_flow_all()` for row-level comparisons.
+- The legacy `validate_flows()` helper has been removed.

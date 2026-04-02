@@ -5,24 +5,28 @@ Thank you for your interest in contributing to this project! We welcome all kind
 
 ## 🚀 How to Contribute
 
-1. **Fork this repository**  
-   Click the **Fork** button at the top right of this page to create your own copy.
-
-2. **Clone your fork**  
-   Open your terminal and run:  
+1. **Clone the repository**  
    ```bash
-   git clone https://github.com/YOUR-USERNAME/Template.git
-   cd Template
+   git clone https://github.com/de-bias/debiasR.git
+   cd debiasR
    ```
 
-3. **Create a new branch**  
-   Give your branch a descriptive name:  
+2. **Create a branch for your change**  
+   Use a descriptive branch name. A `codex/` prefix is a good default for local work:
    ```bash
-   git checkout -b my-feature-branch
+   git checkout -b codex/my-feature
    ```
 
-4. **Make your changes**  
-   Add your code, documentation, or other contributions.
+3. **Make your changes**  
+   Update the code, documentation, or tests as needed. When working on R code locally, it helps to load the package in place:
+   ```r
+   devtools::load_all(".")
+   ```
+
+4. **Run the relevant tests**  
+   ```r
+   testthat::test_dir("tests/testthat")
+   ```
 
 5. **Commit your changes**  
    ```bash
@@ -30,22 +34,20 @@ Thank you for your interest in contributing to this project! We welcome all kind
    git commit -m "Describe your changes"
    ```
 
-6. **Push to your fork**  
+6. **Push the branch**  
    ```bash
-   git push origin my-feature-branch
+   git push origin codex/my-feature
    ```
 
 7. **Open a Pull Request (PR)**  
-   - Go to your fork on GitHub.
-   - Click **Compare & pull request**.
-   - Fill out the PR template and submit.
+   Use the PR template in `.github/pull_request_template.md` and link any related issues.
 
 ---
 
 ## 💡 Using Issue & PR Templates
 
-- When reporting a bug or requesting a feature, please use the provided **issue templates** for clear and helpful reports.
-- When submitting a pull request, fill out the **PR template** to describe your changes and link related issues.
+- When reporting a bug or requesting a feature, please use the issue template in `.github/ISSUE_TEMPLATE/`.
+- When submitting a pull request, fill out the PR template to describe your changes and link related issues.
 
 
 ## ✨ Acknowledging Contributors with All Contributors Bot

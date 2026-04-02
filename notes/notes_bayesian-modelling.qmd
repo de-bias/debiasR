@@ -1,0 +1,19 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+Multilevel model
+
+Level 1:
+
+$$
+F^{mpd}_{ij} = f( F^{t}_{ij}, \omega e_{i})
+$$
+
+Level 2:
+
+$$
+F^{t}_{ij} = f(F^{t}_{0}, \beta X_{i}, \delta X_{j} )
+$$

@@ -1,0 +1,5 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.github$
+^\.all-contributorsrc$
+^blueprint-code\.R$
