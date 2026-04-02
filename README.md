@@ -3,18 +3,27 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-<img src="assets/logo.png" alt="Imago Logo" width="300"/>
+<img src="assets/debias-logo-white.JPEG" alt="debiasR Logo" width="300"/>
 
 # debiasR R Package Repository
 
-Welcome to the **debiasR** repository!  
-This package is part of the **DEBIAS** project — an international research initiative dedicated to understanding and correcting biases in human mobility data derived from mobile phone records.  
+Welcome to the **debiasR** repository. This package is part of the **DEBIAS** project, an international research initiative focused on understanding and correcting biases in human mobility data derived from mobile phone records.
 
-The **debiasR** package provides statistical methods and tools to generate **correction factors** for population and mobility estimates, enabling researchers and practitioners to produce **bias-adjusted human mobility data** suitable for demographic, policy and scientific applications.
+The package provides tools to generate correction factors for origin-destination mobility estimates so researchers can work with bias-adjusted mobility data in demographic, policy, and scientific applications.
 
-The package implements a range of approaches including inverse penetration weighting, selection rate models, raking ratio adjustments, coefficient regression, and Bayesian multilevel modelling. 
+Current exported functions:
 
-Our goal is to (1) increase the reliable and ethical use of mobile phone–derived mobility for scientific and policy applications; and, (2) ensure reproducibility, transparency and comparability in the use of mobile phone–derived mobility data across contexts.
+- `measure_bias()`
+- `adjust_inverse_penetration()`
+- `adjust_selection_rate()`
+- `adjust_selection_rate2()`
+- `adjust_raking_ratio()`
+- `adjust_coefficient()`
+- `adjust_multilevel_bayes()`
+- `validate_flow_benchmark()`
+- `validate_flow_all()`
+
+The package supports inverse penetration weighting, selection-rate models, raking ratio adjustment, coefficient calibration, and a Bayesian multilevel prototype.
 
 ---
 
@@ -29,25 +38,28 @@ If you’re interested in collaborating or contributing, please join our growing
 
 ## 🚀 Getting Started
 
-1. **Install and load the package** (instructions forthcoming when the package is published to CRAN).  
-2. **Explore the documentation** for available functions and workflows (see `/R/` and `/man/` folders).  
-3. **Use example datasets** such as `toy_mpd_od` to test your workflow or build your own experiments.  
+1. Install and load the package from this checkout.
+2. Explore the documentation in `R/` and `man/`.
+3. Try the simulated datasets in `data/` and the walkthroughs in `vignettes/`.
+
+Example datasets packaged with debiasR:
+
+- `simulated_mpd.od`
+- `simulated_benchmark.od`
+- `simulated_coverage`
+- `simulated_covariates`
+- `simulated_distance`
+- `simulated_active.users`
+- `simulated_pop`
+
+The `data-raw/` folder contains the scripts used to build those datasets.
 
 ---
 
 ## 🛠️ Contributing
 
-We welcome contributions of all kinds — **code, documentation, issues, examples, or methodological ideas**.
-Please read our [Contributing Guidelines](CONTRIBUTING.md) for step-by-step instructions on how to:
-
-- Fork and clone the repository
-- Create a new branch for your changes
-- Use issue and pull request templates
-- Get acknowledged with the All Contributors Bot
-- Resolve merge conflicts
-
-If you’re new to open source, our guidelines are designed to make it easy for you to get started.  
-If you have questions, open an issue or start a discussion!
+We welcome contributions of all kinds: code, documentation, issues, examples, and methodological ideas.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming guidance, and pull request templates.
 
 ---
 
@@ -64,18 +76,24 @@ See the [LICENSE](LICENSE) file for full details.
 
 ## 🗂️ Repository Structure
 
-To be updated.
+- `R/` - package functions and internal helpers
+- `data/` - simulated datasets shipped with the package
+- `data-raw/` - scripts for rebuilding the simulated datasets
+- `man/` - generated documentation for exported objects
+- `tests/` - `testthat` tests
+- `vignettes/` - walkthroughs and method comparison notebooks
+- `notes/` - project briefs, migration notes, and status tracking
+- `style/` - plotting and Quarto styling helpers
+- `.github/` - issue and pull request templates
+- `assets/` - logos and other static assets
+- `CONTRIBUTING.md` - contribution guidance
+- `NEWS.md` - release notes and migration notes
+- `LICENSE` - licensing information
+- `README.md` - package overview and usage instructions
 
-- `assets/` — Images, diagrams, and other media files
-- `R/` — Core package functions  
-- `data-raw/` — Scripts for building example datasets  
-- `man/` — Documentation for all exported functions  
-- `tests/` — Automated test files  
-- `.github/` — Community health files (issue and pull request templates)  
-- `CONTRIBUTING.md` — Contribution guidance  
-- `CODE_OF_CONDUCT.md` — Community standards and expectations  
-- `LICENSE` — Licensing information  
-- `README.md` — Package overview and usage instructions  
+### Stable vs Prototype
+
+Most of the package is intended for regular use. `adjust_multilevel_bayes()` is still a stage-1 prototype and does not yet implement stage-2 missing-OD imputation. For this Bayesian path, we recommend `rstanarm` for standard Poisson / negative-binomial models because it is lighter and easier to fit in a package workflow, and `brms` when you need extra flexibility, especially zero-inflated or more complex Bayesian specifications. For the current stability summary, see [notes/project-management/STATUS.md](notes/project-management/STATUS.md).
 
 ## 🎉 Acknowledging Contributors
 

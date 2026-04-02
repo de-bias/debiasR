@@ -22,47 +22,47 @@ usethis::use_testthat()         # creates tests/
 usethis::use_vignette("debias-method1")  # creates vignettes/
 usethis::use_data_raw()         # creates data-raw/
 
-# 4. Create a toy data set
+# 4. Create simulated package data
 file.remove("data-raw/DATASET.R") # first remove existing suggestion
-source("data-raw/build_toy_data.R") # run once to create .rda files in data/
+source("data-raw/build_simulated_data.R") # run once to create .rda files in data/
 # Check that they load properly
 devtools::load_all()
 data(package = "debiasR")
+devtools::document()
+devtools::test()     # if you already added a test
 
 # 5 Implement Method 1 function: create a R file in R/ and then run
-devtools::document()
-devtools::load_all()
-data(toy_mpd_od); data(toy_coverage_df)
-adj <- method1_inverse_penetration(toy_mpd_od, toy_coverage_df, clip_max = 200)
+
+adj <- adjust_inverse_penetration(simulated_mpd.od, simulated_coverage, clip_max = 200)
 head(adj)
 
-devtools::test()     # if you already added a test
+
 # If this returns: `Error in `test_dir()`:`, run:
 # 1) Ensure testthat is wired up (safe to run again)
 usethis::use_testthat()
 
 # 2) Create a test file for Method 1
-usethis::use_test("method1_inverse_penetration")
+usethis::use_test("adjust_inverse_penetration")
 devtools::test()
 devtools::check()
 
-# quick sanity using your realistic toy data
-adj_o <- debiasR::method1_inverse_penetration(toy_mpd_od, toy_coverage_df, weight_by = "origin")
-adj_d <- debiasR::method1_inverse_penetration(toy_mpd_od, toy_coverage_df, weight_by = "destination")
-adj_b <- debiasR::method1_inverse_penetration(toy_mpd_od, toy_coverage_df, weight_by = "both")
+# quick sanity using the simulated package data
+adj_o <- debiasR::adjust_inverse_penetration(simulated_mpd.od, simulated_coverage, weight_by = "origin")
+adj_d <- debiasR::adjust_inverse_penetration(simulated_mpd.od, simulated_coverage, weight_by = "destination")
+adj_b <- debiasR::adjust_inverse_penetration(simulated_mpd.od, simulated_coverage, weight_by = "both")
 
-# 3) Test validate flows
+# 3) Test validation helpers
 devtools::document()
 devtools::load_all()
 
 # After computing adjusted flows:
-adj_o <- method1_inverse_penetration(toy_mpd_od, toy_coverage_df, weight_by = "origin")
-adj_both <- method1_inverse_penetration(toy_mpd_od, toy_coverage_df, weight_by = "both")
+adj_o <- adjust_inverse_penetration(simulated_mpd.od, simulated_coverage, weight_by = "origin")
+adj_both <- adjust_inverse_penetration(simulated_mpd.od, simulated_coverage, weight_by = "both")
 
 # Validate against benchmark:
-val_o <- validate_flows(adj_o, toy_benchmark_od, by_source = TRUE)
-val_d <- validate_flows(adj_d, toy_benchmark_od, by_source = TRUE)
-val_b <- validate_flows(adj_both, toy_benchmark_od, by_source = TRUE)
+val_o <- validate_flow_benchmark(adj_o, simulated_benchmark.od, by_source = TRUE)
+val_d <- validate_flow_benchmark(adj_d, simulated_benchmark.od, by_source = TRUE)
+val_b <- validate_flow_benchmark(adj_both, simulated_benchmark.od, by_source = TRUE)
 str(val_o)
 
 
@@ -70,19 +70,19 @@ str(val_o)
 devtools::document()
 devtools::load_all()
 
-data(toy_mpd_od)
-data(toy_coverage_df)
-data(toy_covariates_df)
-data(toy_benchmark_od)
+data(simulated_mpd.od)
+data(simulated_coverage)
+data(simulated_covariates)
+data(simulated_benchmark.od)
 
-res <- method2_selection_rate(
-  toy_mpd_od,
-  toy_coverage_df,
-  covariates_df = toy_covariates_df,
+res <- adjust_selection_rate(
+  simulated_mpd.od,
+  simulated_coverage,
+  covariates_df = simulated_covariates,
   income_col = "income_norm",
   r_global = NULL,
   weight_by = "origin",
-  benchmark_od_df = toy_benchmark_od,
+  benchmark_od_df = simulated_benchmark.od,
   calibration_aggregate = "origin"
 )
 
@@ -94,45 +94,45 @@ attr(res, "r_calibration")   # grid search diagnostics
 devtools::document()
 devtools::load_all()
 
-data(toy_mpd_od)
-data(toy_coverage_df)
-data(toy_covariates_df)
-data(toy_benchmark_od)
+data(simulated_mpd.od)
+data(simulated_coverage)
+data(simulated_covariates)
+data(simulated_benchmark.od)
 
 # Case (1) location only:
-adj_m3.1 <- method3_selection_rateII(
-  toy_mpd_od,
-  toy_coverage_df,
+adj_m3.1 <- adjust_selection_rate2(
+  simulated_mpd.od,
+  simulated_coverage,
   weight_by = "origin",
-  benchmark_od_df = toy_benchmark_od,  # if available
+  benchmark_od_df = simulated_benchmark.od,  # if available
   k_grid = seq(0.1, 3, 0.05)
 )
 attr(adj_m3.1, "k")
 
-val_m3.1 <- validate_flows(adj_m3.1, toy_benchmark_od, by_source = TRUE)
+val_m3.1 <- validate_flow_benchmark(adj_m3.1, simulated_benchmark.od, by_source = TRUE)
 
 # Case (2) age/sex
 
-adj_m3.2 <- method3_selection_rateII(
-  mpd_od_df,
-  coverage_df,
-  weight_by = "origin",
-  group_cols = c("age_group", "sex"),
-  benchmark_od_df = bench_od_df,
-  k_grid = seq(0.1, 5, 0.1)
-)
+# adj_m3.2 <- adjust_selection_rate2(
+#   mpd_od_df = simulated_mpd.od,
+#   coverage_df = simulated_mpd.od,
+#   weight_by = "origin",
+#   group_cols = c("age_group", "sex"),
+#   benchmark_od_df = bench_od_df,
+#   k_grid = seq(0.1, 5, 0.1)
+# )
 
 
 # 8 Implement Method 4 function (raking_ratio): create a R file in R/ and then run
 devtools::document()
 devtools::load_all()
 
-data(toy_mpd_od)
-data(toy_benchmark_od)
+data(simulated_mpd.od)
+data(simulated_benchmark.od)
 
-res_rake_loc <- method4_raking_ratio(
-  mpd_od_df       = toy_mpd_od,
-  benchmark_od_df = toy_benchmark_od,  # derives origin/dest margins
+res_rake_loc <- adjust_raking_ratio(
+  mpd_od_df       = simulated_mpd.od,
+  benchmark_od_df = simulated_benchmark.od,  # derives origin/dest margins
   flow_col_bench  = "flow",
   max_iter        = 500,
   tol             = 1e-8
@@ -140,18 +140,18 @@ res_rake_loc <- method4_raking_ratio(
 
 attr(res_rake_loc, "ipf_converged")
 
-val_m4.1 <- validate_flows(res_rake_loc, toy_benchmark_od, by_source = TRUE)
+val_m4.1 <- validate_flow_benchmark(res_rake_loc, simulated_benchmark.od, by_source = TRUE)
 
-res_rake_strata <- method4_raking_ratio(
-  mpd_od_df         = mpd_od_by_age_sex,
-  origin_targets    = origin_margins_by_age_sex,
-  destination_targets = dest_margins_by_age_sex,
-  group_cols        = c("age_group", "sex"),
-  max_iter          = 500,
-  tol               = 1e-7
-)
+# res_rake_strata <- adjust_raking_ratio(
+#   mpd_od_df         = mpd_od_by_age_sex,
+#   origin_targets    = origin_margins_by_age_sex,
+#   destination_targets = dest_margins_by_age_sex,
+#   group_cols        = c("age_group", "sex"),
+#   max_iter          = 500,
+#   tol               = 1e-7
+# )
 
-# Users can inspect two attributes that method4_raking_ratio() automatically attaches to its output tibble:
+# Users can inspect two attributes that adjust_raking_ratio() automatically attaches to its output tibble:
 attr(res_rake_loc, "ipf_converged")
 attr(res_rake_loc, "ipf_iterations")
 
@@ -161,13 +161,13 @@ attr(res_rake_loc, "ipf_iterations")
 devtools::document()
 devtools::load_all()
 
-data(toy_mpd_od)
-data(toy_benchmark_od)
+data(simulated_mpd.od)
+data(simulated_benchmark.od)
 
 # OLS coefficient (Chi-style baseline)
-res_ols <- method5_coefficient(
-  mpd_od_df       = toy_mpd_od,
-  benchmark_od_df = toy_benchmark_od,
+res_ols <- adjust_coefficient(
+  mpd_od_df       = simulated_mpd.od,
+  benchmark_od_df = simulated_benchmark.od,
   model_family    = "ols",
   level           = "od",      # regress on OD pairs
   fit_intercept   = FALSE,     # y = beta * x
@@ -180,9 +180,9 @@ attr(res_ols, "model")
 
 # Global Poisson calibration
 
-res_pois <- method5_coefficient(
-  mpd_od_df       = toy_mpd_od,
-  benchmark_od_df = toy_benchmark_od,
+res_pois <- adjust_coefficient(
+  mpd_od_df       = simulated_mpd.od,
+  benchmark_od_df = simulated_benchmark.od,
   model_family    = "poisson",
   level           = "od",
   by_source       = FALSE
@@ -192,9 +192,9 @@ attr(res_pois, "coef")   # beta = exp(intercept)
 attr(res_pois, "model")  # summary row with n, beta, r^2, etc.
 
 # Negative Binomial calibration
-res_nb <- method5_coefficient(
-  mpd_od_df       = toy_mpd_od,
-  benchmark_od_df = toy_benchmark_od,
+res_nb <- adjust_coefficient(
+  mpd_od_df       = simulated_mpd.od,
+  benchmark_od_df = simulated_benchmark.od,
   model_family    = "negbin",
   level           = "od"
 )
@@ -204,9 +204,9 @@ attr(res_nb , "coef")
 attr(res_nb , "model")
 
 # Zero-inflated Negative Binomial calibration
-res_zinb <- method5_coefficient(
-  mpd_od_df       = toy_mpd_od,
-  benchmark_od_df = toy_benchmark_od,
+res_zinb <- adjust_coefficient(
+  mpd_od_df       = simulated_mpd.od,
+  benchmark_od_df = simulated_benchmark.od,
   model_family    = "zinb",
   level           = "od"
 )
@@ -216,9 +216,9 @@ attr(res_zinb, "coef")
 attr(res_zinb, "model")
 
 # Coefficient by MPD source
-res_by_source <- method5_coefficient(
-  mpd_od_df       = toy_mpd_od,
-  benchmark_od_df = toy_benchmark_od,
+res_by_source <- adjust_coefficient(
+  mpd_od_df       = simulated_mpd.od,
+  benchmark_od_df = simulated_benchmark.od,
   model_family    = "ols",
   level           = "od",
   by_source       = FALSE
@@ -238,6 +238,6 @@ summary_beta
 
 
 # Run any test function in `testthat`
-devtools::test(filter = "method2-selection-rate")
-devtools::test(filter = "method4-raking-ratio")
-devtools::test(filter = "method5_coefficient")
+devtools::test(filter = "adjust-selection-rate")
+devtools::test(filter = "adjust-raking-ratio")
+devtools::test(filter = "adjust_coefficient")
