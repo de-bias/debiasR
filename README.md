@@ -20,8 +20,13 @@ Current exported functions:
 - `adjust_raking_ratio()`
 - `adjust_coefficient()`
 - `adjust_multilevel_bayes()`
-- `validate_flow_benchmark()`
-- `validate_flow_all()`
+- `validate_flow_overall()`
+- `validate_flow_pairs()`
+
+Legacy aliases retained temporarily for compatibility:
+
+- `validate_flow_benchmark()` -> `validate_flow_overall()`
+- `validate_flow_all()` -> `validate_flow_pairs()`
 
 The package supports inverse penetration weighting, selection-rate models, raking ratio adjustment, coefficient calibration, and a Bayesian multilevel prototype.
 

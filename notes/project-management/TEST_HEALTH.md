@@ -9,7 +9,7 @@ Last updated: 2026-04-02
 - The runner loads the package with `devtools::load_all(".")` before executing targeted tests.
 - Full suite still includes a slower Bayesian test file with optional dependencies.
 - Observed behavior today:
-  - targeted tests for `measure_bias`, `validate_flow_all`, and the raking smoke test pass under `load_all`.
+  - targeted tests for `measure_bias`, `validate_flow_pairs`, and the raking smoke test pass under `load_all`.
   - running `test_dir()` without loading package can produce false failures (`function not found`, data object not found).
 
 ## Test Tiers (Recommended)

@@ -2,9 +2,10 @@
 
 ## 0.0.0.9000
 
-### Breaking changes
+### Validation naming update
 
-- The validation API now uses `validate_flow_benchmark()` for summary metrics and `validate_flow_all()` for row-level comparisons.
+- The primary validation API now uses `validate_flow_overall()` for summary metrics and `validate_flow_pairs()` for row-level comparisons.
+- The older names `validate_flow_benchmark()` and `validate_flow_all()` remain available as backwards-compatible aliases for one release cycle.
 - The legacy `validate_flows()` helper has been removed.
 
 ### Migration notes

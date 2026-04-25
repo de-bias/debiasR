@@ -20,8 +20,9 @@ Last updated: 2026-04-02
 - `adjust_selection_rate2()`
 - `adjust_raking_ratio()`
 - `adjust_coefficient()`
-- `validate_flow_benchmark()`
-- `validate_flow_all()`
+- `validate_flow_overall()`
+- `validate_flow_pairs()`
+  - legacy aliases retained temporarily: `validate_flow_benchmark()`, `validate_flow_all()`
 
 ### Experimental Bayesian prototype
 
@@ -34,7 +35,7 @@ Last updated: 2026-04-02
 ## What Changed Recently
 
 - Function naming migrated from `method*` to `adjust_*`
-- Validation API migrated from `validate_flows()` to `validate_flow_benchmark()` and `validate_flow_all()`
+- Validation API migrated from `validate_flows()` to `validate_flow_overall()` and `validate_flow_pairs()`, with legacy aliases retained temporarily for compatibility
 - Data assets migrated from toy datasets to simulated datasets
 - Stable deterministic work is the default support path; Bayesian work is explicitly prototype-only
 - CI scaffolding now includes a fast deterministic workflow plus a separate manual Bayesian workflow
