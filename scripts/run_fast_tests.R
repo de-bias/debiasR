@@ -2,6 +2,7 @@
 
 fast_test_files <- c(
   "tests/testthat/test-measure_bias.R",
+  "tests/testthat/test-validate-bias-residual-structure.R",
   "tests/testthat/test-adjust_inverse_penetration.R",
   "tests/testthat/test-adjust-selection-rate.R",
   "tests/testthat/test-adjust-selection-rate2.R",
@@ -10,6 +11,7 @@ fast_test_files <- c(
   "tests/testthat/test-validate-flow-overall.R",
   "tests/testthat/test-validate-flow-pairs.R",
   "tests/testthat/test-validate-flow-residuals.R",
+  "tests/testthat/test-validate-flow-residual-structure.R",
   "tests/testthat/test-validate-flow-distribution.R",
   "tests/testthat/test-adjust_raking_ratio-smoke.R"
 )

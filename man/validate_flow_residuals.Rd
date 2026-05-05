@@ -10,7 +10,8 @@ validate_flow_residuals(
   flow_col_mpd = "flow",
   flow_col_adj = "flow_adj",
   flow_col_bench = "flow",
-  top_n = 10L
+  top_n = 10L,
+  method_name = NA_character_
 )
 }
 \arguments{
@@ -30,19 +31,31 @@ Default \code{"flow"}.}
 
 \item{top_n}{Number of OD pairs to retain in the \code{top_worst} table,
 ranked by the absolute residual remaining after adjustment. Default \code{10}.}
+
+\item{method_name}{Optional label for the adjustment method. Stored in the
+summary, data, and \code{top_worst} outputs.}
 }
 \value{
 A list with:
 \itemize{
 \item \code{summary}: one-row tibble with mean/median residual magnitudes and
-shares improved, worsened, unchanged, and residual shares above 1, 2,
-and 3 standard deviations,
+signed and absolute residual-reduction summaries, shares improved,
+worsened, unchanged, and MPD versus adjusted residual shares above 1,
+2, and 3 standard deviations,
 \item \code{data}: OD-level tibble containing original and adjusted residuals,
-absolute residuals, percentage residuals, improvement measures, standard
-deviation diagnostics for adjusted residuals, and an \code{improvement_flag},
+benchmark-minus residuals, signed residual movement, absolute residual
+reduction, percentage residuals, standard-deviation diagnostics for MPD
+and adjusted residuals, and an \code{improvement_flag},
 \item \code{top_worst}: the \code{top_n} OD pairs with the largest absolute
 residual remaining after adjustment.
 }
+
+The exact signed movement requested by the Stage 2 validation plan is stored
+as \code{signed_residual_reduction = (benchmark - mpd) - (benchmark - adjusted)}.
+Algebraically this equals \code{adjusted - mpd}: positive values mean the
+adjustment moved the OD flow upward relative to the observed MPD flow. For a
+direction-free "positive means less benchmark error" comparison, use
+\code{abs_residual_reduction} or \code{improvement_flag}.
 }
 \description{
 Extends \code{validate_flow_pairs()} with residual-style aliases, absolute and

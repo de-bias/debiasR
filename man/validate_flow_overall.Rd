@@ -41,6 +41,8 @@ compute metrics per mpd_source as well as overall. Default FALSE.}
 
 \item{method_name}{Optional label for the adjustment method (e.g. "adjust_inverse_penetration",
 "adjust_selection_rate"). Stored in the output for comparison workflows.}
+
+\item{...}{Arguments passed to \code{validate_flow_overall()}.}
 }
 \value{
 A list with:

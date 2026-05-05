@@ -20,8 +20,12 @@ Current exported functions:
 - `adjust_raking_ratio()`
 - `adjust_coefficient()`
 - `adjust_multilevel_bayes()`
+- `validate_bias_residual_structure()`
 - `validate_flow_overall()`
 - `validate_flow_pairs()`
+- `validate_flow_residuals()`
+- `validate_flow_residual_structure()`
+- `validate_flow_distribution()`
 
 Legacy aliases retained temporarily for compatibility:
 

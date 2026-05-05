@@ -187,6 +187,7 @@ validate_flow_overall <- function(adj_df,
 #' Retained for backwards compatibility. New code should prefer
 #' \code{validate_flow_overall()}.
 #'
+#' @param ... Arguments passed to \code{validate_flow_overall()}.
 #' @rdname validate_flow_overall
 #' @export
 validate_flow_benchmark <- function(...) {
@@ -285,6 +286,7 @@ validate_flow_pairs <- function(adj_df,
 #' Retained for backwards compatibility. New code should prefer
 #' \code{validate_flow_pairs()}.
 #'
+#' @param ... Arguments passed to \code{validate_flow_pairs()}.
 #' @rdname validate_flow_pairs
 #' @export
 validate_flow_all <- function(...) {
@@ -297,6 +299,131 @@ validate_flow_all <- function(...) {
     return(NA_real_)
   }
   stats::weighted.mean(x[keep], w[keep])
+}
+
+.mean_logical_na <- function(x) {
+  if (all(is.na(x))) {
+    return(NA_real_)
+  }
+  mean(x, na.rm = TRUE)
+}
+
+.safe_pearson <- function(x, y) {
+  keep <- is.finite(x) & is.finite(y)
+  if (sum(keep) < 2L) {
+    return(NA_real_)
+  }
+  if (stats::sd(x[keep]) <= 0 || stats::sd(y[keep]) <= 0) {
+    return(NA_real_)
+  }
+  suppressWarnings(stats::cor(x[keep], y[keep], method = "pearson"))
+}
+
+.sd_score <- function(x, residual_sd) {
+  residual_sd <- residual_sd[1]
+  if (is.na(residual_sd) || residual_sd <= 0) {
+    return(rep(NA_real_, length(x)))
+  }
+  x / residual_sd
+}
+
+.residual_over_sd <- function(abs_score, threshold) {
+  dplyr::if_else(
+    is.na(abs_score),
+    NA,
+    abs_score > threshold
+  )
+}
+
+.aggregate_residual <- function(x, aggregation) {
+  if (aggregation == "sum") {
+    return(sum(x, na.rm = TRUE))
+  }
+  mean(x, na.rm = TRUE)
+}
+
+.compute_moran_i <- function(area_level,
+                             area_neighbors,
+                             area_col,
+                             neighbor_col,
+                             weight_col) {
+
+  req_neighbors <- c(area_col, neighbor_col)
+  if (!all(req_neighbors %in% names(area_neighbors))) {
+    stop("`area_neighbors` must contain: ", paste(req_neighbors, collapse = ", "))
+  }
+  if (!is.null(weight_col) && !weight_col %in% names(area_neighbors)) {
+    stop("`weight_col` must name a column in `area_neighbors`.")
+  }
+
+  neighbor_tbl <- area_neighbors |>
+    dplyr::select(
+      area = dplyr::all_of(area_col),
+      neighbor = dplyr::all_of(neighbor_col),
+      dplyr::any_of(weight_col)
+    )
+
+  if (is.null(weight_col)) {
+    neighbor_tbl <- dplyr::mutate(neighbor_tbl, weight = 1)
+  } else {
+    neighbor_tbl <- dplyr::rename(neighbor_tbl, weight = dplyr::all_of(weight_col))
+  }
+
+  values <- area_level |>
+    dplyr::select(dplyr::all_of(c("area", "selected_residual"))) |>
+    dplyr::filter(is.finite(.data$selected_residual))
+
+  n_areas_used <- nrow(values)
+  if (n_areas_used < 2L) {
+    return(list(
+      moran_i = NA_real_,
+      n_areas_used = n_areas_used,
+      n_links_used = 0L,
+      weight_sum = NA_real_
+    ))
+  }
+
+  x_bar <- mean(values$selected_residual)
+  denominator <- sum((values$selected_residual - x_bar)^2)
+
+  links <- neighbor_tbl |>
+    dplyr::inner_join(values, by = "area") |>
+    dplyr::rename(area_residual = dplyr::all_of("selected_residual")) |>
+    dplyr::inner_join(
+      dplyr::rename(
+        values,
+        neighbor = dplyr::all_of("area"),
+        neighbor_residual = dplyr::all_of("selected_residual")
+      ),
+      by = "neighbor"
+    ) |>
+    dplyr::filter(is.finite(.data$weight), .data$weight > 0)
+
+  n_links_used <- nrow(links)
+  weight_sum <- sum(links$weight, na.rm = TRUE)
+
+  if (n_links_used == 0L || weight_sum <= 0 || denominator <= 0) {
+    return(list(
+      moran_i = NA_real_,
+      n_areas_used = n_areas_used,
+      n_links_used = n_links_used,
+      weight_sum = weight_sum
+    ))
+  }
+
+  numerator <- sum(
+    links$weight *
+      (links$area_residual - x_bar) *
+      (links$neighbor_residual - x_bar),
+    na.rm = TRUE
+  )
+
+  list(
+    moran_i = (n_areas_used / weight_sum) * (numerator / denominator),
+    n_areas_used = n_areas_used,
+    n_links_used = n_links_used,
+    weight_sum = weight_sum
+  )
 }
 
 #' Validate origin-conditioned destination-share distributions
@@ -458,25 +585,38 @@ validate_flow_distribution <- function(adj_df,
 #'   Default \code{"flow"}.
 #' @param top_n Number of OD pairs to retain in the \code{top_worst} table,
 #'   ranked by the absolute residual remaining after adjustment. Default \code{10}.
+#' @param method_name Optional label for the adjustment method. Stored in the
+#'   summary, data, and \code{top_worst} outputs.
 #'
 #' @return A list with:
 #' \itemize{
 #'   \item \code{summary}: one-row tibble with mean/median residual magnitudes and
-#'     shares improved, worsened, unchanged, and residual shares above 1, 2,
-#'     and 3 standard deviations,
+#'     signed and absolute residual-reduction summaries, shares improved,
+#'     worsened, unchanged, and MPD versus adjusted residual shares above 1,
+#'     2, and 3 standard deviations,
 #'   \item \code{data}: OD-level tibble containing original and adjusted residuals,
-#'     absolute residuals, percentage residuals, improvement measures, standard
-#'     deviation diagnostics for adjusted residuals, and an \code{improvement_flag},
+#'     benchmark-minus residuals, signed residual movement, absolute residual
+#'     reduction, percentage residuals, standard-deviation diagnostics for MPD
+#'     and adjusted residuals, and an \code{improvement_flag},
 #'   \item \code{top_worst}: the \code{top_n} OD pairs with the largest absolute
 #'     residual remaining after adjustment.
 #' }
+#'
+#' The exact signed movement requested by the Stage 2 validation plan is stored
+#' as \code{signed_residual_reduction = (benchmark - mpd) - (benchmark - adjusted)}.
+#' Algebraically this equals \code{adjusted - mpd}: positive values mean the
+#' adjustment moved the OD flow upward relative to the observed MPD flow. For a
+#' direction-free "positive means less benchmark error" comparison, use
+#' \code{abs_residual_reduction} or \code{improvement_flag}.
+#'
 #' @export
 validate_flow_residuals <- function(adj_df,
                                     benchmark_od_df,
                                     flow_col_mpd   = "flow",
                                     flow_col_adj   = "flow_adj",
                                     flow_col_bench = "flow",
-                                    top_n          = 10L) {
+                                    top_n          = 10L,
+                                    method_name    = NA_character_) {
 
   if (length(top_n) != 1L || is.na(top_n) || top_n < 1) {
     stop("`top_n` must be a single positive integer.")
@@ -491,13 +631,18 @@ validate_flow_residuals <- function(adj_df,
     flow_col_bench = flow_col_bench
   )
 
+  residual_sd_mpd_benchmark <- stats::sd(audit_tbl$diff_mpd_benchmark, na.rm = TRUE)
   residual_sd_adj_benchmark <- stats::sd(audit_tbl$diff_adj_benchmark, na.rm = TRUE)
 
   residuals <- audit_tbl |>
     dplyr::mutate(
+      method = method_name,
       residual_mpd_benchmark = .data$diff_mpd_benchmark,
       residual_adj_benchmark = .data$diff_adj_benchmark,
       residual_mpd_adj = .data$diff_mpd_adj,
+      benchmark_minus_mpd = .data$benchmark_flow - .data$mpd_flow,
+      benchmark_minus_adj = .data$benchmark_flow - .data$adj_flow,
+      signed_residual_reduction = .data$benchmark_minus_mpd - .data$benchmark_minus_adj,
       abs_residual_mpd_benchmark = abs(.data$residual_mpd_benchmark),
       abs_residual_adj_benchmark = abs(.data$residual_adj_benchmark),
       abs_residual_mpd_adj = abs(.data$residual_mpd_adj),
@@ -512,32 +657,35 @@ validate_flow_residuals <- function(adj_df,
         100 * .data$residual_adj_benchmark / .data$benchmark_flow
       ),
       abs_residual_improvement = .data$abs_residual_mpd_benchmark - .data$abs_residual_adj_benchmark,
+      abs_residual_reduction = .data$abs_residual_improvement,
       pct_residual_improvement = dplyr::if_else(
         .data$abs_residual_mpd_benchmark == 0,
         NA_real_,
         100 * .data$abs_residual_improvement / .data$abs_residual_mpd_benchmark
       ),
+      residual_sd_mpd_benchmark = residual_sd_mpd_benchmark,
+      residual_mpd_benchmark_sd_score = .sd_score(
+        .data$residual_mpd_benchmark,
+        .data$residual_sd_mpd_benchmark
+      ),
+      abs_residual_mpd_benchmark_sd_score = abs(.data$residual_mpd_benchmark_sd_score),
       residual_sd_adj_benchmark = residual_sd_adj_benchmark,
-      residual_adj_benchmark_sd_score = dplyr::if_else(
-        is.na(.data$residual_sd_adj_benchmark) | .data$residual_sd_adj_benchmark <= 0,
-        NA_real_,
-        .data$residual_adj_benchmark / .data$residual_sd_adj_benchmark
+      residual_adj_benchmark_sd_score = .sd_score(
+        .data$residual_adj_benchmark,
+        .data$residual_sd_adj_benchmark
       ),
       abs_residual_adj_benchmark_sd_score = abs(.data$residual_adj_benchmark_sd_score),
-      residual_adj_over_1sd = dplyr::if_else(
-        is.na(.data$abs_residual_adj_benchmark_sd_score),
-        NA,
-        .data$abs_residual_adj_benchmark_sd_score > 1
-      ),
-      residual_adj_over_2sd = dplyr::if_else(
-        is.na(.data$abs_residual_adj_benchmark_sd_score),
-        NA,
-        .data$abs_residual_adj_benchmark_sd_score > 2
-      ),
-      residual_adj_over_3sd = dplyr::if_else(
-        is.na(.data$abs_residual_adj_benchmark_sd_score),
-        NA,
-        .data$abs_residual_adj_benchmark_sd_score > 3
+      residual_mpd_over_1sd = .residual_over_sd(.data$abs_residual_mpd_benchmark_sd_score, 1),
+      residual_mpd_over_2sd = .residual_over_sd(.data$abs_residual_mpd_benchmark_sd_score, 2),
+      residual_mpd_over_3sd = .residual_over_sd(.data$abs_residual_mpd_benchmark_sd_score, 3),
+      residual_adj_over_1sd = .residual_over_sd(.data$abs_residual_adj_benchmark_sd_score, 1),
+      residual_adj_over_2sd = .residual_over_sd(.data$abs_residual_adj_benchmark_sd_score, 2),
+      residual_adj_over_3sd = .residual_over_sd(.data$abs_residual_adj_benchmark_sd_score, 3),
+      moved_in_benchmark_direction = dplyr::case_when(
+        .data$benchmark_minus_mpd == 0 & .data$signed_residual_reduction == 0 ~ TRUE,
+        .data$benchmark_minus_mpd == 0 | .data$signed_residual_reduction == 0 ~ FALSE,
+        sign(.data$benchmark_minus_mpd) == sign(.data$signed_residual_reduction) ~ TRUE,
+        TRUE ~ FALSE
       ),
       improvement_flag = dplyr::case_when(
         .data$abs_residual_improvement > 0 ~ "improved",
@@ -548,17 +696,28 @@ validate_flow_residuals <- function(adj_df,
 
   summary_tbl <- residuals |>
     dplyr::summarise(
+      method = method_name,
       n = dplyr::n(),
+      mean_signed_residual_reduction = mean(.data$signed_residual_reduction, na.rm = TRUE),
+      median_signed_residual_reduction = stats::median(.data$signed_residual_reduction, na.rm = TRUE),
+      mean_abs_residual_reduction = mean(.data$abs_residual_reduction, na.rm = TRUE),
+      median_abs_residual_reduction = stats::median(.data$abs_residual_reduction, na.rm = TRUE),
       mean_abs_residual_mpd_benchmark = mean(.data$abs_residual_mpd_benchmark, na.rm = TRUE),
       mean_abs_residual_adj_benchmark = mean(.data$abs_residual_adj_benchmark, na.rm = TRUE),
       median_abs_residual_mpd_benchmark = stats::median(.data$abs_residual_mpd_benchmark, na.rm = TRUE),
       median_abs_residual_adj_benchmark = stats::median(.data$abs_residual_adj_benchmark, na.rm = TRUE),
-      share_improved = mean(.data$improvement_flag == "improved", na.rm = TRUE),
-      share_worsened = mean(.data$improvement_flag == "worsened", na.rm = TRUE),
-      share_unchanged = mean(.data$improvement_flag == "unchanged", na.rm = TRUE),
-      share_residual_adj_over_1sd = mean(.data$residual_adj_over_1sd, na.rm = TRUE),
-      share_residual_adj_over_2sd = mean(.data$residual_adj_over_2sd, na.rm = TRUE),
-      share_residual_adj_over_3sd = mean(.data$residual_adj_over_3sd, na.rm = TRUE)
+      share_improved = .mean_logical_na(.data$improvement_flag == "improved"),
+      share_worsened = .mean_logical_na(.data$improvement_flag == "worsened"),
+      share_unchanged = .mean_logical_na(.data$improvement_flag == "unchanged"),
+      share_moved_in_benchmark_direction = .mean_logical_na(.data$moved_in_benchmark_direction),
+      share_residual_mpd_over_1sd = .mean_logical_na(.data$residual_mpd_over_1sd),
+      share_residual_mpd_over_2sd = .mean_logical_na(.data$residual_mpd_over_2sd),
+      share_residual_mpd_over_3sd = .mean_logical_na(.data$residual_mpd_over_3sd),
+      share_residual_adj_over_1sd = .mean_logical_na(.data$residual_adj_over_1sd),
+      share_residual_adj_over_2sd = .mean_logical_na(.data$residual_adj_over_2sd),
+      share_residual_adj_over_3sd = .mean_logical_na(.data$residual_adj_over_3sd),
+      reduction_share_residual_over_2sd =
+        .data$share_residual_mpd_over_2sd - .data$share_residual_adj_over_2sd
     )
 
   top_worst_tbl <- residuals |>
@@ -573,4 +732,320 @@ validate_flow_residuals <- function(adj_df,
     data = residuals,
     top_worst = top_worst_tbl
   )
+}
+
+#' Validate residual structure and randomness diagnostics
+#'
+#' Builds residual-structure diagnostics for adjusted OD flows against benchmark
+#' OD flows. The helper reports residual correlation with benchmark flow,
+#' aggregates residuals to origin or destination areas for map-ready output,
+#' optionally computes global Moran's I from a user-supplied neighbour table,
+#' and optionally relates area-level residuals to a selected covariate.
+#'
+#' @param adj_df Data frame with at least \code{origin}, \code{destination},
+#'   an MPD flow column (default \code{"flow"}), and an adjusted flow column
+#'   (default \code{"flow_adj"}).
+#' @param benchmark_od_df Data frame with at least \code{origin},
+#'   \code{destination}, and a benchmark flow column (default \code{"flow"}).
+#' @param flow_col_mpd Name of MPD flow column in \code{adj_df}. Default \code{"flow"}.
+#' @param flow_col_adj Name of adjusted flow column in \code{adj_df}. Default \code{"flow_adj"}.
+#' @param flow_col_bench Name of benchmark flow column in \code{benchmark_od_df}.
+#'   Default \code{"flow"}.
+#' @param method_name Optional label for the adjustment method. Stored in outputs.
+#' @param residual_type Residual series to diagnose: \code{"adjusted"} uses
+#'   adjusted-minus-benchmark residuals, while \code{"mpd"} uses
+#'   MPD-minus-benchmark residuals.
+#' @param spatial_role Area role used for area-level residual summaries:
+#'   \code{"origin"} or \code{"destination"}.
+#' @param residual_aggregation How OD residuals are aggregated to area level:
+#'   \code{"mean"} or \code{"sum"}.
+#' @param area_neighbors Optional neighbour table for Moran's I.
+#' @param area_col Column in \code{area_neighbors} identifying the focal area.
+#'   Default \code{"area"}.
+#' @param neighbor_col Column in \code{area_neighbors} identifying the neighbouring
+#'   area. Default \code{"neighbor"}.
+#' @param weight_col Optional positive numeric weight column in
+#'   \code{area_neighbors}. If \code{NULL}, all neighbour links receive weight 1.
+#' @param covariate_df Optional area-level covariate table.
+#' @param covariate_col Optional covariate column to correlate with area-level
+#'   residuals. Requires \code{covariate_df}.
+#' @param covariate_area_col Area key in \code{covariate_df}. Default \code{"area"}.
+#' @param geometry_df Optional area table with coordinates or geometry-like
+#'   columns to join onto \code{map_data}.
+#' @param geometry_area_col Area key in \code{geometry_df}. Default \code{"area"}.
+#' @param x_col Optional x-coordinate column in \code{map_data}, used only when
+#'   \code{make_plots = TRUE}.
+#' @param y_col Optional y-coordinate column in \code{map_data}, used only when
+#'   \code{make_plots = TRUE}.
+#' @param make_plots Logical. If \code{TRUE}, return ggplot objects for residual
+#'   reduction distribution, residual-versus-benchmark scatter, optional
+#'   residual-versus-covariate scatter, and optional coordinate residual map.
+#'   Requires \pkg{ggplot2}.
+#'
+#' @return A list with:
+#' \itemize{
+#'   \item \code{summary}: one-row tibble with flow correlation, Moran's I when
+#'     available, and covariate correlation when requested,
+#'   \item \code{flow_correlation}: Pearson correlation between selected OD
+#'     residuals and benchmark OD flows,
+#'   \item \code{moran_i}: Moran's I summary from the neighbour table, or
+#'     \code{NA} when no neighbour table is supplied,
+#'   \item \code{covariate_correlation}: optional Pearson correlation between
+#'     area-level residuals and the selected covariate,
+#'   \item \code{od_level}: OD-level residual table,
+#'   \item \code{area_level}: area-level residual table,
+#'   \item \code{map_data}: area-level residual table joined to \code{geometry_df}
+#'     when supplied,
+#'   \item \code{plots}: optional ggplot objects when \code{make_plots = TRUE}.
+#' }
+#' @export
+validate_flow_residual_structure <- function(adj_df,
+                                             benchmark_od_df,
+                                             flow_col_mpd   = "flow",
+                                             flow_col_adj   = "flow_adj",
+                                             flow_col_bench = "flow",
+                                             method_name    = NA_character_,
+                                             residual_type  = c("adjusted", "mpd"),
+                                             spatial_role   = c("origin", "destination"),
+                                             residual_aggregation = c("mean", "sum"),
+                                             area_neighbors = NULL,
+                                             area_col       = "area",
+                                             neighbor_col   = "neighbor",
+                                             weight_col     = NULL,
+                                             covariate_df   = NULL,
+                                             covariate_col  = NULL,
+                                             covariate_area_col = "area",
+                                             geometry_df    = NULL,
+                                             geometry_area_col = "area",
+                                             x_col          = NULL,
+                                             y_col          = NULL,
+                                             make_plots     = FALSE) {
+
+  residual_type <- match.arg(residual_type)
+  spatial_role <- match.arg(spatial_role)
+  residual_aggregation <- match.arg(residual_aggregation)
+  residual_type_label <- residual_type
+  spatial_role_label <- spatial_role
+  residual_aggregation_label <- residual_aggregation
+
+  if (make_plots && !requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("`make_plots = TRUE` requires the ggplot2 package.")
+  }
+  if (!is.null(covariate_col) && is.null(covariate_df)) {
+    stop("`covariate_df` is required when `covariate_col` is supplied.")
+  }
+
+  residual_result <- validate_flow_residuals(
+    adj_df = adj_df,
+    benchmark_od_df = benchmark_od_df,
+    flow_col_mpd = flow_col_mpd,
+    flow_col_adj = flow_col_adj,
+    flow_col_bench = flow_col_bench,
+    method_name = method_name
+  )
+
+  residual_col <- if (residual_type_label == "adjusted") {
+    "residual_adj_benchmark"
+  } else {
+    "residual_mpd_benchmark"
+  }
+
+  od_level <- residual_result$data |>
+    dplyr::mutate(
+      selected_residual = .data[[residual_col]],
+      residual_type = residual_type_label
+    )
+
+  flow_correlation <- tibble::tibble(
+    method = method_name,
+    residual_type = residual_type_label,
+    comparison = "benchmark_flow",
+    n = sum(is.finite(od_level$selected_residual) & is.finite(od_level$benchmark_flow)),
+    pearson_r = .safe_pearson(od_level$selected_residual, od_level$benchmark_flow)
+  )
+
+  area_level <- od_level |>
+    dplyr::mutate(area = .data[[spatial_role]]) |>
+    dplyr::group_by(.data$area) |>
+    dplyr::summarise(
+      method = method_name,
+      residual_type = residual_type_label,
+      spatial_role = spatial_role_label,
+      residual_aggregation = residual_aggregation_label,
+      n_od_pairs = dplyr::n(),
+      selected_residual = .aggregate_residual(.data$selected_residual, residual_aggregation_label),
+      mean_residual = mean(.data$selected_residual, na.rm = TRUE),
+      sum_residual = sum(.data$selected_residual, na.rm = TRUE),
+      mean_abs_residual = mean(abs(.data$selected_residual), na.rm = TRUE),
+      benchmark_flow_sum = sum(.data$benchmark_flow, na.rm = TRUE),
+      mpd_flow_sum = sum(.data$mpd_flow, na.rm = TRUE),
+      adj_flow_sum = sum(.data$adj_flow, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  moran_stats <- list(
+    moran_i = NA_real_,
+    n_areas_used = sum(is.finite(area_level$selected_residual)),
+    n_links_used = NA_integer_,
+    weight_sum = NA_real_
+  )
+  if (!is.null(area_neighbors)) {
+    moran_stats <- .compute_moran_i(
+      area_level = area_level,
+      area_neighbors = area_neighbors,
+      area_col = area_col,
+      neighbor_col = neighbor_col,
+      weight_col = weight_col
+    )
+  }
+
+  moran_tbl <- tibble::tibble(
+    method = method_name,
+    residual_type = residual_type_label,
+    spatial_role = spatial_role_label,
+    residual_aggregation = residual_aggregation_label,
+    n_areas_used = moran_stats$n_areas_used,
+    n_links_used = moran_stats$n_links_used,
+    weight_sum = moran_stats$weight_sum,
+    moran_i = moran_stats$moran_i
+  )
+
+  covariate_data <- NULL
+  covariate_correlation <- tibble::tibble(
+    method = method_name,
+    residual_type = residual_type_label,
+    spatial_role = spatial_role_label,
+    covariate = NA_character_,
+    n = NA_integer_,
+    pearson_r = NA_real_
+  )
+
+  if (!is.null(covariate_col)) {
+    req_covariates <- c(covariate_area_col, covariate_col)
+    if (!all(req_covariates %in% names(covariate_df))) {
+      stop("`covariate_df` must contain: ", paste(req_covariates, collapse = ", "))
+    }
+
+    covariate_data <- covariate_df |>
+      dplyr::select(
+        area = dplyr::all_of(covariate_area_col),
+        covariate_value = dplyr::all_of(covariate_col)
+      ) |>
+      dplyr::right_join(area_level, by = "area")
+
+    covariate_correlation <- tibble::tibble(
+      method = method_name,
+      residual_type = residual_type_label,
+      spatial_role = spatial_role_label,
+      covariate = covariate_col,
+      n = sum(is.finite(covariate_data$selected_residual) & is.finite(covariate_data$covariate_value)),
+      pearson_r = .safe_pearson(covariate_data$selected_residual, covariate_data$covariate_value)
+    )
+  }
+
+  map_data <- area_level
+  if (!is.null(geometry_df)) {
+    if (!geometry_area_col %in% names(geometry_df)) {
+      stop("`geometry_area_col` must name a column in `geometry_df`.")
+    }
+    geometry_tbl <- geometry_df |>
+      dplyr::rename(area = dplyr::all_of(geometry_area_col))
+    map_data <- area_level |>
+      dplyr::left_join(geometry_tbl, by = "area")
+  }
+
+  summary_tbl <- tibble::tibble(
+    method = method_name,
+    residual_type = residual_type_label,
+    spatial_role = spatial_role_label,
+    residual_aggregation = residual_aggregation_label,
+    n_od_pairs = nrow(od_level),
+    n_areas = nrow(area_level),
+    pearson_residual_benchmark_flow = flow_correlation$pearson_r,
+    moran_i = moran_tbl$moran_i,
+    pearson_residual_covariate = covariate_correlation$pearson_r
+  )
+
+  out <- list(
+    summary = summary_tbl,
+    flow_correlation = flow_correlation,
+    moran_i = moran_tbl,
+    covariate_correlation = covariate_correlation,
+    od_level = od_level,
+    area_level = area_level,
+    map_data = map_data
+  )
+
+  if (!is.null(covariate_data)) {
+    out$covariate_data <- covariate_data
+  }
+
+  if (make_plots) {
+    plots <- list(
+      residual_reduction_distribution =
+        ggplot2::ggplot(od_level, ggplot2::aes(x = .data$abs_residual_reduction)) +
+        ggplot2::geom_histogram(bins = 30, fill = "#2B8CBE", color = "white", na.rm = TRUE) +
+        ggplot2::geom_vline(xintercept = 0, linetype = "dashed", color = "#D95F0E") +
+        ggplot2::labs(
+          x = "Absolute residual reduction",
+          y = "OD pairs",
+          title = "Residual reduction distribution"
+        ),
+      residual_vs_benchmark =
+        ggplot2::ggplot(od_level, ggplot2::aes(x = .data$benchmark_flow, y = .data$selected_residual)) +
+        ggplot2::geom_point(alpha = 0.7, na.rm = TRUE) +
+        ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "#D95F0E") +
+        ggplot2::labs(
+          x = "Benchmark OD flow",
+          y = paste(residual_type_label, "residual"),
+          title = "Residuals versus benchmark flow"
+        )
+    )
+
+    if (!is.null(covariate_data)) {
+      plots$residual_vs_covariate <-
+        ggplot2::ggplot(
+          covariate_data,
+          ggplot2::aes(x = .data$covariate_value, y = .data$selected_residual)
+        ) +
+        ggplot2::geom_point(alpha = 0.7, na.rm = TRUE) +
+        ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "#D95F0E") +
+        ggplot2::labs(
+          x = covariate_col,
+          y = paste(residual_type_label, "area residual"),
+          title = "Area residuals versus covariate"
+        )
+    }
+
+    if (!is.null(x_col) || !is.null(y_col)) {
+      if (is.null(x_col) || is.null(y_col)) {
+        stop("Both `x_col` and `y_col` are required for a residual map plot.")
+      }
+      if (!all(c(x_col, y_col) %in% names(map_data))) {
+        stop("`x_col` and `y_col` must name columns in `map_data`.")
+      }
+      map_plot_data <- map_data |>
+        dplyr::mutate(
+          .map_x = .data[[x_col]],
+          .map_y = .data[[y_col]]
+        )
+      plots$residual_map <-
+        ggplot2::ggplot(
+          map_plot_data,
+          ggplot2::aes(x = .data$.map_x, y = .data$.map_y, color = .data$selected_residual)
+        ) +
+        ggplot2::geom_point(size = 2.5, alpha = 0.9, na.rm = TRUE) +
+        ggplot2::coord_equal() +
+        ggplot2::labs(
+          x = x_col,
+          y = y_col,
+          color = "Residual",
+          title = "Area-level residual map"
+        )
+    }
+
+    out$plots <- plots
+  }
+
+  out
 }

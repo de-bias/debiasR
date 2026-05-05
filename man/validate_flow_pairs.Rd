@@ -29,6 +29,8 @@ an MPD flow column (default \code{"flow"}), and an adjusted flow column
 
 \item{flow_col_bench}{Name of benchmark flow column in \code{benchmark_od_df}.
 Default \code{"flow"}.}
+
+\item{...}{Arguments passed to \code{validate_flow_pairs()}.}
 }
 \value{
 A tibble with columns:

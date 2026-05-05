@@ -137,11 +137,13 @@ Methods discussed in earlier research notes but not currently implemented in the
 
 ## Validation functions
 
-The package exposes three validation functions because they solve different problems:
+The package exposes five validation functions because they solve different problems:
 
 - `validate_flow_overall()` is the summary scorer. It uses adjusted flows from `adj_df` and benchmark flows from `benchmark_od_df`, then returns method-level fit metrics such as correlation, RMSE, MAE, MAPE, and regression diagnostics.
-- `validate_flow_residuals()` is the richer OD-level residual diagnostic. It builds on the same inputs, then adds absolute residuals, percentage residuals, improvement flags, standard-deviation threshold flags for large remaining residuals, and a `top_worst` table of OD pairs with the largest residuals remaining after adjustment.
 - `validate_flow_pairs()` is the lower-level audit table. It keeps the core joined columns and raw residual differences, and is useful when you only want the minimal OD-level join without the additional diagnostics.
+- `validate_flow_residuals()` is the richer OD-level residual diagnostic. It builds on the same inputs, then adds signed movement, absolute residual reduction, percentage residuals, improvement flags, raw-versus-adjusted standard-deviation threshold flags, and a `top_worst` table of OD pairs with the largest residuals remaining after adjustment.
+- `validate_flow_residual_structure()` diagnoses residual structure. It returns residual-versus-benchmark-flow correlation, area-level residual summaries, optional Moran's I from user-supplied neighbour links, optional covariate correlation, map-ready residual data, and optional diagnostic plots.
+- `validate_flow_distribution()` checks whether adjusted flows preserve the benchmark destination-share distribution by origin, using `KL(benchmark || adjusted)` and Jensen-Shannon divergence.
 
 For compatibility, the earlier names `validate_flow_benchmark()` and `validate_flow_all()` are still available as aliases for one release cycle, but new code should prefer the current names.
 
@@ -149,6 +151,8 @@ Together they support two complementary checks:
 
 - summary fit or proportionality: are adjusted flows aligned with the benchmark pattern overall?
 - residual audit: for each OD pair, by how much do MPD and adjusted flows differ from the benchmark?
+- residual structure: are remaining errors spatially patterned or associated with flow size or covariates?
+- allocation fidelity: are destinations receiving similar shares of each origin's benchmark flow?
 
 ## Implemented Method Summary Table
 

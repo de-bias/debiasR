@@ -62,8 +62,8 @@
 
   <rect class="stage3" x="430" y="700" width="710" height="170" rx="22" ry="22" />
   <text class="label" x="785" y="745" text-anchor="middle">3. Validate Bias-Adjusted Flows</text>
-  <text class="body" x="785" y="785" text-anchor="middle">Assess overall fit, OD-level residuals, and audit diagnostics</text>
-  <text class="fn3" x="785" y="825" text-anchor="middle">validate_flow_overall(), validate_flow_residuals(), validate_flow_pairs()</text>
+  <text class="body" x="785" y="785" text-anchor="middle">Assess fit, residuals, residual structure, and allocation fidelity</text>
+  <text class="fn3" x="785" y="825" text-anchor="middle">validate_flow_overall(), residuals(), structure(), distribution()</text>
 
   <path class="arrow" d="M332 250 C385 250, 385 175, 428 175" />
   <path class="arrow" d="M332 265 C405 265, 405 460, 428 460" />
