@@ -1,6 +1,6 @@
 # Stage 3 Measure Bias Design Note
 
-Last updated: 2026-04-26
+Last updated: 2026-05-05
 
 ## Purpose
 
@@ -56,12 +56,20 @@ user_count_residual_i = user_count_i - expected_user_count_i
 standardized_user_count_residual_i = user_count_residual_i / sqrt(expected_user_count_i)
 ```
 
+The helper also returns a simple population-only linear-model diagnostic:
+
+```text
+population_lm_expected_user_count_i = fitted user_count_i from user_count ~ population
+population_lm_residual_i = user_count_i - population_lm_expected_user_count_i
+```
+
 Decision:
 
 - Use `coverage_score_residual` as the default diagnostic residual because it is scale-free and has a direct coverage-rate interpretation.
 - Return `user_count_residual` for count-scale interpretation.
 - Return `standardized_user_count_residual` as a deterministic Poisson-style scale check, not as a full statistical model.
-- Do not add a model-based residual in Stage 3; that would require assumptions about active-user sampling that are not yet part of the package API.
+- Return `population_lm_residual` as a simple diagnostic residual from an ordinary least-squares model of active-user count on benchmark population only.
+- Treat the population-only linear model as descriptive, not as a validated sampling model for active-user generation.
 
 ## Spatial Randomness
 
@@ -115,6 +123,9 @@ Stage 3 diagnostics are interpretable enough to keep in the main package API bec
 - the spatial, benchmark-flow, and covariate diagnostics mirror Stage 2 validation patterns,
 - optional plotting remains dependency-light and can be ignored in programmatic workflows.
 
-Remaining review question:
+Maintainer review decision:
 
-- Should future releases add a small model-based residual option once an empirical active-user sampling model is agreed?
+- `validate_bias_residual_structure()` is stable public API.
+- Add a simple population-only linear-regression residual as a diagnostic option. It fits `user_count ~ population` using the benchmark population column and active-user counts in `coverage_df`, then returns observed minus fitted active-user counts.
+- Keep the linear residual descriptive: it is useful for spotting areas whose active-user counts are high or low relative to a simple population trend, but it is not a package-endorsed sampling model.
+- Keep optional `ggplot2` plots inside the diagnostics helper for now; split plotting out later only if the plotting surface grows.

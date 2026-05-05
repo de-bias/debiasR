@@ -20,7 +20,11 @@ Get everyone into the same package and data workflow.
 ## Setup
 
 ```{r}
-pkg_root <- if (file.exists("DESCRIPTION")) "." else "../.."
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
 
 if (!requireNamespace("debiasR", quietly = TRUE)) {
   if (!requireNamespace("devtools", quietly = TRUE)) {
@@ -30,13 +34,61 @@ if (!requireNamespace("debiasR", quietly = TRUE)) {
 }
 
 library(debiasR)
+
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
+  knitr::knit_exit()
+}
+
+if (has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 25)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+  coverage <- example_data$coverage
+  covariates <- example_data$covariates
+}
 ```
 
 ## Code-Along
 
 - Load `debiasR`
 - Load tidy data and simple mapping packages
-- Load the workshop MSOA dataset
+- Load the workshop MSOA travel-to-work datasets from `debiasRdata`
+- Use `msoa_OD_travel2work` as the observed MPD OD matrix
+- Use `census_msoa_OD_travel2work` as the Census benchmark OD matrix
 - Inspect core fields: area ID, census population, observed user or device count,
   and contextual covariates
 
+```{r}
+example_data$metadata
+```
+
+```{r}
+data.frame(
+  dataset = c(
+    "msoa_OD_travel2work",
+    "census_msoa_OD_travel2work",
+    "coverage",
+    "covariates"
+  ),
+  rows = c(
+    nrow(msoa_OD_travel2work),
+    nrow(census_msoa_OD_travel2work),
+    nrow(coverage),
+    nrow(covariates)
+  ),
+  columns = c(
+    ncol(msoa_OD_travel2work),
+    ncol(census_msoa_OD_travel2work),
+    ncol(coverage),
+    ncol(covariates)
+  )
+)
+```
+
+```{r}
+head(msoa_OD_travel2work)
+head(census_msoa_OD_travel2work)
+head(coverage)
+```

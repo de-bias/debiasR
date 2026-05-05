@@ -1,6 +1,6 @@
 # Test Health
 
-Last updated: 2026-04-26
+Last updated: 2026-05-05
 
 ## Summary
 
@@ -10,8 +10,11 @@ Last updated: 2026-04-26
 - Full suite still includes a slower Bayesian test file with optional dependencies.
 - Observed behavior today:
   - `Rscript scripts/run_fast_tests.R` passes.
-  - targeted tests for `measure_bias`, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
+  - `quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd` passes.
+  - core workshop vignettes and updated testing notebooks render cleanly without `debiasRdata` installed by exiting early with an installation note.
+  - targeted tests for `measure_bias`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
   - `test-adjust-coefficient.R` skips one optional `pscl`-dependent case when `pscl` is not installed.
+  - full `devtools::check(...)` currently fails when it runs the optional Bayesian lane because `test-adjust-multilevel-bayes.R` compares unnamed actual draw summaries to named expected vectors.
   - running `test_dir()` without loading package can produce false failures (`function not found`, data object not found).
 
 ## Test Tiers (Recommended)
@@ -19,6 +22,7 @@ Last updated: 2026-04-26
 ### Tier 1: Fast deterministic (run on every commit)
 
 - `tests/testthat/test-measure_bias.R`
+- `tests/testthat/test-example-data.R`
 - `tests/testthat/test-validate-bias-residual-structure.R`
 - `tests/testthat/test-adjust_inverse_penetration.R`
 - `tests/testthat/test-adjust-selection-rate.R`
@@ -41,7 +45,8 @@ Last updated: 2026-04-26
 
 1. Direct `testthat::test_dir("tests/testthat")` without package load context may fail.
 2. Bayesian tests are slower and environment-sensitive because of optional dependencies.
-3. Some warnings are locale-related (`LC_ALL='C.UTF-8'`) and mostly non-blocking.
+3. Full package check currently fails in `test-adjust-multilevel-bayes.R` when the optional Bayesian lane runs; the observed failure is a names mismatch in draw-summary comparisons, not a Stage 3 diagnostics failure.
+4. Some warnings are locale-related (`LC_ALL='C.UTF-8'`) and mostly non-blocking.
 
 ## Recommended CI Strategy
 
@@ -55,6 +60,12 @@ Last updated: 2026-04-26
 ```r
 # Local fast tier
 Rscript scripts/run_fast_tests.R
+```
+
+```bash
+# Optional-data vignette smoke checks
+quarto render vignettes/03-getting-set-up.qmd
+quarto render vignettes/testing/empirical-methods-walkthrough.qmd
 ```
 
 ```r

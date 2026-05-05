@@ -14,6 +14,9 @@ Purpose:
 
 - compare benchmark population against active-user coverage
 - quantify where mobile-phone-derived data appear under- or over-representative
+- diagnose coverage residual structure, including spatial patterning,
+  benchmark-flow relationships, covariate relationships, and a simple
+  population-only linear trend
 
 Main functions:
 
@@ -23,7 +26,7 @@ Main functions:
 Current status:
 
 - implemented
-- Stage 3 diagnostics are ready for maintainer review
+- Stage 3 diagnostics are maintainer-reviewed and stable
 
 ### 2. Adjust Bias
 
@@ -73,17 +76,14 @@ Current status:
 
 Packaged in the main package:
 
-- simulated OD flows
-- simulated benchmark flows
-- simulated coverage
-- simulated covariates
-- simulated distance
+- lightweight simulated OD flows and related fixtures for tests and compatibility
 
 Empirical data:
 
 - the Zenodo-based empirical data are not bundled in the main package
-- the leading option is a separate optional data package, for example `debiasRdata`
-- `msoa_OD_travel2work.csv.gz` is the preferred empirical candidate if that route is taken
+- user-facing examples now use the separate optional `debiasRdata` package
+- `msoa_OD_travel2work.csv.gz` is the MPD travel-to-work input
+- the Census 2021 `ODWP01EW` MSOA workplace-flow extract is the benchmark OD matrix
 
 ## What Is Stable Now
 
@@ -91,13 +91,13 @@ Empirical data:
 - overall validation
 - OD-level residual diagnostics
 - distributional validation
-- measure-bias residual diagnostics
+- measure-bias residual diagnostics, including the population-only linear
+  residual option
 
 ## What Is Still In Progress
 
 - maintainer review of Stage 2 validation outputs
-- maintainer review of Stage 3 measure-bias outputs
-- decision on whether empirical data should live in a separate `debiasRdata` package
+- verification of `debiasRdata` releases so the MPD and Census travel-to-work files remain exposed consistently
 - Stage 4 origin-destination random-effects extension
 - Bayesian path hardening and possible stage-2 imputation design
 

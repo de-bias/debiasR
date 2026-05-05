@@ -37,13 +37,8 @@ benchmark population for that area (possible if benchmarks are not accurate, use
 overcounted or definitions differ).
 }
 \examples{
-data(simulated_active.users)
-data(simulated_pop)
-coverage_df <- merge(
-  simulated_pop,
-  simulated_active.users[c("origin", "user_count")],
-  by = "origin"
-)
-measure_bias(coverage_df)
-
+\dontshow{if (requireNamespace("debiasRdata", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+ex <- debiasR_example_data(n_areas = 12)
+measure_bias(ex$coverage)
+\dontshow{\}) # examplesIf}
 }

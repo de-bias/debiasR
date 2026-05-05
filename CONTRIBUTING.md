@@ -139,9 +139,11 @@ The current testing notes live in `notes/project-management/TEST_HEALTH.md`.
 
 ## Naming Guide
 
-- Use the current exported API in examples and docs: `adjust_*`, `validate_flow_overall()`, `validate_flow_pairs()`, and `simulated_*`.
+- Use the current exported API in examples and docs: `debiasR_example_data()`, `measure_bias()`, `adjust_*`, `validate_bias_residual_structure()`, `validate_flow_overall()`, `validate_flow_pairs()`, and the other `validate_flow_*` helpers.
+- Use `debiasRdata` for user-facing empirical examples and vignettes. The default empirical OD matrices are `msoa_OD_travel2work` for observed MPD flows and `census_msoa_OD_travel2work` for the Census benchmark.
+- Treat `simulated_*` data as lightweight test fixtures and compatibility assets, not as the default user-facing vignette data.
 - If you need to mention older names for migration context, keep them in `notes/project-management/MIGRATION_MAP.md` rather than in user-facing instructions.
-- Prefer current vignette and file naming, for example `adjust-inverse-penetration` rather than legacy `debias-method1`.
+- Prefer current vignette and file naming, for example `adjust-inverse-penetration` and `empirical-methods-walkthrough` rather than legacy `debias-method1` or simulated walkthrough names.
 
 ## Pull Request Checklist
 

@@ -34,6 +34,7 @@ test_that("validate_bias_residual_structure returns deterministic diagnostics", 
     "summary",
     "residual_definitions",
     "moran_i",
+    "population_lm",
     "benchmark_flow_correlation",
     "covariate_correlation",
     "area_level",
@@ -46,6 +47,8 @@ test_that("validate_bias_residual_structure returns deterministic diagnostics", 
   expect_equal(res$summary$global_coverage_score, 0.2)
   expect_equal(res$area_level$expected_user_count, rep(20, 4))
   expect_equal(res$area_level$user_count_residual, c(-15, -5, 5, 15))
+  expect_equal(res$area_level$population_lm_expected_user_count, rep(20, 4))
+  expect_equal(res$area_level$population_lm_residual, c(-15, -5, 5, 15))
   expect_equal(
     res$area_level$coverage_score_residual,
     c(-0.15, -0.05, 0.05, 0.15),
@@ -69,6 +72,35 @@ test_that("validate_bias_residual_structure returns deterministic diagnostics", 
   expect_equal(origin_cor, 1, tolerance = 1e-12)
   expect_equal(destination_cor, -1, tolerance = 1e-12)
   expect_equal(res$covariate_correlation$pearson_r, -1, tolerance = 1e-12)
+})
+
+test_that("validate_bias_residual_structure can select population-only linear model residuals", {
+  coverage_df <- data.frame(
+    area_id = c("A", "B", "C"),
+    population = c(100, 200, 300),
+    user_count = c(1, 2, 2)
+  )
+
+  res <- validate_bias_residual_structure(
+    coverage_df = coverage_df,
+    coverage_area_col = "area_id",
+    residual_type = "population_lm"
+  )
+
+  expect_equal(res$summary$selected_residual_col, "population_lm_residual")
+  expect_equal(res$population_lm$intercept, 2 / 3, tolerance = 1e-12)
+  expect_equal(res$population_lm$population_slope, 0.005, tolerance = 1e-12)
+  expect_equal(res$population_lm$r_squared, 0.75, tolerance = 1e-12)
+  expect_equal(
+    res$area_level$population_lm_expected_user_count,
+    c(7 / 6, 5 / 3, 13 / 6),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    res$area_level$selected_residual,
+    c(-1 / 6, 1 / 3, -1 / 6),
+    tolerance = 1e-12
+  )
 })
 
 test_that("validate_bias_residual_structure can select standardized count residuals", {

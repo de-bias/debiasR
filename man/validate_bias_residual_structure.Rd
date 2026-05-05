@@ -9,7 +9,8 @@ validate_bias_residual_structure(
   coverage_area_col = "origin",
   population_col = "population",
   user_count_col = "user_count",
-  residual_type = c("coverage_score", "user_count", "standardized_user_count"),
+  residual_type = c("coverage_score", "user_count", "standardized_user_count",
+    "population_lm"),
   benchmark_od_df = NULL,
   origin_col = "origin",
   destination_col = "destination",
@@ -46,7 +47,9 @@ Default \code{"origin"}.}
 \code{"coverage_score"} uses the coverage score minus the global coverage
 score, \code{"user_count"} uses observed minus expected user counts, and
 \code{"standardized_user_count"} uses the user-count residual divided by
-\code{sqrt(expected_user_count)}.}
+\code{sqrt(expected_user_count)}. \code{"population_lm"} uses the residual
+from a simple diagnostic linear regression of active-user count on
+benchmark population.}
 
 \item{benchmark_od_df}{Optional benchmark OD data frame. When supplied,
 benchmark flows are collapsed to area-level origin and/or destination
@@ -109,6 +112,8 @@ Moran's I, and benchmark-flow/covariate correlations when available,
 \item \code{residual_definitions}: definitions and sign interpretations,
 \item \code{moran_i}: Moran's I summary from the neighbour table, or
 \code{NA} when no neighbour table is supplied,
+\item \code{population_lm}: summary of the population-only diagnostic
+linear model,
 \item \code{benchmark_flow_correlation}: Pearson correlations between the
 selected bias residual and benchmark origin/destination flow totals when
 benchmark OD data are supplied,
@@ -137,15 +142,13 @@ under a constant global coverage rate. Negative values mean lower coverage
 than expected under that global rate.
 }
 \examples{
-data(simulated_coverage)
-data(simulated_benchmark.od)
-data(simulated_covariates)
-
+\dontshow{if (requireNamespace("debiasRdata", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+ex <- debiasR_example_data(n_areas = 12)
 validate_bias_residual_structure(
-  coverage_df = simulated_coverage,
-  benchmark_od_df = simulated_benchmark.od,
-  covariate_df = simulated_covariates,
-  covariate_col = "internet_access"
+  coverage_df = ex$coverage,
+  benchmark_od_df = ex$benchmark_od,
+  covariate_df = ex$covariates,
+  covariate_col = "census_inflow"
 )
-
+\dontshow{\}) # examplesIf}
 }

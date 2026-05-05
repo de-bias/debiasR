@@ -34,3 +34,76 @@ benchmarks and report limitations.
 - What assumptions does the adjustment make?
 - How should uncertainty and limitations be reported?
 
+```{r}
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
+
+if (!requireNamespace("debiasR", quietly = TRUE)) {
+  if (!requireNamespace("devtools", quietly = TRUE)) {
+    stop("Install either `debiasR` or `devtools` to load the local package.")
+  }
+  devtools::load_all(pkg_root, quiet = TRUE)
+}
+
+library(debiasR)
+library(dplyr)
+
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
+  knitr::knit_exit()
+}
+
+if (has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 25)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+
+  raw_as_adjusted <- msoa_OD_travel2work |>
+    transmute(origin, destination, flow_adj = flow)
+
+  adj_raking <- adjust_raking_ratio(
+    mpd_od_df = msoa_OD_travel2work,
+    benchmark_od_df = census_msoa_OD_travel2work,
+    max_iter = 100
+  )
+}
+```
+
+```{r}
+raw_fit <- validate_flow_overall(
+  adj_df = raw_as_adjusted,
+  benchmark_od_df = census_msoa_OD_travel2work,
+  method_name = "raw_mpd"
+)
+
+raked_fit <- validate_flow_overall(
+  adj_df = adj_raking,
+  benchmark_od_df = census_msoa_OD_travel2work,
+  method_name = "raking"
+)
+
+bind_rows(raw_fit, raked_fit) |>
+  select(method, n_pairs, pearson_r, rmse, mae, mape)
+```
+
+```{r}
+validate_flow_residuals(
+  adj_df = adj_raking,
+  benchmark_od_df = census_msoa_OD_travel2work,
+  method_name = "raking",
+  top_n = 10
+)$summary
+```
+
+```{r}
+validate_flow_distribution(
+  adj_df = adj_raking,
+  benchmark_od_df = census_msoa_OD_travel2work,
+  method_name = "raking",
+  weight_by = "benchmark_origin_total"
+)$summary
+```

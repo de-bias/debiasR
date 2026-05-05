@@ -1,11 +1,11 @@
 # Known Issues
 
-Last updated: 2026-04-02
+Last updated: 2026-05-05
 
 ## High Priority
 
-1. API/docs drift during migration
-- Description: most user-facing docs are aligned, but the migration map still documents the legacy names for reference and a few older scaffold files remain in the repo.
+1. Archival docs still mention older fixture workflows
+- Description: user-facing docs and vignettes are aligned around the empirical `debiasRdata` workflow, but archival review notebooks and migration notes still document simulated fixtures where that historical context matters.
 - Impact: minor onboarding friction if contributors land on archival materials first.
 - Suggested fix: keep top-level docs pointed at the current API and clearly label archival migration references.
 

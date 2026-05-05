@@ -1,5 +1,5 @@
 ---
-title: "adjust-inverse-penetration"
+title: "Inverse Penetration Adjustment"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{adjust-inverse-penetration}
@@ -15,7 +15,44 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
+
+if (!requireNamespace("debiasR", quietly = TRUE)) {
+  if (!requireNamespace("devtools", quietly = TRUE)) {
+    stop("Install either `debiasR` or `devtools` to load the local package.")
+  }
+  devtools::load_all(pkg_root, quiet = TRUE)
+}
+
 library(debiasR)
+
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work vignette.\n")
+  knitr::knit_exit()
+}
+
+if (has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 25)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+  coverage <- example_data$coverage
+}
 ```
 
-This vignette is a lightweight starter for the current inverse-penetration adjustment workflow.
+This vignette is a lightweight starter for the inverse-penetration adjustment
+workflow using the `debiasRdata` MSOA travel-to-work datasets.
+
+```{r}
+adjusted <- adjust_inverse_penetration(
+  mpd_od_df = msoa_OD_travel2work,
+  coverage_df = coverage,
+  weight_by = "origin"
+)
+
+head(adjusted)
+```

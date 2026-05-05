@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
   <title id="title">debiasR package overview and current status</title>
-  <desc id="desc">Overview of debiasR showing inputs, measure bias, adjust bias, and validate adjusted flows, plus currently in-progress areas including Stage 2 and Stage 3 review, Stage 4 OD random effects, empirical data packaging, and Bayesian development.</desc>
+  <desc id="desc">Overview of debiasR showing empirical debiasRdata inputs, measure bias, adjust bias, and validate adjusted flows, plus currently in-progress areas including Stage 2 review, package readiness, Stage 4 OD random effects, and Bayesian development.</desc>
   <defs>
     <style>
       .bg { fill: #f6f5ef; }
@@ -38,37 +38,38 @@
 
   <rect class="support box" x="70" y="170" width="260" height="550"/>
   <text class="section" x="100" y="210">Inputs</text>
-  <text class="body" x="100" y="252">Simulated data shipped now</text>
-  <text class="small" x="100" y="282">- MPD OD flows</text>
-  <text class="small" x="100" y="306">- benchmark OD flows</text>
-  <text class="small" x="100" y="330">- coverage and active users</text>
-  <text class="small" x="100" y="354">- covariates and distance</text>
+  <text class="body" x="100" y="252">Default example workflow</text>
+  <text class="small" x="100" y="282">- `msoa_OD_travel2work`</text>
+  <text class="small" x="100" y="306">- `census_msoa_OD_travel2work`</text>
+  <text class="small" x="100" y="330">- derived coverage table</text>
+  <text class="small" x="100" y="354">- covariates from OD totals</text>
 
-  <rect class="planned box" x="95" y="405" width="210" height="150"/>
-  <text class="body" x="118" y="440">Empirical data track</text>
-  <text class="small" x="118" y="472">Preferred candidate:</text>
-  <text class="small" x="118" y="496">`msoa_OD_travel2work`</text>
-  <text class="small" x="118" y="528">Current question:</text>
-  <text class="small" x="118" y="552">separate `debiasRdata`</text>
-  <text class="small" x="118" y="576">package or external</text>
+  <rect class="support box" x="95" y="405" width="210" height="150"/>
+  <text class="body" x="118" y="440">Empirical data helper</text>
+  <text class="small" x="118" y="472">`debiasR_example_data()`</text>
+  <text class="small" x="118" y="496">reads optional</text>
+  <text class="small" x="118" y="520">`debiasRdata` MPD</text>
+  <text class="small" x="118" y="544">and Census OD files</text>
+  <text class="small" x="118" y="568">for examples</text>
 
-  <text class="small" x="100" y="642">Empirical packaging decision is</text>
-  <text class="small" x="100" y="666">still open.</text>
+  <text class="small" x="100" y="642">Simulated data remain</text>
+  <text class="small" x="100" y="666">lightweight test fixtures.</text>
 
-  <rect class="review box" x="390" y="170" width="270" height="250"/>
+  <rect class="implemented box" x="390" y="170" width="270" height="250"/>
   <text class="section" x="425" y="210">1. Measure bias</text>
   <text class="body" x="425" y="248">Core functions</text>
   <text class="small" x="425" y="278">- `measure_bias()`</text>
   <text class="small" x="425" y="302">- `validate_bias_residual_structure()`</text>
   <text class="body" x="425" y="348">What it does</text>
-  <text class="small" x="425" y="378">Coverage bias and active-user</text>
-  <text class="small" x="425" y="402">residual diagnostics.</text>
+  <text class="small" x="425" y="378">Coverage bias, active-user</text>
+  <text class="small" x="425" y="402">residuals, and population</text>
+  <text class="small" x="425" y="418">trend diagnostics.</text>
 
-  <rect class="review box" x="390" y="445" width="270" height="190"/>
+  <rect class="implemented box" x="390" y="445" width="270" height="190"/>
   <text class="body" x="425" y="480">Current status</text>
-  <text class="small" x="425" y="510">Stage 3 implemented.</text>
-  <text class="small" x="425" y="534">Awaiting maintainer review</text>
-  <text class="small" x="425" y="558">of API and diagnostics.</text>
+  <text class="small" x="425" y="510">Stage 3 stable.</text>
+  <text class="small" x="425" y="534">Includes population-only</text>
+  <text class="small" x="425" y="558">linear residual diagnostics.</text>
 
   <rect class="implemented box" x="710" y="170" width="290" height="250"/>
   <text class="section" x="745" y="210">2. Adjust bias</text>
@@ -105,8 +106,8 @@
   <rect class="planned box" x="390" y="690" width="940" height="110"/>
   <text class="section" x="425" y="730">Currently in progress</text>
   <text class="small" x="425" y="762">- Stage 2 validation review</text>
-  <text class="small" x="690" y="762">- Stage 3 measure-bias review</text>
-  <text class="small" x="965" y="762">- empirical data packaging decision</text>
+  <text class="small" x="690" y="762">- empirical-data docs</text>
+  <text class="small" x="965" y="762">- package-readiness warnings</text>
   <text class="small" x="425" y="788">- Stage 4 OD random-effects extension planning</text>
   <text class="small" x="965" y="788">- Bayesian hardening and imputation design</text>
 

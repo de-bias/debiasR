@@ -12,9 +12,12 @@ execute:
 
 ## Purpose
 
-Introduce the workshop, the running UK Locomizer and Census MSOA example, and the
-practical workflow: measure, explain, adjust, and validate digital trace mobility
-bias.
+Introduce the workshop, the running `debiasRdata` MSOA travel-to-work example,
+and the practical workflow: measure, explain, adjust, and validate digital trace
+mobility bias.
+
+The examples use `msoa_OD_travel2work`, the mobile-phone-derived travel-to-work
+OD matrix, with `census_msoa_OD_travel2work` as the Census benchmark OD matrix.
 
 ## Audience
 
@@ -39,4 +42,3 @@ bias.
 - Public health exposure and mobility estimates
 - Humanitarian settings with delayed conventional data
 - Bias documentation for company data products
-

@@ -34,5 +34,6 @@ there?
 - What digital trace mobility data can offer
 - Why coverage and representativeness matter
 - `debiasR` as a practical framework: measure, explain, adjust
-- The UK Locomizer and Census MSOA example as the running case
-
+- The `debiasRdata` MSOA travel-to-work datasets as the running case:
+  `msoa_OD_travel2work` for observed MPD flows and
+  `census_msoa_OD_travel2work` for the Census benchmark

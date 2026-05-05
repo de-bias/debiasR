@@ -29,15 +29,9 @@
 #' benchmark population for that area (possible if benchmarks are not accurate, users are
 #' overcounted or definitions differ).
 #'
-#' @examples
-#' data(simulated_active.users)
-#' data(simulated_pop)
-#' coverage_df <- merge(
-#'   simulated_pop,
-#'   simulated_active.users[c("origin", "user_count")],
-#'   by = "origin"
-#' )
-#' measure_bias(coverage_df)
+#' @examplesIf requireNamespace("debiasRdata", quietly = TRUE)
+#' ex <- debiasR_example_data(n_areas = 12)
+#' measure_bias(ex$coverage)
 #'
 #' @export
 measure_bias <- function(coverage_df) {
@@ -125,7 +119,9 @@ measure_bias <- function(coverage_df) {
 #'   \code{"coverage_score"} uses the coverage score minus the global coverage
 #'   score, \code{"user_count"} uses observed minus expected user counts, and
 #'   \code{"standardized_user_count"} uses the user-count residual divided by
-#'   \code{sqrt(expected_user_count)}.
+#'   \code{sqrt(expected_user_count)}. \code{"population_lm"} uses the residual
+#'   from a simple diagnostic linear regression of active-user count on
+#'   benchmark population.
 #' @param benchmark_od_df Optional benchmark OD data frame. When supplied,
 #'   benchmark flows are collapsed to area-level origin and/or destination
 #'   totals and correlated with the selected bias residual.
@@ -170,6 +166,8 @@ measure_bias <- function(coverage_df) {
 #'   \item \code{residual_definitions}: definitions and sign interpretations,
 #'   \item \code{moran_i}: Moran's I summary from the neighbour table, or
 #'     \code{NA} when no neighbour table is supplied,
+#'   \item \code{population_lm}: summary of the population-only diagnostic
+#'     linear model,
 #'   \item \code{benchmark_flow_correlation}: Pearson correlations between the
 #'     selected bias residual and benchmark origin/destination flow totals when
 #'     benchmark OD data are supplied,
@@ -182,16 +180,13 @@ measure_bias <- function(coverage_df) {
 #'     \code{plots}: optional review-ready outputs when requested.
 #' }
 #'
-#' @examples
-#' data(simulated_coverage)
-#' data(simulated_benchmark.od)
-#' data(simulated_covariates)
-#'
+#' @examplesIf requireNamespace("debiasRdata", quietly = TRUE)
+#' ex <- debiasR_example_data(n_areas = 12)
 #' validate_bias_residual_structure(
-#'   coverage_df = simulated_coverage,
-#'   benchmark_od_df = simulated_benchmark.od,
-#'   covariate_df = simulated_covariates,
-#'   covariate_col = "internet_access"
+#'   coverage_df = ex$coverage,
+#'   benchmark_od_df = ex$benchmark_od,
+#'   covariate_df = ex$covariates,
+#'   covariate_col = "census_inflow"
 #' )
 #'
 #' @export
@@ -202,7 +197,8 @@ validate_bias_residual_structure <- function(coverage_df,
                                              residual_type = c(
                                                "coverage_score",
                                                "user_count",
-                                               "standardized_user_count"
+                                               "standardized_user_count",
+                                               "population_lm"
                                              ),
                                              benchmark_od_df = NULL,
                                              origin_col = "origin",
@@ -257,6 +253,14 @@ validate_bias_residual_structure <- function(coverage_df,
 
   coverage_tbl <- measure_bias(coverage_tbl)
 
+  population_lm_fit <- stats::lm(user_count ~ population, data = coverage_tbl)
+  population_lm_summary <- summary(population_lm_fit)
+  population_lm_coef <- stats::coef(population_lm_fit)
+  population_lm_expected_user_count <- as.numeric(stats::predict(
+    population_lm_fit,
+    newdata = coverage_tbl
+  ))
+
   total_population <- sum(coverage_tbl$population)
   total_user_count <- sum(coverage_tbl$user_count)
   global_coverage_score <- total_user_count / total_population
@@ -267,6 +271,8 @@ validate_bias_residual_structure <- function(coverage_df,
       expected_user_count = .data$population * .data$global_coverage_score,
       user_count_residual = .data$user_count - .data$expected_user_count,
       coverage_score_residual = .data$coverage_score - .data$global_coverage_score,
+      population_lm_expected_user_count = population_lm_expected_user_count,
+      population_lm_residual = .data$user_count - .data$population_lm_expected_user_count,
       standardized_user_count_residual = dplyr::if_else(
         .data$expected_user_count > 0,
         .data$user_count_residual / sqrt(.data$expected_user_count),
@@ -278,7 +284,8 @@ validate_bias_residual_structure <- function(coverage_df,
     residual_type_label,
     coverage_score = "coverage_score_residual",
     user_count = "user_count_residual",
-    standardized_user_count = "standardized_user_count_residual"
+    standardized_user_count = "standardized_user_count_residual",
+    population_lm = "population_lm_residual"
   )
 
   area_level <- area_level |>
@@ -409,6 +416,16 @@ validate_bias_residual_structure <- function(coverage_df,
     moran_i = moran_stats$moran_i
   )
 
+  population_lm_tbl <- tibble::tibble(
+    n = stats::nobs(population_lm_fit),
+    intercept = unname(population_lm_coef["(Intercept)"]),
+    population_slope = unname(population_lm_coef["population"]),
+    r_squared = unname(population_lm_summary$r.squared),
+    residual_sd = unname(population_lm_summary$sigma),
+    formula = "user_count ~ population",
+    interpretation = "Simple diagnostic linear model using benchmark population as the only predictor of active-user count."
+  )
+
   covariate_data <- NULL
   covariate_correlation <- tibble::tibble(
     residual_type = residual_type_label,
@@ -471,6 +488,8 @@ validate_bias_residual_structure <- function(coverage_df,
     sd_coverage_score = stats::sd(area_level$coverage_score, na.rm = TRUE),
     mean_selected_residual = mean(area_level$selected_residual, na.rm = TRUE),
     sd_selected_residual = stats::sd(area_level$selected_residual, na.rm = TRUE),
+    population_lm_r_squared = population_lm_tbl$r_squared,
+    population_lm_residual_sd = population_lm_tbl$residual_sd,
     moran_i = moran_tbl$moran_i,
     pearson_bias_benchmark_origin_flow = origin_flow_corr,
     pearson_bias_benchmark_destination_flow = destination_flow_corr,
@@ -481,17 +500,20 @@ validate_bias_residual_structure <- function(coverage_df,
     residual = c(
       "coverage_score_residual",
       "user_count_residual",
-      "standardized_user_count_residual"
+      "standardized_user_count_residual",
+      "population_lm_residual"
     ),
     definition = c(
       "coverage_score - global_coverage_score",
       "user_count - expected_user_count",
-      "user_count_residual / sqrt(expected_user_count)"
+      "user_count_residual / sqrt(expected_user_count)",
+      "user_count - fitted(user_count ~ population)"
     ),
     interpretation = c(
       "Positive values mean higher active-user coverage than the global coverage score.",
       "Positive values mean more active users than expected under the global coverage score.",
-      "Positive values mean more active users than expected after a Poisson-style count scaling."
+      "Positive values mean more active users than expected after a Poisson-style count scaling.",
+      "Positive values mean more active users than expected from a simple population-only linear diagnostic."
     )
   )
 
@@ -499,6 +521,7 @@ validate_bias_residual_structure <- function(coverage_df,
     summary = summary_tbl,
     residual_definitions = residual_definitions,
     moran_i = moran_tbl,
+    population_lm = population_lm_tbl,
     benchmark_flow_correlation = benchmark_flow_correlation,
     covariate_correlation = covariate_correlation,
     area_level = area_level,

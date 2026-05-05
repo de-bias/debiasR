@@ -1,6 +1,6 @@
 # Stage 3 Implementation Report
 
-Last updated: 2026-04-26
+Last updated: 2026-05-05
 
 ## Summary
 
@@ -26,6 +26,8 @@ Implemented residuals:
 - `user_count_residual = user_count - expected_user_count`.
 - `coverage_score_residual = coverage_score - global_coverage_score`.
 - `standardized_user_count_residual = user_count_residual / sqrt(expected_user_count)`.
+- `population_lm_expected_user_count = fitted(user_count ~ population)`.
+- `population_lm_residual = user_count - population_lm_expected_user_count`.
 
 Primary default:
 
@@ -44,6 +46,7 @@ Interpretation:
 - residual definition table,
 - area-level residual data,
 - optional global Moran's I from a user-supplied neighbour-link table,
+- population-only linear-model diagnostic summary,
 - optional benchmark origin-flow and destination-flow Pearson correlations,
 - optional covariate Pearson correlation,
 - map-ready data optionally joined to user-supplied coordinates or geometry-like fields,
@@ -62,7 +65,7 @@ Updated user-facing and project-management documentation:
 
 - `README.md`
 - `NEWS.md`
-- `vignettes/simulated-methods-walkthrough.qmd`
+- `vignettes/testing/empirical-methods-walkthrough.qmd`
 - `notes/project-management/TASK_BOARD.md`
 - `notes/project-management/STATUS.md`
 - `notes/project-management/TEST_HEALTH.md`
@@ -91,6 +94,7 @@ The tests cover:
 
 - residual definitions,
 - selected residual behavior,
+- population-only linear-model residual behavior,
 - Moran's I with deterministic neighbour links,
 - benchmark origin and destination flow correlations,
 - covariate correlation,
@@ -99,7 +103,7 @@ The tests cover:
 
 ## Verification
 
-Verified on 2026-04-26.
+Fast deterministic tests and notebook render verified on 2026-05-05.
 
 Commands:
 
@@ -123,7 +127,7 @@ Result:
 - Pass.
 - HTML output created at `notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.html`.
 
-Package check:
+Full package check attempted on 2026-05-05:
 
 ```r
 devtools::check(
@@ -136,12 +140,17 @@ devtools::check(
 
 Result:
 
-- 0 errors.
-- 1 portable-file-name warning for long note and rendered-notebook asset paths.
-- 2 existing notes about non-standard top-level files and Bayesian NSE globals.
+- 1 error, 2 warnings, 3 notes.
+- The error is in the optional Bayesian test file (`test-adjust-multilevel-bayes.R`) where draw-summary comparisons differ only by names on expected vectors; this is outside the Stage 3 deterministic diagnostics path.
+- Warnings/notes are the existing portable-file-path warning, `brms::poisson` dependency warning, top-level file note, future timestamp note, and Bayesian NSE globals.
 
-## Remaining Review Questions
+## Maintainer Review Decisions
 
-1. Should `validate_bias_residual_structure()` be treated as stable public API immediately, or marked as an early Stage 3 diagnostic until it is used in an empirical workflow?
-2. Should a future release add a model-based residual option once an active-user sampling model is agreed?
-3. Should optional plot generation stay inside diagnostics helpers, or move later into separate plotting helpers if the plotting surface grows?
+Reviewed on 2026-05-05.
+
+1. Treat `validate_bias_residual_structure()` as stable public API immediately.
+   - Rationale: the helper is deterministic, documented, tested, and directly tied to the existing `measure_bias()` coverage definitions.
+2. Add a simple population-only linear-regression residual as a diagnostic option.
+   - Clarification: this model residual is intentionally lightweight. It fits `user_count ~ population` using the benchmark population column and active-user counts in `coverage_df`, then reports observed minus fitted active-user counts as `population_lm_residual`. It is a descriptive diagnostic for areas that sit above or below a simple population trend, not a validated active-user sampling model and not a replacement for a future empirical sampling design.
+3. Keep optional plot generation inside the diagnostics helper for now.
+   - Rationale: the plots are optional, require only `ggplot2`, and make the review workflow easier. Revisit separate plotting helpers only if future diagnostics make the plotting surface larger or harder to maintain.

@@ -13,6 +13,7 @@ The package provides tools to generate correction factors for origin-destination
 
 Current exported functions:
 
+- `debiasR_example_data()`
 - `measure_bias()`
 - `adjust_inverse_penetration()`
 - `adjust_selection_rate()`
@@ -40,7 +41,8 @@ The package supports inverse penetration weighting, selection-rate models, rakin
 
 1. `Measure bias`
 - quantify coverage bias between benchmark population and active-user counts
-- diagnose spatial and covariate structure in bias residuals
+- diagnose spatial, benchmark-flow, covariate, and population-trend structure
+  in bias residuals
 
 2. `Adjust bias`
 - apply deterministic OD-flow correction methods
@@ -54,10 +56,11 @@ Current progress:
 
 - deterministic adjustment methods are the main stable path
 - Stage 2 validation diagnostics are implemented and ready for maintainer review
-- Stage 3 measure-bias diagnostics are implemented and ready for maintainer review
+- Stage 3 measure-bias diagnostics are maintainer-reviewed and stable,
+  including a population-only linear residual diagnostic
 - the Bayesian method remains a stage-1 prototype
 - Stage 4 origin-destination random-effects extension is still planned
-- empirical packaged data is still under a separate-data-package decision
+- empirical examples now use the optional separate `debiasRdata` package
 
 ![debiasR package overview and status](assets/package-overview-status.svg)
 
@@ -78,9 +81,29 @@ If you’re interested in collaborating or contributing, please join our growing
 
 1. Install and load the package from this checkout.
 2. Explore the documentation in `R/` and `man/`.
-3. Try the simulated datasets in `data/` and the walkthroughs in `vignettes/`.
+3. Try the empirical MSOA travel-to-work examples through `debiasRdata` and the
+   walkthroughs in `vignettes/`.
 
-Example datasets packaged with debiasR:
+Default example data:
+
+- MPD travel-to-work OD flows: `msoa_OD_travel2work` from `debiasRdata`
+- Census benchmark OD flows: `census_msoa_OD_travel2work`, the matching
+  Census 2021 `ODWP01EW` MSOA workplace-flow extract in `debiasRdata`
+- Package helper: `debiasR_example_data()`, which normalises both sources to
+  `origin`, `destination`, and `flow`, and derives the example coverage table
+  from matched origin totals
+
+```r
+if (requireNamespace("debiasRdata", quietly = TRUE)) {
+  ex <- debiasR_example_data(n_areas = 25)
+  msoa_OD_travel2work <- ex$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- ex$census_msoa_OD_travel2work
+  coverage <- ex$coverage
+}
+```
+
+Small simulated datasets are still shipped for lightweight testing and backwards
+compatibility:
 
 - `simulated_mpd.od`
 - `simulated_benchmark.od`
@@ -115,11 +138,11 @@ See the [LICENSE](LICENSE) file for full details.
 ## 🗂️ Repository Structure
 
 - `R/` - package functions and internal helpers
-- `data/` - simulated datasets shipped with the package
-- `data-raw/` - scripts for rebuilding the simulated datasets
+- `data/` - lightweight simulated datasets retained for tests and compatibility
+- `data-raw/` - scripts for rebuilding simulated data and extracting empirical benchmarks
 - `man/` - generated documentation for exported objects
 - `tests/` - `testthat` tests
-- `vignettes/` - walkthroughs and comparison notebooks
+- `vignettes/` - empirical `debiasRdata` walkthroughs and comparison notebooks
 - `notes/` - project briefs, migration notes, and status tracking
 - `style/` - plotting and Quarto styling helpers
 - `.github/` - issue and pull request templates

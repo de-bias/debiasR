@@ -22,7 +22,8 @@ Move from "there is bias" to "what kinds of places are biased?"
 - Join bias estimates to census or contextual variables
 - Explore bias by deprivation, age structure, urban/rural status, income,
   ethnicity, housing, and related area characteristics
-- Fit a simple explain-bias model, depending on what is ready in `debiasR`
+- Use the simple population-only linear residual diagnostic to spot areas whose
+  active-user counts sit above or below the benchmark population trend
 - Show variable importance, partial dependence, or SHAP-style outputs if
   available
 - Connect to the finding that bias is spatial, social, and not random
@@ -31,3 +32,82 @@ Move from "there is bias" to "what kinds of places are biased?"
 
 Which area characteristics seem associated with under-coverage?
 
+```{r}
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
+
+if (!requireNamespace("debiasR", quietly = TRUE)) {
+  if (!requireNamespace("devtools", quietly = TRUE)) {
+    stop("Install either `debiasR` or `devtools` to load the local package.")
+  }
+  devtools::load_all(pkg_root, quiet = TRUE)
+}
+
+library(debiasR)
+library(dplyr)
+
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
+  knitr::knit_exit()
+}
+
+if (has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 25)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+  coverage <- example_data$coverage
+  covariates <- example_data$covariates
+
+  diagnostics <- validate_bias_residual_structure(
+    coverage_df = coverage,
+    benchmark_od_df = census_msoa_OD_travel2work,
+    covariate_df = covariates,
+    covariate_col = "census_inflow"
+  )
+
+  population_lm_diagnostics <- validate_bias_residual_structure(
+    coverage_df = coverage,
+    benchmark_od_df = census_msoa_OD_travel2work,
+    covariate_df = covariates,
+    covariate_col = "census_inflow",
+    residual_type = "population_lm"
+  )
+}
+```
+
+```{r}
+diagnostics$summary
+```
+
+```{r}
+diagnostics$covariate_correlation
+diagnostics$benchmark_flow_correlation
+```
+
+```{r}
+population_lm_diagnostics$population_lm
+```
+
+```{r}
+diagnostics$area_level |>
+  arrange(coverage_score_residual) |>
+  select(area, population, user_count, coverage_score, coverage_score_residual) |>
+  head(10)
+```
+
+```{r}
+population_lm_diagnostics$area_level |>
+  arrange(desc(abs(population_lm_residual))) |>
+  select(
+    area,
+    population,
+    user_count,
+    population_lm_expected_user_count,
+    population_lm_residual
+  ) |>
+  head(10)
+```

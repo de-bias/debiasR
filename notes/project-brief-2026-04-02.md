@@ -40,7 +40,7 @@ The package currently supports this working sequence:
 - `validate_flow_pairs()` for row-level joined comparison table.
 
 5. Compare methods and inspect fit:
-- Use `vignettes/simulated-methods-walkthrough.qmd` and related vignette material to compare model behavior and benchmark alignment.
+- Use `vignettes/testing/empirical-methods-walkthrough.qmd` and related vignette material to compare model behavior and benchmark alignment.
 
 The deterministic methods above are the default support path. Bayesian work remains separate and experimental until stage-2 imputation and dependency/runtime expectations are clearly defined.
 

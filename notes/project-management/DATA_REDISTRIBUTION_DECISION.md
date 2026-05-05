@@ -61,22 +61,30 @@ Decision:
 
 ## Recommended Package Strategy
 
-Default recommendation:
+Current package strategy:
 
 - Keep `debiasR` small.
-- Continue shipping simulated/tiny examples in the main package.
-- Document external download of the Zenodo dataset by DOI for empirical workflows.
+- Keep simulated/tiny data in the main package as lightweight test fixtures and
+  backwards-compatible examples.
+- Use the separate optional `debiasRdata` package for user-facing empirical
+  examples and vignettes.
+- Read `msoa_OD_travel2work` from `debiasRdata` and pair it with
+  `census_msoa_OD_travel2work`, the extracted Census 2021 `ODWP01EW` MSOA
+  workplace-flow benchmark travel-to-work OD matrix.
 
 CRAN-safe optional data package:
 
 - Create a separate data-only package named, for example, `debiasRdata`.
 - License the data package as `CC BY 4.0`.
-- Include exactly `msoa_OD_travel2work.csv.gz` as the first empirical asset.
+- Include `msoa_OD_travel2work.csv.gz` as the MPD empirical asset.
+- Include the extracted Census benchmark as `census_msoa_OD_travel2work.csv.gz`
+  or an equivalent documented package data object with that name.
 - Include attribution, DOI, license, checksum, and source-version metadata.
 - Keep `debiasR` licensed `MIT + file LICENSE`.
 - Put `debiasRdata` in `Suggests`, not `Imports`.
 - Use `requireNamespace("debiasRdata", quietly = TRUE)` in examples/tests/vignettes.
-- Access the file with `system.file()` from `debiasRdata`.
+- Access packaged files or data objects through `debiasR_example_data()` so
+  vignettes use consistent object names and schemas.
 - Skip empirical tests/vignettes gracefully when `debiasRdata` is unavailable.
 
 Fallback if the data package is not created:
@@ -89,4 +97,4 @@ Fallback if the data package is not created:
 
 `debiasR` should not redistribute the full Zenodo resource.
 
-If empirical packaged data is needed, use a separate optional `debiasRdata` package containing only `msoa_OD_travel2work.csv.gz`. Otherwise, keep the main package on simulated/tiny data and document the Zenodo DOI as an external data source.
+Empirical packaged data should live in the separate optional `debiasRdata` package. `debiasR` should use that package for empirical examples and vignettes while keeping the main package free of large third-party data.

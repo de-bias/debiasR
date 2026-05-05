@@ -18,7 +18,11 @@ This short notebook explains, intuitively, how each `debiasR` adjustment method 
 ## Setup
 
 ```{r}
-pkg_root <- if (file.exists("DESCRIPTION")) "." else ".."
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
 
 if (!requireNamespace("debiasR", quietly = TRUE)) {
   if (!requireNamespace("devtools", quietly = TRUE)) {
@@ -30,11 +34,27 @@ if (!requireNamespace("debiasR", quietly = TRUE)) {
 library(debiasR)
 library(dplyr)
 
-data(simulated_mpd.od, package = "debiasR")
-data(simulated_benchmark.od, package = "debiasR")
-data(simulated_coverage, package = "debiasR")
-data(simulated_covariates, package = "debiasR")
-data(simulated_distance, package = "debiasR")
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work guide.\n")
+  knitr::knit_exit()
+}
+
+if (has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 30)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+
+  example_mpd_od <- msoa_OD_travel2work
+  example_benchmark_od <- census_msoa_OD_travel2work
+  example_coverage <- example_data$coverage
+  example_covariates <- example_data$covariates
+  example_distance <- tibble::tibble(
+    origin = character(),
+    destination = character(),
+    distance_km = numeric()
+  )
+}
 ```
 
 <style>
@@ -129,11 +149,20 @@ Methods discussed in earlier research notes but not currently implemented in the
 
 ## Package Workflow
 
-![Workflow linking clearly identified input data to bias measurement, bias adjustment, and validation.](figures/package-workflow.svg){fig-alt="debiasR workflow showing an input-data panel with coverage inputs, flow inputs, and enrichment inputs feeding three stacked steps: measure bias, adjust bias, and validate bias-adjusted flows."}
+![Workflow linking the empirical MPD and Census inputs to bias measurement, residual diagnostics, bias adjustment, and validation.](figures/package-workflow.svg){fig-alt="debiasR workflow showing debiasRdata coverage inputs, MPD travel-to-work flows, Census benchmark flows, and enrichment inputs feeding three stacked steps: measure bias with residual diagnostics, adjust bias, and validate bias-adjusted flows."}
+
+## Measure-Bias Diagnostics
+
+The measure-bias layer has two roles:
+
+- `measure_bias()` keeps the compact coverage table: `coverage_score = user_count / population` and `coverage_bias = 1 - coverage_score`.
+- `validate_bias_residual_structure()` audits whether active-user coverage residuals look structured. It returns global-rate residuals, count residuals, standardized count residuals, and a simple population-only linear residual from `user_count ~ population`.
+
+The population-only residual is a descriptive diagnostic: positive values identify areas with more active users than expected from the simple benchmark-population trend; negative values identify areas below that trend.
 
 ## Adjustment Method Landscape
 
-![Available adjustment methods in debiasR, grouped by coverage-based reweighting, benchmark-constrained calibration, and hierarchical Bayesian modelling.](figures/adjustment-methods-overview.svg){fig-alt="Available adjustment methods in debiasR grouped into coverage-based reweighting, benchmark-constrained calibration, and hierarchical Bayesian modelling, with each method card listing its main data requirements."}
+![Available adjustment methods in debiasR, grouped by coverage-based reweighting, benchmark-constrained calibration, and hierarchical Bayesian modelling.](figures/adjustment-methods-overview.svg){fig-alt="Available adjustment methods in debiasR grouped into coverage-based reweighting, benchmark-constrained calibration, and hierarchical Bayesian modelling, with each method card listing whether it uses Census population totals, MPD user totals, MPD OD flows, Census benchmark OD flows, covariates, or optional distance."}
 
 ## Validation functions
 
@@ -298,8 +327,8 @@ $$
 
 ```{r}
 adj_m1 <- adjust_inverse_penetration(
-  mpd_od_df = simulated_mpd.od,
-  coverage_df = simulated_coverage,
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
   weight_by = "both"
 )
 
@@ -343,12 +372,12 @@ where $w_{ij}$ is origin-weighted, destination-weighted, or the geometric mean o
 
 ```{r}
 adj_m2 <- adjust_selection_rate(
-  mpd_od_df = simulated_mpd.od,
-  coverage_df = simulated_coverage,
-  covariates_df = simulated_covariates,
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
+  covariates_df = example_covariates,
   income_col = "income_norm",
   weight_by = "origin",
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   calibration_aggregate = "origin"
 )
 
@@ -382,10 +411,10 @@ or the corresponding destination-side / both-side version depending on `weight_b
 
 ```{r}
 adj_m3 <- adjust_selection_rate2(
-  mpd_od_df = simulated_mpd.od,
-  coverage_df = simulated_coverage,
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
   weight_by = "origin",
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   calibration_aggregate = "origin"
 )
 
@@ -417,8 +446,8 @@ IPF alternates row and column scaling until constraints are met.
 
 ```{r}
 adj_m4 <- adjust_raking_ratio(
-  mpd_od_df = simulated_mpd.od,
-  benchmark_od_df = simulated_benchmark.od
+  mpd_od_df = example_mpd_od,
+  benchmark_od_df = example_benchmark_od
 )
 
 list(
@@ -458,8 +487,8 @@ $$
 
 ```{r}
 adj_m5 <- adjust_coefficient(
-  mpd_od_df = simulated_mpd.od,
-  benchmark_od_df = simulated_benchmark.od,
+  mpd_od_df = example_mpd_od,
+  benchmark_od_df = example_benchmark_od,
   model_family = "ols",
   level = "od"
 )
@@ -519,12 +548,12 @@ In implementation, this is done draw-by-draw from the posterior and summarized b
 ```{r echo=FALSE, include=FALSE}
 coef_m6 <- NULL
 
-if (requireNamespace("rstanarm", quietly = TRUE)) {
+if (requireNamespace("rstanarm", quietly = TRUE) && nrow(example_distance) > 0L) {
   adj_m6 <- adjust_multilevel_bayes(
-    mpd_od_df = simulated_mpd.od |> slice_sample(n = 3000),
-    coverage_df = simulated_coverage,
-    covariates_df = simulated_covariates,
-    distance_df = simulated_distance,
+    mpd_od_df = example_mpd_od |> slice_sample(n = 3000),
+    coverage_df = example_coverage,
+    covariates_df = example_covariates,
+    distance_df = example_distance,
     random_intercept = "origin",
     model_family = "poisson",
     flow_adj_summary = "median",
@@ -604,7 +633,7 @@ For all methods:
 ```{r}
 val_m1 <- validate_flow_overall(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   method_name = "adjust_inverse_penetration",
   return_joined = FALSE
 )
@@ -622,7 +651,7 @@ tibble::tibble(
 ```{r}
 audit_m1 <- validate_flow_pairs(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od
+  benchmark_od_df = example_benchmark_od
 )
 
 audit_m1 |>
@@ -634,7 +663,7 @@ audit_m1 |>
 ```{r}
 resid_m1 <- validate_flow_residuals(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   top_n = 5
 )
 

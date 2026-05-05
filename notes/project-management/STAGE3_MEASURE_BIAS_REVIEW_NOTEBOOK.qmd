@@ -177,6 +177,8 @@ bias_structure$area_level |>
     expected_user_count,
     user_count_residual,
     coverage_score_residual,
+    population_lm_expected_user_count,
+    population_lm_residual,
     standardized_user_count_residual,
     selected_residual
   ) |>
@@ -256,20 +258,34 @@ standardized_residual_structure <- validate_bias_residual_structure(
   covariate_col = "internet_access"
 )
 
+population_lm_structure <- validate_bias_residual_structure(
+  coverage_df = simulated_coverage,
+  residual_type = "population_lm",
+  benchmark_od_df = simulated_benchmark.od,
+  covariate_df = simulated_covariates,
+  covariate_col = "internet_access"
+)
+
 bind_rows(
   bias_structure$summary,
   count_residual_structure$summary,
-  standardized_residual_structure$summary
+  standardized_residual_structure$summary,
+  population_lm_structure$summary
 ) |>
   select(
     residual_type,
     selected_residual_col,
     mean_selected_residual,
     sd_selected_residual,
+    population_lm_r_squared,
     pearson_bias_benchmark_origin_flow,
     pearson_bias_benchmark_destination_flow,
     pearson_bias_covariate
   )
+```
+
+```{r}
+population_lm_structure$population_lm
 ```
 
 ## Optional Plots
@@ -307,6 +323,7 @@ tibble(
   check = c(
     "coverage residuals sum to zero on the count scale",
     "default residual is coverage_score_residual",
+    "population-only linear model summary returned",
     "benchmark origin and destination correlations returned",
     "covariate correlation returned",
     "map-ready data contains coordinates"
@@ -314,6 +331,7 @@ tibble(
   passed = c(
     abs(sum(bias_structure$area_level$user_count_residual, na.rm = TRUE)) < 1e-8,
     identical(bias_structure$summary$selected_residual_col, "coverage_score_residual"),
+    all(c("population_slope", "r_squared") %in% names(bias_structure$population_lm)),
     all(c("origin", "destination") %in% bias_structure$benchmark_flow_correlation$benchmark_flow_role),
     is.finite(bias_structure$covariate_correlation$pearson_r),
     all(c("x", "y") %in% names(bias_structure$map_data))

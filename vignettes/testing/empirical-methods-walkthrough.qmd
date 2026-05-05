@@ -1,5 +1,5 @@
 ---
-title: "debiasR: Simulated Methods Walkthrough"
+title: "debiasR: Empirical Methods Walkthrough"
 format:
   html:
     toc: true
@@ -12,24 +12,16 @@ execute:
 
 ## Purpose
 
-This walkthrough runs and visualises the implemented `debiasR` correction methods using simulated package datasets.
-The current simulated MPD data are calibrated to empirical OD support to match
-zero-mass and upper-tail quantiles more closely.
+This walkthrough runs and visualises the implemented `debiasR` correction methods using the empirical MSOA travel-to-work data from `debiasRdata`.
 
 ## Setup
-```{r}
-# safest in dev:
-devtools::load_all(".")   # reloads current checkout
-library(debiasR)
-
-# quick check:
-"validate_flow_overall" %in% getNamespaceExports("debiasR")
-
-```
-
 
 ```{r}
-pkg_root <- if (file.exists("DESCRIPTION")) "." else ".."
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
 
 if (!requireNamespace("debiasR", quietly = TRUE)) {
   if (!requireNamespace("devtools", quietly = TRUE)) {
@@ -44,56 +36,66 @@ source(file.path(pkg_root, "style", "data-visualisation_theme.R"))
 ```
 
 ```{r}
-data("simulated_mpd.od", package = "debiasR")
-data("simulated_benchmark.od", package = "debiasR")
-data("simulated_coverage", package = "debiasR")
-data("simulated_covariates", package = "debiasR")
-data("simulated_distance", package = "debiasR")
-data("simulated_active.users", package = "debiasR")
-data("simulated_pop", package = "debiasR")
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work walkthrough.\n")
+  knitr::knit_exit()
+}
 
-tibble(
-  dataset = c(
-    "simulated_mpd.od",
-    "simulated_benchmark.od",
-    "simulated_coverage",
-    "simulated_covariates",
-    "simulated_distance",
-    "simulated_active.users",
-    "simulated_pop"
-  ),
-  rows = c(
-    nrow(simulated_mpd.od),
-    nrow(simulated_benchmark.od),
-    nrow(simulated_coverage),
-    nrow(simulated_covariates),
-    nrow(simulated_distance),
-    nrow(simulated_active.users),
-    nrow(simulated_pop)
+if (has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 30)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+
+  example_mpd_od <- msoa_OD_travel2work
+  example_benchmark_od <- census_msoa_OD_travel2work
+  example_coverage <- example_data$coverage
+  example_covariates <- example_data$covariates
+  example_distance <- tibble(origin = character(), destination = character(), distance_km = numeric())
+  example_active_users <- example_data$active_users
+  example_population <- example_data$population
+
+  tibble(
+    dataset = c(
+      "msoa_OD_travel2work",
+      "census_msoa_OD_travel2work",
+      "coverage",
+      "covariates",
+      "active_users",
+      "population"
+    ),
+    rows = c(
+      nrow(example_mpd_od),
+      nrow(example_benchmark_od),
+      nrow(example_coverage),
+      nrow(example_covariates),
+      nrow(example_active_users),
+      nrow(example_population)
+    )
   )
-)
+}
 ```
 
-## Simulated Distribution Check
+## Empirical Distribution Check
 
 ```{r}
 tibble(
   series = c("benchmark_flow", "mpd_flow"),
   zero_share = c(
-    mean(simulated_benchmark.od$flow == 0),
-    mean(simulated_mpd.od$flow == 0)
+    mean(example_benchmark_od$flow == 0),
+    mean(example_mpd_od$flow == 0)
   ),
   q50_log1p = c(
-    quantile(log1p(simulated_benchmark.od$flow), 0.5),
-    quantile(log1p(simulated_mpd.od$flow), 0.5)
+    quantile(log1p(example_benchmark_od$flow), 0.5),
+    quantile(log1p(example_mpd_od$flow), 0.5)
   ),
   q90_log1p = c(
-    quantile(log1p(simulated_benchmark.od$flow), 0.9),
-    quantile(log1p(simulated_mpd.od$flow), 0.9)
+    quantile(log1p(example_benchmark_od$flow), 0.9),
+    quantile(log1p(example_mpd_od$flow), 0.9)
   ),
   q99_log1p = c(
-    quantile(log1p(simulated_benchmark.od$flow), 0.99),
-    quantile(log1p(simulated_mpd.od$flow), 0.99)
+    quantile(log1p(example_benchmark_od$flow), 0.99),
+    quantile(log1p(example_mpd_od$flow), 0.99)
   )
 )
 ```
@@ -139,7 +141,7 @@ plot_adj_vs_benchmark <- function(adj_df, benchmark_df, title_text) {
 collect_metrics <- function(method_name, adj_df) {
   v <- validate_flow_overall(
     adj_df = adj_df,
-    benchmark_od_df = simulated_benchmark.od,
+    benchmark_od_df = example_benchmark_od,
     method_name = method_name,
     return_joined = FALSE
   )
@@ -160,19 +162,19 @@ collect_metrics <- function(method_name, adj_df) {
 ## Baseline Visuals
 
 ```{r}
-plot_origin_totals(simulated_mpd.od, "flow", "Observed MPD Flows by Origin")
+plot_origin_totals(example_mpd_od, "flow", "Observed MPD Flows by Origin")
 ```
 
 ```{r}
-plot_origin_totals(simulated_benchmark.od, "flow", "Benchmark Flows by Origin")
+plot_origin_totals(example_benchmark_od, "flow", "Benchmark Flows by Origin")
 ```
 
 ## 1) `adjust_inverse_penetration`
 
 ```{r}
 adj_m1 <- adjust_inverse_penetration(
-  mpd_od_df = simulated_mpd.od,
-  coverage_df = simulated_coverage,
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
   weight_by = "both"
 )
 
@@ -180,19 +182,19 @@ collect_metrics("adjust_inverse_penetration", adj_m1)
 ```
 
 ```{r}
-plot_adj_vs_benchmark(adj_m1, simulated_benchmark.od, "Method 1: Adjusted vs Benchmark")
+plot_adj_vs_benchmark(adj_m1, example_benchmark_od, "Method 1: Adjusted vs Benchmark")
 ```
 
 ## 2) `adjust_selection_rate`
 
 ```{r}
 adj_m2 <- adjust_selection_rate(
-  mpd_od_df = simulated_mpd.od,
-  coverage_df = simulated_coverage,
-  covariates_df = simulated_covariates,
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
+  covariates_df = example_covariates,
   income_col = "income_norm",
   weight_by = "origin",
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   calibration_aggregate = "origin"
 )
 
@@ -200,17 +202,17 @@ list(r_global = attr(adj_m2, "r_global"))
 ```
 
 ```{r}
-plot_adj_vs_benchmark(adj_m2, simulated_benchmark.od, "Method 2: Adjusted vs Benchmark")
+plot_adj_vs_benchmark(adj_m2, example_benchmark_od, "Method 2: Adjusted vs Benchmark")
 ```
 
 ## 3) `adjust_selection_rate2`
 
 ```{r}
 adj_m3 <- adjust_selection_rate2(
-  mpd_od_df = simulated_mpd.od,
-  coverage_df = simulated_coverage,
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
   weight_by = "origin",
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   calibration_aggregate = "origin"
 )
 
@@ -218,15 +220,15 @@ list(k = attr(adj_m3, "k"))
 ```
 
 ```{r}
-plot_adj_vs_benchmark(adj_m3, simulated_benchmark.od, "Method 3: Adjusted vs Benchmark")
+plot_adj_vs_benchmark(adj_m3, example_benchmark_od, "Method 3: Adjusted vs Benchmark")
 ```
 
 ## 4) `adjust_raking_ratio`
 
 ```{r}
 adj_m4 <- adjust_raking_ratio(
-  mpd_od_df = simulated_mpd.od,
-  benchmark_od_df = simulated_benchmark.od
+  mpd_od_df = example_mpd_od,
+  benchmark_od_df = example_benchmark_od
 )
 
 list(
@@ -236,15 +238,15 @@ list(
 ```
 
 ```{r}
-plot_adj_vs_benchmark(adj_m4, simulated_benchmark.od, "Method 4: Adjusted vs Benchmark")
+plot_adj_vs_benchmark(adj_m4, example_benchmark_od, "Method 4: Adjusted vs Benchmark")
 ```
 
 ## 5) `adjust_coefficient`
 
 ```{r}
 adj_m5 <- adjust_coefficient(
-  mpd_od_df = simulated_mpd.od,
-  benchmark_od_df = simulated_benchmark.od,
+  mpd_od_df = example_mpd_od,
+  benchmark_od_df = example_benchmark_od,
   model_family = "ols",
   level = "od"
 )
@@ -254,7 +256,7 @@ list(coef = attr(adj_m5, "coef"))
 
 
 ```{r}
-plot_adj_vs_benchmark(adj_m5, simulated_benchmark.od, "Method 5: Adjusted vs Benchmark")
+plot_adj_vs_benchmark(adj_m5, example_benchmark_od, "Method 5: Adjusted vs Benchmark")
 ```
 
 ## 6) `adjust_multilevel_bayes` (prototype)
@@ -262,12 +264,12 @@ plot_adj_vs_benchmark(adj_m5, simulated_benchmark.od, "Method 5: Adjusted vs Ben
 ```{r}
 adj_m6 <- NULL
 
-if (requireNamespace("rstanarm", quietly = TRUE)) {
+if (requireNamespace("rstanarm", quietly = TRUE) && nrow(example_distance) > 0L) {
   adj_m6 <- adjust_multilevel_bayes(
-    mpd_od_df = simulated_mpd.od,
-    coverage_df = simulated_coverage,
-    covariates_df = simulated_covariates,
-    distance_df = simulated_distance,
+    mpd_od_df = example_mpd_od,
+    coverage_df = example_coverage,
+    covariates_df = example_covariates,
+    distance_df = example_distance,
     random_intercept = "origin",
     model_family = "poisson",
     flow_adj_summary = "median",
@@ -279,13 +281,13 @@ if (requireNamespace("rstanarm", quietly = TRUE)) {
 
   attr(adj_m6, "coefficients")
 } else {
-  "Install 'rstanarm' to run the Method 6 prototype section."
+  "Empirical distance data are not available in this example, so the Bayesian prototype is skipped."
 }
 ```
 
 ```{r}
 if (!is.null(adj_m6)) {
-  plot_adj_vs_benchmark(adj_m6, simulated_benchmark.od, "Method 6: Adjusted vs Benchmark")
+  plot_adj_vs_benchmark(adj_m6, example_benchmark_od, "Method 6: Adjusted vs Benchmark")
 }
 ```
 
@@ -326,7 +328,7 @@ metrics_tbl |>
 ```{r}
 val_benchmark_m1 <- validate_flow_overall(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   method_name = "adjust_inverse_penetration",
   return_joined = FALSE
 )
@@ -339,7 +341,7 @@ val_benchmark_m1
 ```{r}
 val_all_m1 <- validate_flow_pairs(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od
+  benchmark_od_df = example_benchmark_od
 )
 
 val_all_m1 |>
@@ -352,7 +354,7 @@ val_all_m1 |>
 ```{r}
 residual_m1 <- validate_flow_residuals(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   method_name = "adjust_inverse_penetration"
 )
 
@@ -364,9 +366,9 @@ residual_m1$summary
 ```{r}
 structure_m1 <- validate_flow_residual_structure(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   method_name = "adjust_inverse_penetration",
-  covariate_df = simulated_covariates,
+  covariate_df = example_covariates,
   covariate_col = "income_norm"
 )
 
@@ -378,7 +380,7 @@ structure_m1$summary
 ```{r}
 distribution_m1 <- validate_flow_distribution(
   adj_df = adj_m1,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   method_name = "adjust_inverse_penetration",
   weight_by = "benchmark_origin_total"
 )
@@ -389,7 +391,7 @@ distribution_m1$summary
 ## `measure_bias` Example
 
 ```{r}
-coverage_for_bias <- simulated_coverage |>
+coverage_for_bias <- example_coverage |>
   select(origin, population, user_count)
 
 bias_df <- measure_bias(coverage_for_bias)
@@ -413,7 +415,7 @@ bias_df |>
 ## Stage 3 Bias Residual Diagnostics
 
 ```{r}
-areas <- sort(unique(simulated_coverage$origin))
+areas <- sort(unique(example_coverage$origin))
 
 area_neighbors <- tibble(
   area = areas,
@@ -425,10 +427,10 @@ area_neighbors <- tibble(
   ))
 
 bias_structure <- validate_bias_residual_structure(
-  coverage_df = simulated_coverage,
-  benchmark_od_df = simulated_benchmark.od,
+  coverage_df = example_coverage,
+  benchmark_od_df = example_benchmark_od,
   area_neighbors = area_neighbors,
-  covariate_df = simulated_covariates,
+  covariate_df = example_covariates,
   covariate_col = "internet_access"
 )
 
@@ -445,6 +447,8 @@ bias_structure$area_level |>
     expected_user_count,
     user_count_residual,
     coverage_score_residual,
+    population_lm_expected_user_count,
+    population_lm_residual,
     selected_residual
   ) |>
   arrange(desc(abs(selected_residual))) |>
@@ -458,5 +462,5 @@ bias_structure$benchmark_flow_correlation
 ## Render
 
 ```bash
-quarto render vignettes/simulated-methods-walkthrough.qmd
+quarto render vignettes/testing/empirical-methods-walkthrough.qmd
 ```

@@ -30,7 +30,72 @@ Show the practical payoff from measuring and explaining bias.
 Adjustment is useful, but it rests on assumptions. The workshop should make
 participants more capable and more cautious.
 
+```{r}
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
+
+if (!requireNamespace("debiasR", quietly = TRUE)) {
+  if (!requireNamespace("devtools", quietly = TRUE)) {
+    stop("Install either `debiasR` or `devtools` to load the local package.")
+  }
+  devtools::load_all(pkg_root, quiet = TRUE)
+}
+
+library(debiasR)
+library(dplyr)
+
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
+  knitr::knit_exit()
+}
+
+if (has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 25)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+  coverage <- example_data$coverage
+}
+```
+
+```{r}
+adj_inverse <- adjust_inverse_penetration(
+  mpd_od_df = msoa_OD_travel2work,
+  coverage_df = coverage,
+  weight_by = "origin"
+)
+
+adj_raking <- adjust_raking_ratio(
+  mpd_od_df = msoa_OD_travel2work,
+  benchmark_od_df = census_msoa_OD_travel2work,
+  max_iter = 100
+)
+
+adj_coefficient <- adjust_coefficient(
+  mpd_od_df = msoa_OD_travel2work,
+  benchmark_od_df = census_msoa_OD_travel2work,
+  level = "origin"
+)
+```
+
+```{r}
+bind_rows(
+  adj_inverse |> mutate(method = "inverse_penetration"),
+  adj_raking |> mutate(method = "raking"),
+  adj_coefficient |> mutate(method = "coefficient")
+) |>
+  group_by(method) |>
+  summarise(
+    raw_total = sum(flow, na.rm = TRUE),
+    adjusted_total = sum(flow_adj, na.rm = TRUE),
+    median_ratio = median(flow_adj / pmax(flow, 1), na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
 ## Exercise
 
 How much do estimates change, and where?
-

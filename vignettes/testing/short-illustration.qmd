@@ -1,12 +1,16 @@
 ---
-title: "Bayesian crash"
+title: "Bayesian Adjustment Walkthrough"
 format: html
 editor: visual
 ---
 
 # Package and data
 ```{r}
-pkg_root <- if (file.exists("DESCRIPTION")) "." else ".."
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
 
 if (!requireNamespace("debiasR", quietly = TRUE)) {
   if (!requireNamespace("devtools", quietly = TRUE)) {
@@ -24,53 +28,79 @@ if (!has_rstanarm) {
   knitr::knit_exit()
 }
 
-library(rstanarm)
+if (has_rstanarm) {
+  library(rstanarm)
+}
 
-data(simulated_mpd.od)
-data(simulated_coverage)
-data(simulated_covariates)
-data(simulated_distance)
-data(simulated_benchmark.od)
+has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
+if (!has_debiasRdata) {
+  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work walkthrough.\n")
+  knitr::knit_exit()
+}
 
-names(simulated_coverage)
+if (has_rstanarm && has_debiasRdata) {
+  example_data <- debiasR_example_data(n_areas = 30)
+  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
 
-tibble::tibble(
-  series = c("benchmark_flow", "mpd_flow"),
-  zero_share = c(
-    mean(simulated_benchmark.od$flow == 0),
-    mean(simulated_mpd.od$flow == 0)
-  ),
-  q90_log1p = c(
-    quantile(log1p(simulated_benchmark.od$flow), 0.9),
-    quantile(log1p(simulated_mpd.od$flow), 0.9)
-  ),
-  q99_log1p = c(
-    quantile(log1p(simulated_benchmark.od$flow), 0.99),
-    quantile(log1p(simulated_mpd.od$flow), 0.99)
+  example_mpd_od <- msoa_OD_travel2work
+  example_coverage <- example_data$coverage
+  example_covariates <- example_data$covariates
+  example_distance <- tibble::tibble(
+    origin = character(),
+    destination = character(),
+    distance_km = numeric()
   )
-)
+  example_benchmark_od <- census_msoa_OD_travel2work
+
+  names(example_coverage)
+
+  tibble::tibble(
+    series = c("benchmark_flow", "mpd_flow"),
+    zero_share = c(
+      mean(example_benchmark_od$flow == 0),
+      mean(example_mpd_od$flow == 0)
+    ),
+    q90_log1p = c(
+      quantile(log1p(example_benchmark_od$flow), 0.9),
+      quantile(log1p(example_mpd_od$flow), 0.9)
+    ),
+    q99_log1p = c(
+      quantile(log1p(example_benchmark_od$flow), 0.99),
+      quantile(log1p(example_mpd_od$flow), 0.99)
+    )
+  )
+}
 ```
 
 
 
 Run model 
 ```{r}
-adj <- adjust_multilevel_bayes(
-  mpd_od_df = simulated_mpd.od,
-  coverage_df = simulated_coverage,
-  covariates_df = simulated_covariates,
-  distance_df = simulated_distance,
-  random_intercept = "origin",
-  model_family = "poisson",
-  flow_adj_summary = "median",
-  iter = 500,
-  chains = 2,
-  seed = 123,
-  refresh = 0
-)
+has_distance_data <- nrow(example_distance) > 0L
+if (!has_distance_data) {
+  cat("Empirical distance data are not available in this example, so the Bayesian prototype is skipped.\n")
+  knitr::knit_exit()
+}
 
-m <- attr(adj, "model")
-coef_tbl <- attr(adj, "coefficients")
+if (has_distance_data) {
+  adj <- adjust_multilevel_bayes(
+    mpd_od_df = example_mpd_od,
+    coverage_df = example_coverage,
+    covariates_df = example_covariates,
+    distance_df = example_distance,
+    random_intercept = "origin",
+    model_family = "poisson",
+    flow_adj_summary = "median",
+    iter = 500,
+    chains = 2,
+    seed = 123,
+    refresh = 0
+  )
+
+  m <- attr(adj, "model")
+  coef_tbl <- attr(adj, "coefficients")
+}
 
 ```
 # Read posterior summaries (fixed effects)
@@ -146,19 +176,19 @@ Coverage proportion gives quick calibration feel (not formal validation alone).
 
 # Compare raw vs adjusted against benchmark
 ```{r}
-raw_as_adj <- simulated_mpd.od %>%
+raw_as_adj <- example_mpd_od %>%
   transmute(origin, destination, flow_adj = flow)
 
 val_raw <- debiasR::validate_flow_overall(
   adj_df = raw_as_adj,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   method_name = "raw_mpd",
   return_joined = FALSE
 )
 
 val_adj <- debiasR::validate_flow_overall(
   adj_df = adj,
-  benchmark_od_df = simulated_benchmark.od,
+  benchmark_od_df = example_benchmark_od,
   method_name = "adjust_multilevel_bayes",
   return_joined = FALSE
 )
