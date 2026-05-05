@@ -1,84 +1,170 @@
-# 🌟 Contributing Guidelines
+# Contributing Guidelines
 
-Thank you for your interest in contributing to this project! We welcome all kinds of contributions—code, documentation, ideas, and more. This guide will help you get started.
+Thank you for your interest in contributing to `debiasR`. We welcome code, documentation, examples, tests, methodological ideas, issue reports, and review comments.
 
+This project uses a branch-based workflow in the shared repository. Contributors should normally work from a new branch in `de-bias/debiasR`, not from a personal fork.
 
-## 🚀 How to Contribute
+## Before You Start
 
-1. **Clone the repository**  
-   ```bash
-   git clone https://github.com/de-bias/debiasR.git
-   cd debiasR
-   ```
+- Make sure you have a GitHub account.
+- Ask a maintainer to add you as a collaborator if you do not already have write access.
+- Check the issue tracker or project notes before starting larger work.
+- Open an issue first for changes that affect public APIs, package structure, data licensing, or statistical method behavior.
 
-2. **Create a branch for your change**  
-   Use a descriptive branch name. A `codex/` prefix is a good default for local work:
-   ```bash
-   git checkout -b codex/my-feature
-   ```
+## Branch Workflow
 
-3. **Make your changes**  
-   Update the code, documentation, or tests as needed. When working on R code locally, it helps to load the package in place:
-   ```r
-   devtools::load_all(".")
-   ```
+1. Clone the shared repository.
 
-4. **Run the relevant tests**  
-   For the fast deterministic tier, use the curated runner documented in [notes/project-management/TEST_HEALTH.md](notes/project-management/TEST_HEALTH.md):
-   ```bash
-   Rscript scripts/run_fast_tests.R
-   ```
+```bash
+git clone https://github.com/de-bias/debiasR.git
+cd debiasR
+```
 
-5. **Commit your changes**  
-   ```bash
-   git add .
-   git commit -m "Describe your changes"
-   ```
+2. Update your local `main` branch.
 
-6. **Push the branch**  
-   ```bash
-   git push origin codex/my-feature
-   ```
+```bash
+git switch main
+git pull origin main
+```
 
-7. **Open a Pull Request (PR)**  
-   Use the PR template in `.github/pull_request_template.md` and link any related issues.
+3. Create a new branch for your change.
 
----
+Use a short, descriptive branch name. Good examples:
 
-## 💡 Using Issue & PR Templates
+- `docs/contributing-branches`
+- `fix/validation-edge-case`
+- `feature/stage4-random-effects`
+- `codex/package-overview`
 
-- When reporting a bug or requesting a feature, please use the issue template in `.github/ISSUE_TEMPLATE/`.
-- When submitting a pull request, fill out the PR template to describe your changes and link related issues.
+```bash
+git switch -c docs/my-change
+```
 
-## 🧭 Naming Guide
+4. Make focused changes.
+
+Keep each branch focused on one topic. This makes review easier and reduces merge conflicts.
+
+For R code changes, load the package locally:
+
+```r
+devtools::load_all(".")
+```
+
+5. Run the relevant checks.
+
+For the fast deterministic tier:
+
+```bash
+Rscript scripts/run_fast_tests.R
+```
+
+For documentation-only changes, at minimum check that edited links, examples, and file references still make sense.
+
+6. Commit your changes.
+
+Use a clear, concise commit message.
+
+```bash
+git status
+git add path/to/changed-file
+git commit -m "Update branch-based contribution workflow"
+```
+
+7. Push your branch to the shared repository.
+
+```bash
+git push -u origin docs/my-change
+```
+
+8. Open a pull request.
+
+- Use `.github/pull_request_template.md`.
+- Target the `main` branch unless a maintainer says otherwise.
+- Summarize what changed and why.
+- Link related issues, notes, or design discussions.
+- Mark the PR as draft if you want early feedback before final review.
+
+9. Respond to review.
+
+- Keep follow-up commits on the same branch.
+- Reply to review comments when addressed.
+- Ask for clarification if the requested change is unclear.
+- Wait for CI and maintainer review before merge.
+
+10. After merge.
+
+- Delete the branch once it is no longer needed.
+- Pull the latest `main` before starting your next branch.
+
+```bash
+git switch main
+git pull origin main
+```
+
+## Small Documentation Changes
+
+For small documentation fixes, you may edit directly in GitHub's web interface, but still create a new branch rather than committing directly to `main`.
+
+Examples:
+
+- fixing a typo
+- improving a sentence
+- updating a broken link
+- clarifying a short example
+
+## Larger Changes
+
+Please discuss larger changes before implementation. This includes:
+
+- new adjustment methods
+- changes to exported function names
+- validation metric design
+- Bayesian model behavior
+- package data additions
+- CRAN or licensing decisions
+- workflow or CI changes
+
+For these changes, create or reference a design note in `notes/project-management/` where helpful.
+
+## Testing Expectations
+
+Use the smallest test set that gives useful confidence.
+
+- Documentation-only change: check rendered or linked docs where practical.
+- Deterministic R change: run `Rscript scripts/run_fast_tests.R`.
+- Bayesian change: run targeted tests locally if optional dependencies are available, and document anything skipped.
+- Data or vignette change: check object names, file paths, and any examples that use the changed data.
+
+The current testing notes live in `notes/project-management/TEST_HEALTH.md`.
+
+## Naming Guide
 
 - Use the current exported API in examples and docs: `adjust_*`, `validate_flow_overall()`, `validate_flow_pairs()`, and `simulated_*`.
-- If you need to mention older names for migration context, keep them in [notes/project-management/MIGRATION_MAP.md](notes/project-management/MIGRATION_MAP.md) rather than in user-facing instructions.
-- Prefer the current vignette/file naming too, for example `adjust-inverse-penetration` rather than legacy `debias-method1`.
+- If you need to mention older names for migration context, keep them in `notes/project-management/MIGRATION_MAP.md` rather than in user-facing instructions.
+- Prefer current vignette and file naming, for example `adjust-inverse-penetration` rather than legacy `debias-method1`.
 
+## Pull Request Checklist
 
-## ✨ Acknowledging Contributors with All Contributors Bot
+Before requesting review, check that:
 
-We celebrate all contributions! 🎉  
-We use the [All Contributors Bot](https://allcontributors.org/) to recognize everyone’s work—code, docs, ideas, design, and more.
+- the branch is up to date with `main`
+- the PR has a clear title and summary
+- related issues or notes are linked
+- relevant tests or checks are reported
+- new exported functions have documentation and tests
+- generated documentation is updated when roxygen comments change
+- unrelated files are not included
 
-### How to Get Acknowledged
+## Contributor Recognition
 
-- After your PR is merged, comment on an issue or PR:
-  ```
-  @all-contributors please add @your-username for code, doc
-  ```
-  (Replace `@your-username` and the contribution types as appropriate.)
+We use the All Contributors bot to recognise contributions.
 
-- The bot will open a PR to update the contributors table in the README.  
-- Review and merge that PR to see your avatar and contributions appear!
+After your PR is merged, comment on the issue or PR:
 
-### Contribution Types
+```text
+@all-contributors please add @your-username for code, doc
+```
 
-See the [emoji key](https://allcontributors.org/docs/en/emoji-key) for all the ways you can be recognized.
+Replace `@your-username` and the contribution types as appropriate. See the All Contributors emoji key for available contribution types.
 
-
-
----
-  
-We appreciate your contributions and support in building a vibrant community around this project. If you have any questions, feel free to reach out via issues or discussions.
+Thank you for helping make `debiasR` clearer, more reliable, and more useful.
