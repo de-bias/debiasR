@@ -9,67 +9,39 @@ execute:
   message: false
 ---
 
-## Timing
+## Aim
 
-20 minutes.
+This vignette demonstrates the package functions used to measure coverage and
+representativeness bias before adjusting OD flows.
 
-## Purpose
-
-Show the first useful thing the package does.
-
-## Code-Along
-
-- Use `measure_bias()`
-- Compute coverage bias as `1 - user_count / population`
-- Interpret under-coverage, apparent over-coverage, and missingness
-- Summarise the distribution of bias
-- Plot or map bias across MSOAs
-
-## Teaching Point
-
-Participants should be able to say: I can quantify how far the digital trace
-population departs from a census benchmark.
-
-```{r}
-candidate_roots <- c(".", "..", "../..")
-pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
-if (is.na(pkg_root)) {
-  stop("Could not locate the debiasR package root.")
-}
-
-if (!requireNamespace("debiasR", quietly = TRUE)) {
-  if (!requireNamespace("devtools", quietly = TRUE)) {
-    stop("Install either `debiasR` or `devtools` to load the local package.")
-  }
-  devtools::load_all(pkg_root, quiet = TRUE)
-}
-
-library(debiasR)
-library(dplyr)
-
-has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
-if (!has_debiasRdata) {
-  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
-  knitr::knit_exit()
-}
-
-if (has_debiasRdata) {
-  example_data <- debiasR_example_data(n_areas = 25)
-  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
-  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
-  coverage <- example_data$coverage
-
-  bias <- measure_bias(coverage)
-}
+```{r setup}
+common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+source(common_path)
+example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
 ```
 
-The coverage table is derived from matched origin totals in
-`msoa_OD_travel2work` and `census_msoa_OD_travel2work`.
+## Coverage Score and Coverage Bias
+
+`measure_bias()` starts from area-level benchmark population \(P_i\) and observed
+active-user count \(U_i\). It returns:
+
+\[
+p_i = \frac{U_i}{P_i}
+\]
+
+\[
+b_i = 1 - p_i
+\]
+
+where \(p_i\) is the coverage score and \(b_i\) is the coverage bias.
 
 ```{r}
+bias <- measure_bias(example_data$coverage)
+
 bias |>
   summarise(
     areas = n(),
+    global_coverage_score = sum(user_count) / sum(population),
     median_coverage_score = median(coverage_score),
     min_coverage_score = min(coverage_score),
     max_coverage_score = max(coverage_score)
@@ -83,6 +55,44 @@ bias |>
   head(10)
 ```
 
-## Exercise
+## Representativeness Residuals
 
-Which MSOAs are most under-covered?
+`validate_bias_residual_structure()` extends the coverage calculation by asking
+whether coverage residuals are structured. The default residual is:
+
+\[
+e_i = p_i - \bar{p}
+\]
+
+where \(\bar{p} = \sum_i U_i / \sum_i P_i\). Positive values mean higher
+coverage than expected under the global coverage score; negative values mean
+lower coverage.
+
+```{r}
+bias_structure <- validate_bias_residual_structure(
+  coverage_df = example_data$coverage,
+  benchmark_od_df = example_data$census_msoa_OD_travel2work,
+  covariate_df = example_data$covariates,
+  covariate_col = "census_inflow"
+)
+
+bias_structure$summary
+```
+
+```{r}
+bias_structure$benchmark_flow_correlation
+bias_structure$covariate_correlation
+```
+
+```{r}
+bias_structure$area_level |>
+  arrange(coverage_score_residual) |>
+  select(area, population, user_count, coverage_score, coverage_score_residual) |>
+  head(10)
+```
+
+## Interpretation
+
+The aim is not only to compute a coverage number. The aim is to locate where
+coverage departs from the benchmark population and whether those departures
+align with benchmark mobility structure or area-level characteristics.

@@ -127,7 +127,7 @@ Result:
 - Pass.
 - HTML output created at `notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.html`.
 
-Full package check attempted on 2026-05-05:
+Full package check attempted on 2026-05-05 before the package-readiness cleanup:
 
 ```r
 devtools::check(
@@ -142,7 +142,13 @@ Result:
 
 - 1 error, 2 warnings, 3 notes.
 - The error is in the optional Bayesian test file (`test-adjust-multilevel-bayes.R`) where draw-summary comparisons differ only by names on expected vectors; this is outside the Stage 3 deterministic diagnostics path.
-- Warnings/notes are the existing portable-file-path warning, `brms::poisson` dependency warning, top-level file note, future timestamp note, and Bayesian NSE globals.
+- The warnings and notes were package-readiness items rather than Stage 3 diagnostics failures.
+
+Follow-up on 2026-05-08:
+
+- Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 2 notes.
+- Remaining notes are optional `debiasRdata` unavailable for checking and current time verification.
+- The Bayesian draw-summary names mismatch was fixed in the optional Bayesian test file.
 
 ## Maintainer Review Decisions
 

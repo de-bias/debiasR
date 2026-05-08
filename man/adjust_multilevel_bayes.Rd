@@ -18,6 +18,7 @@ adjust_multilevel_bayes(
   model_family = c("poisson", "negbin", "zip", "zinb"),
   backend = c("auto", "rstanarm", "brms"),
   flow_adj_summary = c("mean", "median"),
+  prediction_scope = c("observed", "complete_grid"),
   iter = 1000,
   chains = 2,
   seed = 123,
@@ -71,6 +72,11 @@ If provided, it supersedes auto-formula construction.}
 Stage-1 adjusted flows are collapsed into the returned \code{flow_adj}
 column after removing the estimated coverage-bias contribution.}
 
+\item{prediction_scope}{Prediction contract. \code{"observed"} preserves the
+original observed-row workflow. \code{"complete_grid"} requires a strict
+square OD grid and predicts for all valid rows, while fitting on rows marked
+as originally observed when \code{mpd_observed} is present.}
+
 \item{iter}{Number of sampling iterations. Default \code{1000}.}
 
 \item{chains}{Number of MCMC chains. Default \code{2}.}
@@ -88,9 +94,11 @@ Default \code{FALSE}.}
 }
 \value{
 A tibble with identifiers, original \code{flow}, adjusted
-\code{flow_adj}, \code{bias_e_origin}, and log-distance helper. In this
-Stage-1 prototype, \code{flow_adj} is only returned for observed OD rows in
-\code{mpd_od_df}; missing OD pairs are not imputed.
+\code{flow_adj}, source row-status fields, \code{bias_e_origin}, and
+log-distance helpers. In \code{prediction_scope = "observed"},
+\code{flow_adj} is returned for observed rows in \code{mpd_od_df}. In
+\code{prediction_scope = "complete_grid"}, \code{flow_adj} is returned for
+every valid row in the supplied square OD grid.
 Attributes:
 \itemize{
 \item \code{"model"}: fitted model object
@@ -110,8 +118,9 @@ Attributes:
 }
 \description{
 Estimates bias-adjusted OD flows from MPD counts using a flexible Bayesian
-multilevel count model. Stage 1 focuses on correcting observed OD flows
-(no missing-OD imputation yet).
+multilevel count model. The observed-OD mode corrects observed MPD flows.
+The complete-grid mode fits to originally observed source rows and predicts
+adjusted flows for every row in a supplied square OD grid.
 }
 \details{
 Core idea:

@@ -9,101 +9,132 @@ execute:
   message: false
 ---
 
-## Timing
+## Aim
 
-10 minutes.
+Validation asks whether adjusted flows are closer to benchmark OD flows and
+where residual problems remain. No single metric is enough; the package returns
+complementary diagnostics.
 
-## Purpose
-
-Close the workshop by showing how to check adjusted estimates against appropriate
-benchmarks and report limitations.
-
-## Topics
-
-- How to validate adjusted estimates
-- Metrics for validation
-- What benchmark data to use
-- Nuances of validation
-
-## Practical Checklist
-
-- What is the benchmark?
-- What population does the digital trace source actually cover?
-- At what geography and time scale is bias measured?
-- Which groups or places are underrepresented?
-- What assumptions does the adjustment make?
-- How should uncertainty and limitations be reported?
+```{r setup}
+common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+source(common_path)
+example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+```
 
 ```{r}
-candidate_roots <- c(".", "..", "../..")
-pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
-if (is.na(pkg_root)) {
-  stop("Could not locate the debiasR package root.")
-}
+baseline_results <- fit_deterministic_baselines(example_data)
+benchmark_od <- example_data$census_msoa_OD_travel2work
+```
 
-if (!requireNamespace("debiasR", quietly = TRUE)) {
-  if (!requireNamespace("devtools", quietly = TRUE)) {
-    stop("Install either `debiasR` or `devtools` to load the local package.")
-  }
-  devtools::load_all(pkg_root, quiet = TRUE)
-}
+## Overall Fit
 
-library(debiasR)
-library(dplyr)
+`validate_flow_overall()` summarises agreement between \(F^{adj}_{ij}\) and
+\(F^{bench}_{ij}\). Correlations describe concordance; RMSE, MAE, and MAPE
+describe error magnitude.
 
-has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
-if (!has_debiasRdata) {
-  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
-  knitr::knit_exit()
-}
-
-if (has_debiasRdata) {
-  example_data <- debiasR_example_data(n_areas = 25)
-  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
-  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
-
-  raw_as_adjusted <- msoa_OD_travel2work |>
-    transmute(origin, destination, flow_adj = flow)
-
-  adj_raking <- adjust_raking_ratio(
-    mpd_od_df = msoa_OD_travel2work,
-    benchmark_od_df = census_msoa_OD_travel2work,
-    max_iter = 100
+```{r}
+overall_metrics <- dplyr::bind_rows(
+  lapply(
+    names(baseline_results),
+    function(method_name) validation_row(
+      method_name,
+      baseline_results[[method_name]],
+      benchmark_od
+    )
   )
-}
+) |>
+  arrange(rmse)
+
+overall_metrics
 ```
 
+## OD-Pair Audit
+
+`validate_flow_pairs()` returns a row-level table for auditing individual OD
+pairs.
+
 ```{r}
-raw_fit <- validate_flow_overall(
-  adj_df = raw_as_adjusted,
-  benchmark_od_df = census_msoa_OD_travel2work,
-  method_name = "raw_mpd"
-)
-
-raked_fit <- validate_flow_overall(
-  adj_df = adj_raking,
-  benchmark_od_df = census_msoa_OD_travel2work,
-  method_name = "raking"
-)
-
-bind_rows(raw_fit, raked_fit) |>
-  select(method, n_pairs, pearson_r, rmse, mae, mape)
+validate_flow_pairs(
+  adj_df = baseline_results$raking_ratio,
+  benchmark_od_df = benchmark_od
+) |>
+  arrange(desc(abs(diff_adj_benchmark))) |>
+  select(origin, destination, mpd_flow, adj_flow, benchmark_flow, diff_adj_benchmark) |>
+  head(10)
 ```
 
+## Residual Improvement
+
+`validate_flow_residuals()` shows whether adjustment reduced error relative to
+the raw MPD source. The signed residual movement is:
+
+\[
+(F^{bench}_{ij} - F^{mpd}_{ij}) -
+(F^{bench}_{ij} - F^{adj}_{ij})
+\]
+
+The absolute residual-reduction metric is easier for method comparison:
+positive values mean the adjusted flow is closer to the benchmark.
+
 ```{r}
-validate_flow_residuals(
-  adj_df = adj_raking,
-  benchmark_od_df = census_msoa_OD_travel2work,
-  method_name = "raking",
+residuals_raking <- validate_flow_residuals(
+  adj_df = baseline_results$raking_ratio,
+  benchmark_od_df = benchmark_od,
+  method_name = "raking_ratio",
   top_n = 10
-)$summary
+)
+
+residuals_raking$summary
 ```
 
 ```{r}
-validate_flow_distribution(
-  adj_df = adj_raking,
-  benchmark_od_df = census_msoa_OD_travel2work,
-  method_name = "raking",
-  weight_by = "benchmark_origin_total"
-)$summary
+residuals_raking$top_worst |>
+  select(origin, destination, mpd_flow, adj_flow, benchmark_flow, abs_adj_residual) |>
+  head(10)
 ```
+
+## Residual Structure
+
+`validate_flow_residual_structure()` checks whether remaining errors are
+associated with benchmark flow size or selected covariates.
+
+```{r}
+structure_raking <- validate_flow_residual_structure(
+  adj_df = baseline_results$raking_ratio,
+  benchmark_od_df = benchmark_od,
+  method_name = "raking_ratio",
+  covariate_df = example_data$covariates,
+  covariate_col = "income_norm"
+)
+
+structure_raking$summary
+```
+
+## Destination Allocation Fidelity
+
+`validate_flow_distribution()` compares destination-share distributions within
+each origin. It reports:
+
+- KL divergence, \(KL(F^{bench} || F^{adj})\), a directional allocation metric
+- Jensen-Shannon divergence, a symmetric companion metric
+
+Lower values indicate that adjusted flows allocate each origin's flows across
+destinations more like the benchmark.
+
+```{r}
+distribution_raking <- validate_flow_distribution(
+  adj_df = baseline_results$raking_ratio,
+  benchmark_od_df = benchmark_od,
+  method_name = "raking_ratio",
+  weight_by = "benchmark_origin_total"
+)
+
+distribution_raking$summary
+```
+
+## Bayesian Validation
+
+When `adjust_multilevel_bayes()` is rendered with real OD distance, validate it
+with the same functions and compare it against the deterministic baselines.
+Bayesian validation should report both predictive performance and runtime/model
+diagnostics attached to the result object.

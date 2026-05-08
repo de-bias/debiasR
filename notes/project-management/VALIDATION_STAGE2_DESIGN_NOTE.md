@@ -1,6 +1,6 @@
 # Stage 2 Validation Design Note
 
-Last updated: 2026-04-25
+Last updated: 2026-05-08
 
 ## Purpose
 
@@ -110,4 +110,7 @@ Stage 2 now has a validation layer that compares methods on:
 - residual structure and randomness: `validate_flow_residual_structure()`,
 - spatial allocation fidelity: `validate_flow_distribution()`.
 
-The remaining review question is not implementation completeness, but whether these helpers should be considered stable enough for the next public API milestone.
+Maintainer review was completed on 2026-05-08. The Stage 2 helpers are stable
+public API for the next package milestone. Optional diagnostic plots remain
+inside the validation helpers for now, and `sf`-aware cartographic support is
+deferred outside the package.

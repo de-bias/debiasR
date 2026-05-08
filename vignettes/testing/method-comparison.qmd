@@ -12,20 +12,26 @@ execute:
 
 ## Purpose
 
-This vignette compares all currently implemented adjustment methods in `debiasR`:
+This vignette compares the stable deterministic adjustment methods in `debiasR`
+and includes the Bayesian helper as the main experimental prototype:
 
 1. `adjust_inverse_penetration`
 2. `adjust_selection_rate`
 3. `adjust_selection_rate2`
 4. `adjust_raking_ratio`
 5. `adjust_coefficient`
-6. `adjust_multilevel_bayes`
+6. `adjust_multilevel_bayes` (stage-1 prototype with observed and complete-grid prediction scopes)
 
 It uses a fast but fair comparison protocol:
 
 1. same stratified OD subset for all methods per replicate,
 2. repeated over multiple seeds,
-3. Bayesian method with lighter MCMC settings for illustration.
+3. Bayesian prototype with lighter MCMC settings for illustration.
+
+`adjust_multilevel_bayes()` is not part of the stable deterministic path. Treat
+Method 6 results here as exploratory unless the optional Bayesian diagnostics,
+complete-grid checks, and runtime gate are explicitly reviewed for the rendered
+data.
 
 ## Setup
 

@@ -9,94 +9,75 @@ execute:
   message: false
 ---
 
-## Timing
+## Aim
 
-25-30 minutes.
+This vignette moves from measuring bias to diagnosing which area characteristics
+are associated with geographic differences in mobile-phone-derived coverage.
 
-## Purpose
-
-Move from "there is bias" to "what kinds of places are biased?"
-
-## Code-Along and Demo
-
-- Join bias estimates to census or contextual variables
-- Explore bias by deprivation, age structure, urban/rural status, income,
-  ethnicity, housing, and related area characteristics
-- Use the simple population-only linear residual diagnostic to spot areas whose
-  active-user counts sit above or below the benchmark population trend
-- Show variable importance, partial dependence, or SHAP-style outputs if
-  available
-- Connect to the finding that bias is spatial, social, and not random
-
-## Exercise
-
-Which area characteristics seem associated with under-coverage?
-
-```{r}
-candidate_roots <- c(".", "..", "../..")
-pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
-if (is.na(pkg_root)) {
-  stop("Could not locate the debiasR package root.")
-}
-
-if (!requireNamespace("debiasR", quietly = TRUE)) {
-  if (!requireNamespace("devtools", quietly = TRUE)) {
-    stop("Install either `debiasR` or `devtools` to load the local package.")
-  }
-  devtools::load_all(pkg_root, quiet = TRUE)
-}
-
-library(debiasR)
-library(dplyr)
-
-has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
-if (!has_debiasRdata) {
-  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
-  knitr::knit_exit()
-}
-
-if (has_debiasRdata) {
-  example_data <- debiasR_example_data(n_areas = 25)
-  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
-  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
-  coverage <- example_data$coverage
-  covariates <- example_data$covariates
-
-  diagnostics <- validate_bias_residual_structure(
-    coverage_df = coverage,
-    benchmark_od_df = census_msoa_OD_travel2work,
-    covariate_df = covariates,
-    covariate_col = "census_inflow"
-  )
-
-  population_lm_diagnostics <- validate_bias_residual_structure(
-    coverage_df = coverage,
-    benchmark_od_df = census_msoa_OD_travel2work,
-    covariate_df = covariates,
-    covariate_col = "census_inflow",
-    residual_type = "population_lm"
-  )
-}
+```{r setup}
+common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+source(common_path)
+example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
 ```
 
+## Bias as Spatial and Social Structure
+
+Coverage bias is not only a technical nuisance. If \(e_i = p_i - \bar{p}\) is
+systematically related to benchmark flows or contextual variables, then the OD
+matrix may encode spatial and social selection.
+
+`validate_bias_residual_structure()` provides a deterministic diagnostic layer.
+It does not claim causality. It identifies where residual coverage is associated
+with benchmark mobility structure or selected covariates.
+
 ```{r}
+diagnostics <- validate_bias_residual_structure(
+  coverage_df = example_data$coverage,
+  benchmark_od_df = example_data$census_msoa_OD_travel2work,
+  covariate_df = example_data$covariates,
+  covariate_col = "census_inflow"
+)
+
 diagnostics$summary
 ```
 
+## Benchmark Flow Associations
+
 ```{r}
-diagnostics$covariate_correlation
 diagnostics$benchmark_flow_correlation
 ```
 
-```{r}
-population_lm_diagnostics$population_lm
-```
+These correlations compare coverage residuals with benchmark origin and
+destination totals. They help assess whether areas with large benchmark flows
+also have systematically high or low coverage residuals.
+
+## Covariate Associations
 
 ```{r}
-diagnostics$area_level |>
-  arrange(coverage_score_residual) |>
-  select(area, population, user_count, coverage_score, coverage_score_residual) |>
-  head(10)
+diagnostics$covariate_correlation
+```
+
+The selected covariate can be changed when richer area-level inputs are
+available. The example uses `census_inflow` because it is derived directly from
+the benchmark OD table and is available in the package example workflow.
+
+## Population-Trend Residual
+
+The population-only residual fits a descriptive model of active users on
+benchmark population. It is not a sampling model. It is a diagnostic for areas
+where observed users are higher or lower than a simple population trend would
+suggest.
+
+```{r}
+population_lm_diagnostics <- validate_bias_residual_structure(
+  coverage_df = example_data$coverage,
+  benchmark_od_df = example_data$census_msoa_OD_travel2work,
+  covariate_df = example_data$covariates,
+  covariate_col = "census_inflow",
+  residual_type = "population_lm"
+)
+
+population_lm_diagnostics$population_lm
 ```
 
 ```{r}
@@ -111,3 +92,9 @@ population_lm_diagnostics$area_level |>
   ) |>
   head(10)
 ```
+
+## Link to Adjustment
+
+The Bayesian model uses these ideas directly. It treats coverage residuals and
+area-level characteristics as part of the model for adjusted OD flows, rather
+than assuming a single global correction is enough.

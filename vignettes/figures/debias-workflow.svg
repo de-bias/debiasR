@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="420" viewBox="0 0 1080 420" role="img" aria-labelledby="title desc">
+  <title id="title">debiasR origin-destination workflow</title>
+  <desc id="desc">Mobile phone derived origin-destination flows, benchmark data, and covariates feed a three stage workflow: measure bias, adjust bias with a Bayesian multilevel model, and validate adjusted OD flows.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#121282"/>
+    </marker>
+    <style>
+      .title { font: 700 24px Arial, sans-serif; fill: #121282; }
+      .label { font: 700 18px Arial, sans-serif; fill: #111827; }
+      .text { font: 14px Arial, sans-serif; fill: #374151; }
+      .small { font: 12px Arial, sans-serif; fill: #4b5563; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 8; }
+      .primary { fill: #f8fafc; stroke: #121282; stroke-width: 2.5; rx: 8; }
+      .bayes { fill: #fff7ed; stroke: #FE7105; stroke-width: 2.5; rx: 8; }
+      .line { stroke: #121282; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1080" height="420" fill="#ffffff"/>
+  <text x="48" y="52" class="title">debiasR: measure, adjust, and validate OD mobility bias</text>
+  <rect x="48" y="96" width="210" height="210" class="box"/>
+  <text x="72" y="132" class="label">Inputs</text>
+  <text x="72" y="170" class="text">F<tspan baseline-shift="super" font-size="10">mpd</tspan><tspan baseline-shift="sub" font-size="10">ij</tspan>: observed MPD flows</text>
+  <text x="72" y="200" class="text">F<tspan baseline-shift="super" font-size="10">bench</tspan><tspan baseline-shift="sub" font-size="10">ij</tspan>: benchmark OD flows</text>
+  <text x="72" y="230" class="text">P<tspan baseline-shift="sub" font-size="10">i</tspan>, U<tspan baseline-shift="sub" font-size="10">i</tspan>: population and users</text>
+  <text x="72" y="260" class="text">X<tspan baseline-shift="sub" font-size="10">i</tspan>, X<tspan baseline-shift="sub" font-size="10">j</tspan>, d<tspan baseline-shift="sub" font-size="10">ij</tspan>: covariates and distance</text>
+  <line x1="258" y1="201" x2="332" y2="201" class="line"/>
+  <rect x="336" y="96" width="190" height="210" class="primary"/>
+  <text x="366" y="132" class="label">1. Measure</text>
+  <text x="366" y="170" class="text">coverage score</text>
+  <text x="366" y="196" class="text">p<tspan baseline-shift="sub" font-size="10">i</tspan> = U<tspan baseline-shift="sub" font-size="10">i</tspan> / P<tspan baseline-shift="sub" font-size="10">i</tspan></text>
+  <text x="366" y="226" class="text">coverage bias</text>
+  <text x="366" y="252" class="text">b<tspan baseline-shift="sub" font-size="10">i</tspan> = 1 - p<tspan baseline-shift="sub" font-size="10">i</tspan></text>
+  <line x1="526" y1="201" x2="600" y2="201" class="line"/>
+  <rect x="604" y="96" width="214" height="210" class="bayes"/>
+  <text x="634" y="132" class="label">2. Adjust</text>
+  <text x="634" y="170" class="text">Bayesian multilevel model</text>
+  <text x="634" y="202" class="text">log(mu<tspan baseline-shift="sub" font-size="10">ij</tspan>) = f(X<tspan baseline-shift="sub" font-size="10">i</tspan>, X<tspan baseline-shift="sub" font-size="10">j</tspan>, d<tspan baseline-shift="sub" font-size="10">ij</tspan>, e<tspan baseline-shift="sub" font-size="10">i</tspan>)</text>
+  <text x="634" y="236" class="text">compare deterministic baselines</text>
+  <text x="634" y="266" class="small">inverse weighting, raking, coefficients</text>
+  <line x1="818" y1="201" x2="892" y2="201" class="line"/>
+  <rect x="896" y="96" width="136" height="210" class="primary"/>
+  <text x="922" y="132" class="label">3. Validate</text>
+  <text x="922" y="170" class="text">fit</text>
+  <text x="922" y="198" class="text">residuals</text>
+  <text x="922" y="226" class="text">structure</text>
+  <text x="922" y="254" class="text">allocation</text>
+  <text x="48" y="366" class="small">The workflow is designed for origin-destination matrices with auditable support: shared area sets, nonnegative flows, no duplicated OD pairs, and balanced total inflow/outflow.</text>
+</svg>

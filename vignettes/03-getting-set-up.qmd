@@ -9,86 +9,85 @@ execute:
   message: false
 ---
 
-## Timing
+## Aim
 
-10 minutes.
+This vignette shows how to load `debiasR`, access the empirical example data,
+and check that the OD matrices have valid support before using them for method
+demonstrations.
 
-## Purpose
+## Package Setup
 
-Get everyone into the same package and data workflow.
+Install `debiasR` from the project repository or load it from the current
+checkout during development. The empirical examples use the optional
+`debiasRdata` package. Its installation route is project-specific and still to
+be confirmed.
 
-## Setup
-
-```{r}
-candidate_roots <- c(".", "..", "../..")
-pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
-if (is.na(pkg_root)) {
-  stop("Could not locate the debiasR package root.")
-}
-
-if (!requireNamespace("debiasR", quietly = TRUE)) {
-  if (!requireNamespace("devtools", quietly = TRUE)) {
-    stop("Install either `debiasR` or `devtools` to load the local package.")
-  }
-  devtools::load_all(pkg_root, quiet = TRUE)
-}
-
-library(debiasR)
-
-has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
-if (!has_debiasRdata) {
-  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work examples.\n")
-  knitr::knit_exit()
-}
-
-if (has_debiasRdata) {
-  example_data <- debiasR_example_data(n_areas = 25)
-  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
-  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
-  coverage <- example_data$coverage
-  covariates <- example_data$covariates
-}
+```{r setup}
+common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+source(common_path)
+load_debiasr_workshop()
 ```
 
-## Code-Along
+## Load Empirical Example Data
 
-- Load `debiasR`
-- Load tidy data and simple mapping packages
-- Load the workshop MSOA travel-to-work datasets from `debiasRdata`
-- Use `msoa_OD_travel2work` as the observed MPD OD matrix
-- Use `census_msoa_OD_travel2work` as the Census benchmark OD matrix
-- Inspect core fields: area ID, census population, observed user or device count,
-  and contextual covariates
+The vignettes use `debiasR_example_data()` so all inputs are normalised to the
+same package schema. The main demonstrations request complete OD support:
+matching origin and destination area sets, no duplicated OD pairs, nonnegative
+flows, and zero-filled absent pairs.
+
+```{r}
+example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+
+msoa_OD_travel2work <- example_data$msoa_OD_travel2work
+census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
+coverage <- example_data$coverage
+covariates <- example_data$covariates
+distance <- example_data$distance
+```
+
+## Inspect Inputs
 
 ```{r}
 example_data$metadata
 ```
 
 ```{r}
-data.frame(
-  dataset = c(
+example_data$od_audit
+```
+
+```{r}
+tibble::tibble(
+  table = c(
     "msoa_OD_travel2work",
     "census_msoa_OD_travel2work",
     "coverage",
-    "covariates"
+    "covariates",
+    "distance"
   ),
   rows = c(
     nrow(msoa_OD_travel2work),
     nrow(census_msoa_OD_travel2work),
     nrow(coverage),
-    nrow(covariates)
+    nrow(covariates),
+    nrow(distance)
   ),
   columns = c(
     ncol(msoa_OD_travel2work),
     ncol(census_msoa_OD_travel2work),
     ncol(coverage),
-    ncol(covariates)
+    ncol(covariates),
+    ncol(distance)
   )
 )
 ```
+
+## First Rows
 
 ```{r}
 head(msoa_OD_travel2work)
 head(census_msoa_OD_travel2work)
 head(coverage)
+head(covariates)
 ```
+
+The data are described in detail in `08-data.qmd`.

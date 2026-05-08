@@ -1,6 +1,6 @@
 # Stage 2 Implementation Report
 
-Last updated: 2026-04-25
+Last updated: 2026-05-08
 
 ## Summary
 
@@ -145,11 +145,17 @@ devtools::check(
 )
 ```
 
-Result on 2026-05-05:
+Historical result on 2026-05-05 before the package-readiness cleanup:
 
 - 1 error, 2 warnings, 3 notes.
 - The error is in the optional Bayesian test file (`test-adjust-multilevel-bayes.R`) where draw-summary comparisons differ only by names on expected vectors; this is outside the deterministic Stage 2 validation path.
-- Warnings and notes are the existing portable-file-path warning, `brms::poisson` dependency warning, top-level file note, future timestamp note, and Bayesian NSE globals.
+- The warnings and notes were package-readiness items rather than Stage 2 validation failures.
+
+Follow-up on 2026-05-08:
+
+- Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 2 notes.
+- Remaining notes are optional `debiasRdata` unavailable for checking and current time verification.
+- The Bayesian draw-summary names mismatch was fixed in the optional Bayesian test file.
 
 Vignette smoke checks were run with Quarto on 2026-05-05. The empirical
 `debiasRdata` vignettes render cleanly in an environment without `debiasRdata`
@@ -169,11 +175,16 @@ Rationale:
 - The full record is too large for the main package.
 - `msoa_OD_travel2work.csv.gz` is the preferred MPD candidate in `debiasRdata`, paired with the extracted Census benchmark `census_msoa_OD_travel2work`.
 
-## Remaining Review Questions
+## Maintainer Review Decisions
 
-1. Should `validate_flow_residual_structure()` be treated as stable public API immediately, or marked as early Stage 2 API until used in one empirical workflow?
-2. Should optional plot generation stay inside the helper, or move later into separate plotting helpers if more diagnostics are added?
-3. Should a future release add `sf`-aware map support, or keep cartographic rendering outside the package?
+Stage 2 maintainer review was completed on 2026-05-08.
+
+Decisions:
+
+1. Treat `validate_flow_residual_structure()` as stable public API immediately.
+2. Keep optional plot generation inside the validation helper for now because the plots are dependency-light and useful during review. Split plotting into separate helpers later only if the plotting surface grows.
+3. Keep `sf`-aware map support outside the package for now. The package should continue returning map-ready area data and user-supplied coordinate plots rather than owning full cartographic workflows.
+4. Accept the data-redistribution decision: do not bundle the full Zenodo resource in `debiasR`; use the optional `debiasRdata` package for empirical MSOA travel-to-work examples.
 
 ## Subsequent Stage Status
 

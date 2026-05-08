@@ -49,6 +49,29 @@ test_that("formula builder reflects the requested random-intercept structure", {
   expect_false(grepl("log_pop_o", txt_destination, fixed = TRUE))
 })
 
+test_that("complete-grid audit detects strict square OD support", {
+  complete_od <- data.frame(
+    origin = c("A", "A", "B", "B"),
+    destination = c("A", "B", "A", "B"),
+    mpd_observed = c(TRUE, TRUE, TRUE, FALSE),
+    mpd_zero_filled = c(FALSE, FALSE, FALSE, TRUE),
+    flow = c(10, 2, 3, 0)
+  )
+
+  audit <- debiasR:::.audit_multilevel_complete_grid(complete_od, "flow")
+
+  expect_true(audit$strict_square_support)
+  expect_true(audit$same_origin_destination_area_set)
+  expect_equal(audit$n_areas, 2)
+  expect_equal(audit$expected_od_rows, 4)
+  expect_equal(audit$n_zero_filled, 1)
+  expect_equal(audit$balance_diff, 0)
+
+  incomplete_od <- complete_od[-4, ]
+  audit_incomplete <- debiasR:::.audit_multilevel_complete_grid(incomplete_od, "flow")
+  expect_false(audit_incomplete$strict_square_support)
+})
+
 test_that("diagnostic summarizer standardizes available convergence metrics", {
   diag_tbl <- data.frame(
     Rhat = c(1.01, 1.00, 1.03),
@@ -114,6 +137,47 @@ test_that("prepare helper builds deterministic bias and synthetic distance colum
   expect_true(all(c("bias_e_origin", "log_dist_synth") %in% names(prep1$base_df)))
   expect_equal(prep1$base_df$log_dist_synth, prep2$base_df$log_dist_synth)
   expect_equal(prep1$base_df$bias_e_origin, prep2$base_df$bias_e_origin)
+})
+
+test_that("prepare helper preserves complete-grid source row status", {
+  complete_od <- data.frame(
+    origin = c("A", "A", "B", "B"),
+    destination = c("A", "B", "A", "B"),
+    mpd_source = "toy",
+    mpd_observed = c(TRUE, TRUE, TRUE, FALSE),
+    mpd_zero_filled = c(FALSE, FALSE, FALSE, TRUE),
+    mpd_row_status = c("observed", "observed", "observed", "zero_filled"),
+    flow = c(10, 2, 3, 0)
+  )
+  coverage <- data.frame(
+    origin = c("A", "B"),
+    population = c(100, 80),
+    user_count = c(12, 3),
+    mpd_source = "toy"
+  )
+  covariates <- data.frame(
+    area = c("A", "B"),
+    income_norm = c(0.2, 0.8),
+    population = c(100, 80)
+  )
+
+  prep <- suppressWarnings(
+    debiasR:::.prepare_multilevel_bayes_data(
+      mpd_od_df = complete_od,
+      coverage_df = coverage,
+      covariates_df = covariates,
+      distance_df = NULL,
+      flow_col = "flow",
+      income_col = "income_norm",
+      pop_col = "population",
+      distance_col = "distance_km"
+    )
+  )
+
+  expect_true(all(c("mpd_observed", "mpd_zero_filled", "mpd_row_status") %in% names(prep$model_df)))
+  expect_equal(sum(prep$model_df$mpd_observed), 3)
+  expect_equal(sum(prep$model_df$mpd_zero_filled), 1)
+  expect_equal(prep$model_df$mpd_row_status[prep$model_df$mpd_zero_filled], "zero_filled")
 })
 
 test_that("adjust_multilevel_bayes validates required schema", {
@@ -193,7 +257,8 @@ test_that("adjust_multilevel_bayes returns adjusted flows when rstanarm is avail
   expect_equal(attr(res, "stage_scope"), "observed_od_only")
   expect_equal(attr(res, "flow_adj_summary"), "mean")
   expect_equal(attr(res, "random_intercept"), "origin")
-  expect_match(attr(res, "prototype_notes"), "No missing OD pairs are created or imputed.")
+  expect_match(attr(res, "prototype_notes"), "Stage-1 observed mode")
+  expect_match(attr(res, "prototype_notes"), "prediction_scope = 'complete_grid'")
   expect_match(attr(res, "prototype_notes"), "removes the estimated coverage-bias contribution")
 
   result_metadata <- attr(res, "result_metadata")
@@ -215,6 +280,59 @@ test_that("adjust_multilevel_bayes returns adjusted flows when rstanarm is avail
     "available_no_standard_metrics",
     "not_available"
   ))
+})
+
+test_that("adjust_multilevel_bayes supports complete-grid prediction when rstanarm is available", {
+  skip_if_not_installed("rstanarm")
+
+  complete_od <- data.frame(
+    origin = c("A", "A", "B", "B"),
+    destination = c("A", "B", "A", "B"),
+    mpd_source = "toy",
+    mpd_observed = c(TRUE, TRUE, TRUE, FALSE),
+    mpd_zero_filled = c(FALSE, FALSE, FALSE, TRUE),
+    mpd_row_status = c("observed", "observed", "observed", "zero_filled"),
+    flow = c(10, 2, 3, 0)
+  )
+  coverage <- data.frame(
+    origin = c("A", "B"),
+    population = c(100, 80),
+    user_count = c(12, 3),
+    mpd_source = "toy"
+  )
+  covariates <- data.frame(
+    area = c("A", "B"),
+    income_norm = c(0.2, 0.8),
+    population = c(100, 80)
+  )
+
+  res <- suppressWarnings(
+    adjust_multilevel_bayes(
+      mpd_od_df = complete_od,
+      coverage_df = coverage,
+      covariates_df = covariates,
+      prediction_scope = "complete_grid",
+      random_intercept = "origin",
+      custom_formula = flow ~ bias_e_origin + (1 | origin),
+      iter = 100,
+      chains = 1,
+      seed = 321,
+      refresh = 0
+    )
+  )
+
+  expect_equal(nrow(res), 4)
+  expect_equal(attr(res, "prediction_scope"), "complete_grid")
+  expect_equal(attr(res, "stage_scope"), "complete_grid_prediction")
+  expect_true(all(c("mpd_observed", "mpd_zero_filled", "mpd_row_status") %in% names(res)))
+  expect_true(any(res$mpd_zero_filled))
+  expect_true(all(is.finite(res$flow_adj)))
+
+  metadata <- attr(res, "result_metadata")
+  expect_equal(metadata$n_fit_rows, 3)
+  expect_equal(metadata$n_prediction_rows, 4)
+  expect_equal(metadata$n_zero_filled_prediction_rows, 1)
+  expect_true(metadata$runtime_seconds >= 0)
 })
 
 test_that("adjust_multilevel_bayes can attach draw-level summaries when requested", {
@@ -258,10 +376,10 @@ test_that("adjust_multilevel_bayes can attach draw-level summaries when requeste
   expect_equal(attr(res_median, "flow_adj_summary"), "median")
   expect_false(is.null(attr(res_mean, "formula")))
   expect_false(is.null(attr(res_mean, "model_family")))
-  expect_equal(as.numeric(res_mean$flow_adj), colMeans(draws_mean))
+  expect_equal(as.numeric(res_mean$flow_adj), unname(colMeans(draws_mean)))
   expect_equal(
     as.numeric(res_median$flow_adj),
-    apply(draws_median, 2, stats::median)
+    unname(apply(draws_median, 2, stats::median))
   )
   expect_true(any(abs(res_mean$flow_adj - res_median$flow_adj) > 0))
 })

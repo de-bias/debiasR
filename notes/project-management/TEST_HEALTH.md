@@ -1,6 +1,6 @@
 # Test Health
 
-Last updated: 2026-05-05
+Last updated: 2026-05-08
 
 ## Summary
 
@@ -10,11 +10,17 @@ Last updated: 2026-05-05
 - Full suite still includes a slower Bayesian test file with optional dependencies.
 - Observed behavior today:
   - `Rscript scripts/run_fast_tests.R` passes.
+  - merged PR #11 (`Codex/validation distribution`) passed the GitHub Actions fast deterministic workflow for commit `59705b376c26a4b33ecbbc9cd1063b037fd61572`.
+  - current local branch head `b787cfd3edfa8e31660c81a509b6e1f459b2daa2` is newer than the merged PR head and has not yet had a pull-request-triggered workflow run.
+  - package-readiness check with tests/vignettes/manual skipped now completes with 0 errors, 0 warnings, and 2 notes:
+    `devtools::check(document = FALSE, build_args = "--no-build-vignettes", args = c("--no-manual", "--ignore-vignettes", "--no-tests"), error_on = "never")`.
+  - the remaining package-readiness notes are that optional `debiasRdata` is not installed and the checker cannot verify current time.
   - `quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd` passes.
   - core workshop vignettes and updated testing notebooks render cleanly without `debiasRdata` installed by exiting early with an installation note.
   - targeted tests for `measure_bias`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
   - `test-adjust-coefficient.R` skips one optional `pscl`-dependent case when `pscl` is not installed.
-  - full `devtools::check(...)` currently fails when it runs the optional Bayesian lane because `test-adjust-multilevel-bayes.R` compares unnamed actual draw summaries to named expected vectors.
+  - the Bayesian draw-summary names mismatch has been fixed in the optional Bayesian test file.
+  - local optional Bayesian test-file run completed with `rstanarm` installed: no failures, one expected skip for the unavailable-backend fallback path, and expected warnings from locale handling, synthetic-distance fallback, and deliberately low-iteration MCMC diagnostics.
   - running `test_dir()` without loading package can produce false failures (`function not found`, data object not found).
 
 ## Test Tiers (Recommended)
@@ -45,7 +51,7 @@ Last updated: 2026-05-05
 
 1. Direct `testthat::test_dir("tests/testthat")` without package load context may fail.
 2. Bayesian tests are slower and environment-sensitive because of optional dependencies.
-3. Full package check currently fails in `test-adjust-multilevel-bayes.R` when the optional Bayesian lane runs; the observed failure is a names mismatch in draw-summary comparisons, not a Stage 3 diagnostics failure.
+3. Full package checks that run the optional Bayesian lane may still be slow on machines with `rstanarm` installed.
 4. Some warnings are locale-related (`LC_ALL='C.UTF-8'`) and mostly non-blocking.
 
 ## Recommended CI Strategy

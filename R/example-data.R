@@ -21,12 +21,18 @@
 #' @param census_path Optional explicit path to the extracted Census 2021
 #'   MSOA travel-to-work OD CSV or `.csv.gz`.
 #' @param include_self_flows Logical; keep within-MSOA flows. Default `TRUE`.
+#' @param complete_grid Logical; if `TRUE`, return MPD and benchmark OD tables
+#'   on the same square area grid after area selection. Missing OD pairs are
+#'   retained with zero-filled flows and row-status indicators. Default `FALSE`
+#'   preserves the observed positive-flow support.
+#' @param fill_missing_flow Numeric value used for absent OD pairs when
+#'   `complete_grid = TRUE`. Default `0`.
 #'
 #' @return A named list with normalised OD matrices and derived teaching tables:
 #'   `msoa_OD_travel2work` and `mpd_od` for observed MPD flows,
 #'   `census_msoa_OD_travel2work` and `benchmark_od` for the Census benchmark,
-#'   plus `coverage`, `active_users`, `population`, `covariates`, and
-#'   `metadata`.
+#'   plus `coverage`, `active_users`, `population`, `covariates`, `distance`,
+#'   `od_audit`, and `metadata`.
 #'
 #' @examplesIf requireNamespace("debiasRdata", quietly = TRUE)
 #' ex <- debiasR_example_data(n_areas = 12)
@@ -39,7 +45,17 @@ debiasR_example_data <- function(n_areas = 25,
                                  data_package = "debiasRdata",
                                  mpd_path = NULL,
                                  census_path = NULL,
-                                 include_self_flows = TRUE) {
+                                 include_self_flows = TRUE,
+                                 complete_grid = FALSE,
+                                 fill_missing_flow = 0) {
+  complete_grid <- isTRUE(complete_grid)
+  if (!is.numeric(fill_missing_flow) ||
+      length(fill_missing_flow) != 1L ||
+      !is.finite(fill_missing_flow) ||
+      fill_missing_flow < 0) {
+    stop("`fill_missing_flow` must be a single finite non-negative number.")
+  }
+
   mpd_raw <- .load_example_source(
     path = mpd_path,
     object_names = c("msoa_OD_travel2work", "msoa_od_travel2work"),
@@ -141,7 +157,37 @@ debiasR_example_data <- function(n_areas = 25,
       .data$destination %in% final_areas
     )
 
+  if (complete_grid) {
+    completed <- .complete_example_od_support(
+      mpd_od = mpd_od,
+      benchmark_od = benchmark_od,
+      areas = final_areas,
+      include_self_flows = include_self_flows,
+      fill_missing_flow = fill_missing_flow
+    )
+    mpd_od <- completed$mpd_od
+    benchmark_od <- completed$benchmark_od
+    od_audit <- completed$od_audit
+  } else {
+    od_audit <- .audit_example_od_support(
+      mpd_od = mpd_od,
+      benchmark_od = benchmark_od,
+      complete_grid = FALSE,
+      include_self_flows = include_self_flows
+    )
+  }
+
   covariates <- .build_example_covariates(mpd_od, benchmark_od, coverage)
+  distance <- .load_optional_example_distance(
+    data_package = data_package,
+    areas = final_areas,
+    include_self_flows = include_self_flows
+  )
+  distance_source <- if (nrow(distance) > 0L) {
+    distance$distance_source[[1]]
+  } else {
+    "not_available"
+  }
 
   list(
     mpd_od = mpd_od,
@@ -152,17 +198,325 @@ debiasR_example_data <- function(n_areas = 25,
     population = coverage |>
       dplyr::select(.data$origin, .data$population),
     covariates = covariates,
+    distance = distance,
+    od_audit = od_audit,
     msoa_OD_travel2work = mpd_od,
     census_msoa_OD_travel2work = benchmark_od,
     metadata = tibble::tibble(
       data_package = data_package,
       mpd_source = "Zenodo 10.5281/zenodo.13327082: msoa_OD_travel2work",
       benchmark_source = "Census 2021 ODWP01EW MSOA workplace flows",
+      distance_source = distance_source,
+      complete_grid = complete_grid,
+      include_self_flows = include_self_flows,
+      fill_missing_flow = fill_missing_flow,
       n_areas = length(final_areas),
       n_mpd_od = nrow(mpd_od),
-      n_benchmark_od = nrow(benchmark_od)
+      n_benchmark_od = nrow(benchmark_od),
+      n_expected_od = od_audit$expected_od_rows[[1]],
+      n_mpd_zero_filled = od_audit$n_mpd_zero_filled[[1]],
+      n_benchmark_zero_filled = od_audit$n_benchmark_zero_filled[[1]],
+      mpd_total_flow = od_audit$mpd_total_flow[[1]],
+      benchmark_total_flow = od_audit$benchmark_total_flow[[1]],
+      mpd_balance_diff = od_audit$mpd_balance_diff[[1]],
+      benchmark_balance_diff = od_audit$benchmark_balance_diff[[1]]
     )
   )
+}
+
+.complete_example_od_support <- function(mpd_od,
+                                         benchmark_od,
+                                         areas,
+                                         include_self_flows,
+                                         fill_missing_flow) {
+  areas <- sort(unique(as.character(areas)))
+  grid <- expand.grid(
+    origin = areas,
+    destination = areas,
+    stringsAsFactors = FALSE
+  ) |>
+    tibble::as_tibble()
+
+  if (!include_self_flows) {
+    grid <- grid |>
+      dplyr::filter(.data$origin != .data$destination)
+  }
+
+  mpd_completed <- .complete_one_example_od(
+    od_df = mpd_od,
+    grid = grid,
+    prefix = "mpd",
+    fill_missing_flow = fill_missing_flow
+  )
+
+  benchmark_completed <- .complete_one_example_od(
+    od_df = benchmark_od,
+    grid = grid,
+    prefix = "benchmark",
+    fill_missing_flow = fill_missing_flow
+  )
+
+  od_audit <- .audit_example_od_support(
+    mpd_od = mpd_completed,
+    benchmark_od = benchmark_completed,
+    complete_grid = TRUE,
+    include_self_flows = include_self_flows
+  )
+
+  if (!isTRUE(od_audit$strict_square_support[[1]])) {
+    stop("Complete-grid construction failed strict square OD support checks.")
+  }
+
+  list(
+    mpd_od = mpd_completed,
+    benchmark_od = benchmark_completed,
+    od_audit = od_audit
+  )
+}
+
+.complete_one_example_od <- function(od_df,
+                                     grid,
+                                     prefix,
+                                     fill_missing_flow) {
+  if (anyDuplicated(od_df[c("origin", "destination")]) > 0L) {
+    stop("`", prefix, "` OD data contain duplicate origin-destination pairs.")
+  }
+  if (any(!is.finite(od_df$flow) | od_df$flow < 0)) {
+    stop("`", prefix, "` OD flow values must be finite and non-negative.")
+  }
+
+  has_source <- "mpd_source" %in% names(od_df)
+  source_value <- if (has_source && nrow(od_df) > 0L) {
+    od_df$mpd_source[[1]]
+  } else {
+    "locomizer_travel_to_work"
+  }
+
+  joined <- grid |>
+    dplyr::left_join(od_df, by = c("origin", "destination"))
+
+  observed_col <- paste0(prefix, "_observed")
+  zero_filled_col <- paste0(prefix, "_zero_filled")
+  status_col <- paste0(prefix, "_row_status")
+
+  joined[[observed_col]] <- is.finite(joined$flow)
+  joined$flow <- ifelse(joined[[observed_col]], joined$flow, fill_missing_flow)
+  joined[[zero_filled_col]] <- !joined[[observed_col]]
+  joined[[status_col]] <- ifelse(joined[[observed_col]], "observed", "zero_filled")
+
+  if (has_source) {
+    joined$mpd_source <- ifelse(
+      is.na(joined$mpd_source),
+      source_value,
+      joined$mpd_source
+    )
+    joined <- joined |>
+      dplyr::select(
+        .data$origin,
+        .data$destination,
+        .data$mpd_source,
+        dplyr::all_of(c(observed_col, zero_filled_col, status_col)),
+        .data$flow
+      )
+  } else {
+    joined <- joined |>
+      dplyr::select(
+        .data$origin,
+        .data$destination,
+        dplyr::all_of(c(observed_col, zero_filled_col, status_col)),
+        .data$flow
+      )
+  }
+
+  joined |>
+    dplyr::arrange(.data$origin, .data$destination) |>
+    tibble::as_tibble()
+}
+
+.audit_example_od_support <- function(mpd_od,
+                                      benchmark_od,
+                                      complete_grid,
+                                      include_self_flows) {
+  mpd_origins <- sort(unique(as.character(mpd_od$origin)))
+  mpd_destinations <- sort(unique(as.character(mpd_od$destination)))
+  benchmark_origins <- sort(unique(as.character(benchmark_od$origin)))
+  benchmark_destinations <- sort(unique(as.character(benchmark_od$destination)))
+  area_set <- sort(unique(c(
+    mpd_origins,
+    mpd_destinations,
+    benchmark_origins,
+    benchmark_destinations
+  )))
+
+  expected_od_rows <- length(area_set)^2
+  if (!include_self_flows) {
+    expected_od_rows <- length(area_set) * max(length(area_set) - 1L, 0L)
+  }
+
+  mpd_total_flow <- sum(mpd_od$flow, na.rm = TRUE)
+  benchmark_total_flow <- sum(benchmark_od$flow, na.rm = TRUE)
+
+  same_area_set <- identical(mpd_origins, mpd_destinations) &&
+    identical(benchmark_origins, benchmark_destinations) &&
+    identical(mpd_origins, benchmark_origins)
+
+  duplicate_mpd <- sum(duplicated(mpd_od[c("origin", "destination")]))
+  duplicate_benchmark <- sum(duplicated(benchmark_od[c("origin", "destination")]))
+  strict_square_support <- same_area_set &&
+    nrow(mpd_od) == expected_od_rows &&
+    nrow(benchmark_od) == expected_od_rows &&
+    duplicate_mpd == 0L &&
+    duplicate_benchmark == 0L &&
+    all(is.finite(mpd_od$flow) & mpd_od$flow >= 0) &&
+    all(is.finite(benchmark_od$flow) & benchmark_od$flow >= 0)
+
+  tibble::tibble(
+    complete_grid = complete_grid,
+    include_self_flows = include_self_flows,
+    strict_square_support = strict_square_support,
+    same_origin_destination_area_set = same_area_set,
+    n_areas = length(area_set),
+    expected_od_rows = expected_od_rows,
+    n_mpd_od = nrow(mpd_od),
+    n_benchmark_od = nrow(benchmark_od),
+    n_mpd_duplicate_pairs = duplicate_mpd,
+    n_benchmark_duplicate_pairs = duplicate_benchmark,
+    n_mpd_zero_filled = .sum_logical_col(mpd_od, "mpd_zero_filled"),
+    n_benchmark_zero_filled = .sum_logical_col(benchmark_od, "benchmark_zero_filled"),
+    mpd_total_flow = mpd_total_flow,
+    benchmark_total_flow = benchmark_total_flow,
+    mpd_total_outflow = mpd_total_flow,
+    mpd_total_inflow = mpd_total_flow,
+    benchmark_total_outflow = benchmark_total_flow,
+    benchmark_total_inflow = benchmark_total_flow,
+    mpd_balance_diff = 0,
+    benchmark_balance_diff = 0
+  )
+}
+
+.sum_logical_col <- function(df, col) {
+  if (!col %in% names(df)) {
+    return(0L)
+  }
+  sum(isTRUE(df[[col]]) | df[[col]] %in% TRUE, na.rm = TRUE)
+}
+
+.empty_example_distance <- function() {
+  tibble::tibble(
+    origin = character(),
+    destination = character(),
+    distance_km = numeric(),
+    distance_source = character()
+  )
+}
+
+.load_optional_example_distance <- function(data_package,
+                                            areas,
+                                            include_self_flows) {
+  if (!requireNamespace(data_package, quietly = TRUE)) {
+    return(.empty_example_distance())
+  }
+
+  distance_raw <- .load_optional_example_object(
+    object_names = c(
+      "msoa_OD_distance",
+      "msoa_od_distance",
+      "msoa_distance",
+      "msoa_distance_matrix",
+      "distance"
+    ),
+    data_package = data_package
+  )
+
+  if (is.null(distance_raw)) {
+    distance_path <- .find_example_file(
+      file_names = c(
+        "msoa_OD_distance.csv.gz",
+        "msoa_OD_distance.csv",
+        "msoa_distance.csv.gz",
+        "msoa_distance.csv",
+        "distance.csv.gz",
+        "distance.csv"
+      ),
+      data_package = data_package
+    )
+    if (!is.null(distance_path)) {
+      distance_raw <- .read_example_csv(distance_path)
+    }
+  }
+
+  if (is.null(distance_raw)) {
+    return(.empty_example_distance())
+  }
+
+  .normalise_example_distance(
+    distance_raw,
+    areas = areas,
+    include_self_flows = include_self_flows
+  )
+}
+
+.load_optional_example_object <- function(object_names, data_package) {
+  env <- new.env(parent = emptyenv())
+  for (object_name in object_names) {
+    suppressWarnings(
+      utils::data(list = object_name, package = data_package, envir = env)
+    )
+    if (exists(object_name, envir = env, inherits = FALSE)) {
+      return(get(object_name, envir = env, inherits = FALSE))
+    }
+  }
+  NULL
+}
+
+.normalise_example_distance <- function(df,
+                                        areas,
+                                        include_self_flows) {
+  origin_col <- .find_col(
+    df,
+    c("origin", "MSOA21CD_home", "msoa21cd_home", "origin_msoa", "from"),
+    required = FALSE
+  )
+  destination_col <- .find_col(
+    df,
+    c("destination", "MSOA21CD_work", "msoa21cd_work", "destination_msoa", "to"),
+    required = FALSE
+  )
+  distance_col <- .find_col(
+    df,
+    c("distance_km", "distance", "dist_km", "distance_m", "dist"),
+    required = FALSE
+  )
+
+  if (is.null(origin_col) || is.null(destination_col) || is.null(distance_col)) {
+    return(.empty_example_distance())
+  }
+
+  areas <- sort(unique(as.character(areas)))
+
+  out <- tibble::tibble(
+    origin = as.character(df[[origin_col]]),
+    destination = as.character(df[[destination_col]]),
+    distance_km = suppressWarnings(as.numeric(df[[distance_col]]))
+  ) |>
+    dplyr::filter(
+      .data$origin %in% areas,
+      .data$destination %in% areas,
+      is.finite(.data$distance_km),
+      .data$distance_km >= 0
+    )
+
+  if (!include_self_flows) {
+    out <- out |>
+      dplyr::filter(.data$origin != .data$destination)
+  }
+
+  out |>
+    dplyr::group_by(.data$origin, .data$destination) |>
+    dplyr::summarise(distance_km = dplyr::first(.data$distance_km), .groups = "drop") |>
+    dplyr::mutate(distance_source = "debiasRdata") |>
+    dplyr::arrange(.data$origin, .data$destination) |>
+    tibble::as_tibble()
 }
 
 .load_example_source <- function(path,

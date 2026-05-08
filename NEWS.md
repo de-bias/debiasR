@@ -5,8 +5,15 @@
 ### Empirical MSOA travel-to-work examples
 
 - Added `debiasR_example_data()` to load and normalise `debiasRdata` MSOA travel-to-work inputs into the package `origin`, `destination`, `flow` schema.
+- Added optional complete-grid output to `debiasR_example_data()`, including zero-filled absent OD pairs, source row-status indicators, and an OD audit for strict square support.
 - Added a Census 2021 `ODWP01EW` MSOA workplace-flow extraction script for the benchmark travel-to-work OD matrix.
 - Updated examples and vignettes to use the empirical `debiasRdata` workflow, with `msoa_OD_travel2work` as the observed OD matrix and `census_msoa_OD_travel2work` as the Census benchmark, while retaining `simulated_*` datasets as lightweight test fixtures.
+
+### Bayesian complete-grid prediction
+
+- Extended `adjust_multilevel_bayes()` with `prediction_scope = "complete_grid"` for supplied square OD matrices.
+- Complete-grid mode validates OD support, fits on originally observed MPD rows when `mpd_observed` is available, predicts across the supplied grid, and returns row-status and runtime metadata.
+- Refreshed the training vignettes to centre the Bayesian multilevel adjustment path while keeping deterministic methods as transparent baselines.
 
 ### Stage 3 measure-bias diagnostics
 
@@ -29,3 +36,4 @@
 ### Migration notes
 
 - Package documentation and onboarding now refer to `adjust_*` functions and the current example-data workflow consistently.
+- `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; empirical Bayesian rendering still requires explicit dependency, runtime, and real-distance validation.

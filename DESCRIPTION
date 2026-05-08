@@ -6,7 +6,7 @@ Authors@R:
       person("Francisco", "Rowe", email = "fcorowe@liverpool.ac.uk", role = c("aut","cre")),
       person("Carmen", "Cabrera", email = "c.cabrera@liverpool.ac.uk", role = "aut")
     )
-Description: Tools to correct biases in origin-destination mobility data derived from mobile phone sources. Implements a range of bias-adjustment methods.
+Description: Tools to correct biases in origin-destination mobility data derived from mobile phone sources. Implements stable deterministic bias-adjustment methods plus a Bayesian multilevel prototype with observed and complete-grid origin-destination prediction modes.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

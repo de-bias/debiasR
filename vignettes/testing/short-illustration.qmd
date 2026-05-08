@@ -1,10 +1,15 @@
 ---
-title: "Bayesian Adjustment Walkthrough"
+title: "Bayesian Multilevel Adjustment Walkthrough"
 format: html
 editor: visual
 ---
 
 # Package and data
+
+This walkthrough uses `adjust_multilevel_bayes()` as a stage-1 prototype. The
+default mode preserves observed OD behavior, while the complete-grid prediction
+scope is used in the main workshop vignettes for square OD adjustment examples.
+
 ```{r}
 candidate_roots <- c(".", "..", "../..")
 pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]

@@ -20,7 +20,7 @@ Current exported functions:
 - `adjust_selection_rate2()`
 - `adjust_raking_ratio()`
 - `adjust_coefficient()`
-- `adjust_multilevel_bayes()`
+- `adjust_multilevel_bayes()` (experimental stage-1 prototype)
 - `validate_bias_residual_structure()`
 - `validate_flow_overall()`
 - `validate_flow_pairs()`
@@ -33,7 +33,12 @@ Legacy aliases retained temporarily for compatibility:
 - `validate_flow_benchmark()` -> `validate_flow_overall()`
 - `validate_flow_all()` -> `validate_flow_pairs()`
 
-The package supports inverse penetration weighting, selection-rate models, raking ratio adjustment, coefficient calibration, and a Bayesian multilevel prototype.
+The package supports inverse penetration weighting, selection-rate models,
+raking ratio adjustment, coefficient calibration, and a Bayesian multilevel
+adjustment path for OD flows. The Bayesian path is the main methodological
+innovation and now supports an explicit complete-grid prediction scope for
+square OD matrices, while still requiring careful runtime and dependency
+validation.
 
 ## Package At A Glance
 
@@ -45,8 +50,8 @@ The package supports inverse penetration weighting, selection-rate models, rakin
   in bias residuals
 
 2. `Adjust bias`
-- apply deterministic OD-flow correction methods
-- support an experimental Bayesian multilevel path for observed OD pairs
+- use `adjust_multilevel_bayes()` as the central multilevel adjustment model
+- compare against deterministic OD-flow correction baselines
 
 3. `Validate adjusted flows`
 - compare adjusted flows against benchmark OD flows
@@ -54,11 +59,13 @@ The package supports inverse penetration weighting, selection-rate models, rakin
 
 Current progress:
 
-- deterministic adjustment methods are the main stable path
-- Stage 2 validation diagnostics are implemented and ready for maintainer review
+- deterministic adjustment methods are transparent baselines and comparators
+- Stage 2 validation diagnostics are maintainer-reviewed and stable
 - Stage 3 measure-bias diagnostics are maintainer-reviewed and stable,
   including a population-only linear residual diagnostic
-- the Bayesian method remains a stage-1 prototype
+- the Bayesian method now has observed and complete-grid prediction scopes, but
+  full empirical Bayesian vignette rendering still depends on Bayesian
+  dependencies and real OD distance inputs
 - Stage 4 origin-destination random-effects extension is still planned
 - empirical examples now use the optional separate `debiasRdata` package
 
@@ -90,12 +97,12 @@ Default example data:
 - Census benchmark OD flows: `census_msoa_OD_travel2work`, the matching
   Census 2021 `ODWP01EW` MSOA workplace-flow extract in `debiasRdata`
 - Package helper: `debiasR_example_data()`, which normalises both sources to
-  `origin`, `destination`, and `flow`, and derives the example coverage table
-  from matched origin totals
+  `origin`, `destination`, and `flow`, can return strict square complete-grid OD
+  support, and derives the example coverage table from matched origin totals
 
 ```r
 if (requireNamespace("debiasRdata", quietly = TRUE)) {
-  ex <- debiasR_example_data(n_areas = 25)
+  ex <- debiasR_example_data(n_areas = Inf, complete_grid = TRUE)
   msoa_OD_travel2work <- ex$msoa_OD_travel2work
   census_msoa_OD_travel2work <- ex$census_msoa_OD_travel2work
   coverage <- ex$coverage
@@ -154,7 +161,7 @@ See the [LICENSE](LICENSE) file for full details.
 
 ### Stable vs Prototype
 
-Most of the package is intended for regular use. `adjust_multilevel_bayes()` is still a stage-1 prototype and does not yet implement stage-2 missing-OD imputation. For the current stability summary, see [notes/project-management/STATUS.md](notes/project-management/STATUS.md).
+Most deterministic helpers are intended for regular use. `adjust_multilevel_bayes()` is the main methodological innovation and now includes an explicit complete-grid prediction scope, but the Bayesian path remains dependency- and runtime-sensitive and should be validated carefully before production use. For the current stability summary, see [notes/project-management/STATUS.md](notes/project-management/STATUS.md).
 
 The repository now separates the main deterministic workflow from the Bayesian prototype so that contributors can focus on the stable API first and treat the Bayesian path as experimental until it is fully hardened.
 

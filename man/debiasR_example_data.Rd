@@ -9,7 +9,9 @@ debiasR_example_data(
   data_package = "debiasRdata",
   mpd_path = NULL,
   census_path = NULL,
-  include_self_flows = TRUE
+  include_self_flows = TRUE,
+  complete_grid = FALSE,
+  fill_missing_flow = 0
 )
 }
 \arguments{
@@ -26,13 +28,21 @@ Use \code{Inf} or \code{NULL} to keep all overlapping areas.}
 MSOA travel-to-work OD CSV or \code{.csv.gz}.}
 
 \item{include_self_flows}{Logical; keep within-MSOA flows. Default \code{TRUE}.}
+
+\item{complete_grid}{Logical; if \code{TRUE}, return MPD and benchmark OD tables
+on the same square area grid after area selection. Missing OD pairs are
+retained with zero-filled flows and row-status indicators. Default \code{FALSE}
+preserves the observed positive-flow support.}
+
+\item{fill_missing_flow}{Numeric value used for absent OD pairs when
+\code{complete_grid = TRUE}. Default \code{0}.}
 }
 \value{
 A named list with normalised OD matrices and derived teaching tables:
 \code{msoa_OD_travel2work} and \code{mpd_od} for observed MPD flows,
 \code{census_msoa_OD_travel2work} and \code{benchmark_od} for the Census benchmark,
-plus \code{coverage}, \code{active_users}, \code{population}, \code{covariates}, and
-\code{metadata}.
+plus \code{coverage}, \code{active_users}, \code{population}, \code{covariates}, \code{distance},
+\code{od_audit}, and \code{metadata}.
 }
 \description{
 Loads the MSOA travel-to-work example inputs used by package examples and
