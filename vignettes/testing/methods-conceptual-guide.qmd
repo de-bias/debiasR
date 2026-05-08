@@ -258,7 +258,7 @@ cat("<div class='method-table-wrap'>", table_html, "</div>")
 
 Key contrast:
 - `adjust_coefficient()` directly learns from benchmark flows.
-- `adjust_multilevel_bayes()` does **not** use benchmark flows in model fitting; it adjusts MPD using coverage/covariates/distance/hierarchical structure.
+- `adjust_multilevel_bayes()` does **not** use benchmark flows in model fitting; it adjusts MPD using coverage/covariates/distance/hierarchical structure. It keeps observed OD behavior as the default and now also supports a complete-grid prediction scope for square OD inputs.
 
 ## Method 1: `adjust_inverse_penetration()`
 
@@ -655,4 +655,4 @@ resid_m1$top_worst |>
 - Need fast transparent scaling: start with Method 1 or 3.
 - Need margin consistency: Method 4.
 - Need model-based mapping: Method 5.
-- Need uncertainty + hierarchical bias structure: Method 6.
+- Need exploratory uncertainty + hierarchical bias structure with observed or complete-grid OD prediction: Method 6.

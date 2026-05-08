@@ -9,28 +9,90 @@ execute:
   message: false
 ---
 
-## Timing
+## Aim
 
-20 minutes.
+This vignette demonstrates the package functions used to measure coverage and
+representativeness bias before adjusting OD flows.
 
-## Purpose
+```{r setup}
+common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+source(common_path)
+example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+```
 
-Show the first useful thing the package does.
+## Coverage Score and Coverage Bias
 
-## Code-Along
+`measure_bias()` starts from area-level benchmark population \(P_i\) and observed
+active-user count \(U_i\). It returns:
 
-- Use `measure_bias()`
-- Compute coverage bias as `1 - user_count / population`
-- Interpret under-coverage, apparent over-coverage, and missingness
-- Summarise the distribution of bias
-- Plot or map bias across MSOAs
+\[
+p_i = \frac{U_i}{P_i}
+\]
 
-## Teaching Point
+\[
+b_i = 1 - p_i
+\]
 
-Participants should be able to say: I can quantify how far the digital trace
-population departs from a census benchmark.
+where \(p_i\) is the coverage score and \(b_i\) is the coverage bias.
 
-## Exercise
+```{r}
+bias <- measure_bias(example_data$coverage)
 
-Which MSOAs are most under-covered?
+bias |>
+  summarise(
+    areas = n(),
+    global_coverage_score = sum(user_count) / sum(population),
+    median_coverage_score = median(coverage_score),
+    min_coverage_score = min(coverage_score),
+    max_coverage_score = max(coverage_score)
+  )
+```
 
+```{r}
+bias |>
+  arrange(desc(coverage_bias)) |>
+  select(origin, population, user_count, coverage_score, coverage_bias) |>
+  head(10)
+```
+
+## Representativeness Residuals
+
+`validate_bias_residual_structure()` extends the coverage calculation by asking
+whether coverage residuals are structured. The default residual is:
+
+\[
+e_i = p_i - \bar{p}
+\]
+
+where \(\bar{p} = \sum_i U_i / \sum_i P_i\). Positive values mean higher
+coverage than expected under the global coverage score; negative values mean
+lower coverage.
+
+```{r}
+bias_structure <- validate_bias_residual_structure(
+  coverage_df = example_data$coverage,
+  benchmark_od_df = example_data$census_msoa_OD_travel2work,
+  covariate_df = example_data$covariates,
+  covariate_col = "census_inflow"
+)
+
+bias_structure$summary
+```
+
+```{r}
+bias_structure$benchmark_flow_correlation
+bias_structure$covariate_correlation
+```
+
+```{r}
+bias_structure$area_level |>
+  arrange(coverage_score_residual) |>
+  select(area, population, user_count, coverage_score, coverage_score_residual) |>
+  head(10)
+```
+
+## Interpretation
+
+The aim is not only to compute a coverage number. The aim is to locate where
+coverage departs from the benchmark population and whether those departures
+align with benchmark mobility structure or area-level characteristics.

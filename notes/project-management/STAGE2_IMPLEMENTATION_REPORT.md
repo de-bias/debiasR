@@ -1,6 +1,6 @@
 # Stage 2 Implementation Report
 
-Last updated: 2026-04-25
+Last updated: 2026-05-08
 
 ## Summary
 
@@ -87,9 +87,9 @@ Updated user-facing and project-management documentation:
 
 - `README.md`
 - `NEWS.md`
-- `vignettes/methods-conceptual-guide.qmd`
-- `vignettes/simulated-methods-walkthrough.qmd`
-- `vignettes/figures/package-workflow.svg`
+- `vignettes/testing/methods-conceptual-guide.qmd`
+- `vignettes/testing/empirical-methods-walkthrough.qmd`
+- `vignettes/testing/figures/package-workflow.svg`
 - `notes/project-management/TASK_BOARD.md`
 - `notes/project-management/STATUS.md`
 - `notes/project-management/TEST_HEALTH.md`
@@ -145,46 +145,63 @@ devtools::check(
 )
 ```
 
-Result:
+Historical result on 2026-05-05 before the package-readiness cleanup:
 
-- 0 errors.
-- 1 existing warning about non-portable long file paths.
-- 2 existing notes about top-level project files and Bayesian NSE globals.
+- 1 error, 2 warnings, 3 notes.
+- The error is in the optional Bayesian test file (`test-adjust-multilevel-bayes.R`) where draw-summary comparisons differ only by names on expected vectors; this is outside the deterministic Stage 2 validation path.
+- The warnings and notes were package-readiness items rather than Stage 2 validation failures.
 
-Full vignette rebuilding was not run because Pandoc is unavailable in the local environment.
+Follow-up on 2026-05-08:
+
+- Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 2 notes.
+- Remaining notes are optional `debiasRdata` unavailable for checking and current time verification.
+- The Bayesian draw-summary names mismatch was fixed in the optional Bayesian test file.
+
+Vignette smoke checks were run with Quarto on 2026-05-05. The empirical
+`debiasRdata` vignettes render cleanly in an environment without `debiasRdata`
+by exiting early with an installation note.
 
 ## Data Redistribution Decision
 
 Decision:
 
 - Do not bundle the full Zenodo record in `debiasR`.
-- Keep `debiasR` small with simulated/tiny examples.
-- If empirical packaged data is needed, create a separate optional data package such as `debiasRdata`.
+- Keep `debiasR` small with simulated/tiny test fixtures.
+- Use a separate optional data package such as `debiasRdata` for empirical examples and vignettes.
 
 Rationale:
 
 - The Zenodo record is licensed `CC BY 4.0`, so redistribution appears legally compatible with attribution.
 - The full record is too large for the main package.
-- `msoa_OD_travel2work.csv.gz` is the preferred candidate if a separate data package is created.
+- `msoa_OD_travel2work.csv.gz` is the preferred MPD candidate in `debiasRdata`, paired with the extracted Census benchmark `census_msoa_OD_travel2work`.
 
-## Remaining Review Questions
+## Maintainer Review Decisions
 
-1. Should `validate_flow_residual_structure()` be treated as stable public API immediately, or marked as early Stage 2 API until used in one empirical workflow?
-2. Should optional plot generation stay inside the helper, or move later into separate plotting helpers if more diagnostics are added?
-3. Should a future release add `sf`-aware map support, or keep cartographic rendering outside the package?
+Stage 2 maintainer review was completed on 2026-05-08.
 
-## Next Stage
+Decisions:
 
-Stage 3 should extend `measure_bias()`-related diagnostics.
+1. Treat `validate_flow_residual_structure()` as stable public API immediately.
+2. Keep optional plot generation inside the validation helper for now because the plots are dependency-light and useful during review. Split plotting into separate helpers later only if the plotting surface grows.
+3. Keep `sf`-aware map support outside the package for now. The package should continue returning map-ready area data and user-supplied coordinate plots rather than owning full cartographic workflows.
+4. Accept the data-redistribution decision: do not bundle the full Zenodo resource in `debiasR`; use the optional `debiasRdata` package for empirical MSOA travel-to-work examples.
 
-Recommended next work:
+## Subsequent Stage Status
 
-1. Write a Stage 3 design note defining active-user coverage residuals.
-2. Implement a focused helper, likely `validate_bias_residual_structure()` or `measure_bias_residuals()`, only after the residual definition is agreed.
-3. Reuse Stage 2 residual-structure patterns where appropriate:
+Stage 3 has now extended `measure_bias()`-related diagnostics through
+`validate_bias_residual_structure()`.
+
+Implemented Stage 3 follow-up:
+
+1. Wrote `STAGE3_MEASURE_BIAS_DESIGN_NOTE.md` defining active-user coverage
+   residuals and the simple population-only linear-model residual.
+2. Added exported helper `validate_bias_residual_structure()`.
+3. Reused Stage 2 residual-structure patterns:
    - user-supplied neighbour links,
    - optional covariate table,
    - map-ready area data,
    - optional `ggplot2` diagnostics.
-4. Add deterministic tests using simulated coverage, population, and covariate data.
-5. Update README, NEWS, status notes, and vignettes only after the API name and residual definition settle.
+4. Added deterministic tests using simulated coverage, population, and
+   covariate data.
+5. Updated README, NEWS, status notes, vignettes, and diagrams to reflect the
+   settled Stage 3 API and residual definitions.

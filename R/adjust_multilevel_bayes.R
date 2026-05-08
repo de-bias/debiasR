@@ -1,8 +1,9 @@
 #' Bayesian Multilevel Bias Adjustment for OD Flows (v0.2 Stage 1)
 #'
 #' Estimates bias-adjusted OD flows from MPD counts using a flexible Bayesian
-#' multilevel count model. Stage 1 focuses on correcting observed OD flows
-#' (no missing-OD imputation yet).
+#' multilevel count model. The observed-OD mode corrects observed MPD flows.
+#' The complete-grid mode fits to originally observed source rows and predicts
+#' adjusted flows for every row in a supplied square OD grid.
 #'
 #' Core idea:
 #' \deqn{\log(\mu^{obs}_{ij}) = f(X_i, X_j, d_{ij}, e_i, u)}
@@ -44,6 +45,10 @@
 #'   \code{"mean"} or \code{"median"}. This controls how the draw-level
 #'   Stage-1 adjusted flows are collapsed into the returned \code{flow_adj}
 #'   column after removing the estimated coverage-bias contribution.
+#' @param prediction_scope Prediction contract. \code{"observed"} preserves the
+#'   original observed-row workflow. \code{"complete_grid"} requires a strict
+#'   square OD grid and predicts for all valid rows, while fitting on rows marked
+#'   as originally observed when \code{mpd_observed} is present.
 #' @param iter Number of sampling iterations. Default \code{1000}.
 #' @param chains Number of MCMC chains. Default \code{2}.
 #' @param seed Random seed. Default \code{123}.
@@ -55,9 +60,11 @@
 #' @param keep_cols Optional extra columns from \code{mpd_od_df} to keep.
 #'
 #' @return A tibble with identifiers, original \code{flow}, adjusted
-#'   \code{flow_adj}, \code{bias_e_origin}, and log-distance helper. In this
-#'   Stage-1 prototype, \code{flow_adj} is only returned for observed OD rows in
-#'   \code{mpd_od_df}; missing OD pairs are not imputed.
+#'   \code{flow_adj}, source row-status fields, \code{bias_e_origin}, and
+#'   log-distance helpers. In \code{prediction_scope = "observed"},
+#'   \code{flow_adj} is returned for observed rows in \code{mpd_od_df}. In
+#'   \code{prediction_scope = "complete_grid"}, \code{flow_adj} is returned for
+#'   every valid row in the supplied square OD grid.
 #'   Attributes:
 #'   \itemize{
 #'     \item \code{"model"}: fitted model object
@@ -88,6 +95,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                     model_family = c("poisson", "negbin", "zip", "zinb"),
                                     backend = c("auto", "rstanarm", "brms"),
                                     flow_adj_summary = c("mean", "median"),
+                                    prediction_scope = c("observed", "complete_grid"),
                                     iter = 1000,
                                     chains = 2,
                                     seed = 123,
@@ -102,6 +110,20 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     backend = backend
   )
   flow_adj_summary <- match.arg(flow_adj_summary)
+  prediction_scope <- match.arg(prediction_scope)
+  start_time <- Sys.time()
+
+  od_audit <- NULL
+  if (prediction_scope == "complete_grid") {
+    od_audit <- .audit_multilevel_complete_grid(mpd_od_df, flow_col = flow_col)
+    if (!isTRUE(od_audit$strict_square_support[[1]])) {
+      stop(
+        "`prediction_scope = 'complete_grid'` requires a strict square OD grid: ",
+        "same origin and destination area set, expected OD row count, no duplicate pairs, ",
+        "and finite non-negative flows."
+      )
+    }
+  }
 
   prep <- .prepare_multilevel_bayes_data(
     mpd_od_df = mpd_od_df,
@@ -114,15 +136,21 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     distance_col = distance_col
   )
 
-  model_df <- prep$model_df
-  if (nrow(model_df) < 2L) {
+  prediction_df <- prep$model_df
+  fit_df <- prediction_df
+  if (prediction_scope == "complete_grid" && "mpd_observed" %in% names(fit_df)) {
+    fit_df <- fit_df |>
+      dplyr::filter(.data$mpd_observed)
+  }
+
+  if (nrow(fit_df) < 2L) {
     stop("Insufficient rows for fitting after preprocessing. Need at least 2 complete rows.")
   }
 
-  if (random_intercept == "origin" && length(unique(model_df$origin)) < 2L) {
+  if (random_intercept == "origin" && length(unique(fit_df$origin)) < 2L) {
     stop("`random_intercept = 'origin'` requires at least 2 distinct origins.")
   }
-  if (random_intercept == "destination" && length(unique(model_df$destination)) < 2L) {
+  if (random_intercept == "destination" && length(unique(fit_df$destination)) < 2L) {
     stop("`random_intercept = 'destination'` requires at least 2 distinct destinations.")
   }
 
@@ -143,7 +171,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     backend = backend,
     model_family = model_family,
     formula = fit_formula,
-    data = model_df,
+    data = fit_df,
     iter = iter,
     chains = chains,
     seed = seed,
@@ -153,7 +181,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   lin_fix <- .posterior_linpred_fixef(
     fit = fit,
     backend = backend,
-    newdata = model_df
+    newdata = prediction_df
   )
 
   omega_draw <- .extract_omega_draw(
@@ -162,7 +190,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     n_draw = nrow(lin_fix)
   )
 
-  e_vec <- as.numeric(model_df$bias_e_origin)
+  e_vec <- as.numeric(prediction_df$bias_e_origin)
   e_mat <- matrix(e_vec, nrow = nrow(lin_fix), ncol = ncol(lin_fix), byrow = TRUE)
   omega_mat <- matrix(omega_draw, nrow = nrow(lin_fix), ncol = ncol(lin_fix))
 
@@ -176,12 +204,20 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     colMeans(flow_adj_draws)
   }
 
-  modeled_out <- model_df |>
+  modeled_out <- prediction_df |>
     dplyr::mutate(flow_adj = as.numeric(flow_adj))
 
   base_out <- prep$base_df |>
+    dplyr::mutate(
+      prediction_scope = prediction_scope,
+      model_fit_status = dplyr::if_else(
+        .data$row_id %in% fit_df$row_id,
+        "fit",
+        dplyr::if_else(.data$row_id %in% prediction_df$row_id, "predicted", "excluded")
+      )
+    ) |>
     dplyr::left_join(
-      dplyr::select(modeled_out, row_id, flow_adj),
+      dplyr::select(modeled_out, dplyr::all_of(c("row_id", "flow_adj"))),
       by = "row_id"
     )
 
@@ -190,6 +226,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     "origin", "destination",
     if ("mpd_source" %in% names(base_out)) "mpd_source",
     keep_cols,
+    "mpd_observed",
+    "mpd_zero_filled",
+    "mpd_row_status",
+    "prediction_scope",
+    "model_fit_status",
     "flow",
     "flow_adj",
     "distance_km",
@@ -207,14 +248,28 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     probs = c(0.025, 0.975)
   )
 
+  runtime_seconds <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+  stage_scope <- if (prediction_scope == "complete_grid") {
+    "complete_grid_prediction"
+  } else {
+    "observed_od_only"
+  }
+
   result_metadata <- list(
     backend = backend,
     model_family = model_family,
     stage = "stage_1",
-    stage_scope = "observed_od_only",
+    stage_scope = stage_scope,
+    prediction_scope = prediction_scope,
     random_intercept = random_intercept,
     flow_adj_summary = flow_adj_summary,
-    distance_source = prep$distance_source
+    distance_source = prep$distance_source,
+    runtime_seconds = runtime_seconds,
+    n_input_rows = nrow(prep$base_df),
+    n_fit_rows = nrow(fit_df),
+    n_prediction_rows = nrow(prediction_df),
+    n_zero_filled_prediction_rows = sum(prediction_df$mpd_zero_filled %in% TRUE),
+    od_audit = od_audit
   )
 
   diagnostics <- .collect_multilevel_diagnostics(
@@ -229,18 +284,28 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "backend") <- backend
   attr(out, "model_family") <- model_family
   attr(out, "stage") <- "stage_1"
-  attr(out, "stage_scope") <- "observed_od_only"
+  attr(out, "stage_scope") <- stage_scope
   attr(out, "result_metadata") <- result_metadata
   attr(out, "random_intercept") <- random_intercept
   attr(out, "flow_adj_summary") <- flow_adj_summary
+  attr(out, "prediction_scope") <- prediction_scope
+  attr(out, "runtime_seconds") <- runtime_seconds
+  attr(out, "od_audit") <- od_audit
   attr(out, "distance_source") <- prep$distance_source
   attr(out, "diagnostics") <- diagnostics
-  attr(out, "prototype_notes") <- paste(
-    "Stage-1 only: bias-adjusted observed OD flows.",
-    "No missing OD pairs are created or imputed.",
-    "No Stage-2 missing OD imputation yet.",
-    "flow_adj removes the estimated coverage-bias contribution from posterior fixed-effect linear predictor draws and is summarized by", flow_adj_summary
-  )
+  if (prediction_scope == "complete_grid") {
+    attr(out, "prototype_notes") <- paste(
+      "Stage-1 complete-grid prediction: fit to originally observed MPD rows when mpd_observed is available.",
+      "Rows marked mpd_zero_filled are zero-filled source-missing OD cells predicted on the supplied square grid.",
+      "flow_adj removes the estimated coverage-bias contribution from posterior fixed-effect linear predictor draws and is summarized by", flow_adj_summary
+    )
+  } else {
+    attr(out, "prototype_notes") <- paste(
+      "Stage-1 observed mode: bias-adjusted observed OD flows.",
+      "No missing OD pairs are created unless prediction_scope = 'complete_grid' is used with a supplied square grid.",
+      "flow_adj removes the estimated coverage-bias contribution from posterior fixed-effect linear predictor draws and is summarized by", flow_adj_summary
+    )
+  }
 
   if (isTRUE(include_flow_adj_draws)) {
     attr(out, "flow_adj_draws") <- flow_adj_draws
@@ -364,6 +429,50 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   out
 }
 
+.audit_multilevel_complete_grid <- function(mpd_od_df, flow_col) {
+  req <- c("origin", "destination", flow_col)
+  if (!all(req %in% names(mpd_od_df))) {
+    stop("`mpd_od_df` must contain: ", paste(req, collapse = ", "))
+  }
+
+  origins <- sort(unique(as.character(mpd_od_df$origin)))
+  destinations <- sort(unique(as.character(mpd_od_df$destination)))
+  area_set <- sort(unique(c(origins, destinations)))
+  has_self_flows <- any(as.character(mpd_od_df$origin) == as.character(mpd_od_df$destination))
+  expected_od_rows <- length(area_set)^2
+  if (!has_self_flows) {
+    expected_od_rows <- length(area_set) * max(length(area_set) - 1L, 0L)
+  }
+
+  duplicate_pairs <- sum(duplicated(mpd_od_df[c("origin", "destination")]))
+  flow <- suppressWarnings(as.numeric(mpd_od_df[[flow_col]]))
+  total_flow <- sum(flow, na.rm = TRUE)
+
+  strict_square_support <- identical(origins, destinations) &&
+    nrow(mpd_od_df) == expected_od_rows &&
+    duplicate_pairs == 0L &&
+    all(is.finite(flow) & flow >= 0)
+
+  tibble::tibble(
+    strict_square_support = strict_square_support,
+    same_origin_destination_area_set = identical(origins, destinations),
+    include_self_flows = has_self_flows,
+    n_areas = length(area_set),
+    expected_od_rows = expected_od_rows,
+    n_od_rows = nrow(mpd_od_df),
+    n_duplicate_pairs = duplicate_pairs,
+    n_zero_filled = if ("mpd_zero_filled" %in% names(mpd_od_df)) {
+      sum(mpd_od_df$mpd_zero_filled %in% TRUE, na.rm = TRUE)
+    } else {
+      0L
+    },
+    total_flow = total_flow,
+    total_outflow = total_flow,
+    total_inflow = total_flow,
+    balance_diff = 0
+  )
+}
+
 .resolve_multilevel_backend <- function(model_family, backend) {
   backend <- match.arg(backend, choices = c("auto", "rstanarm", "brms"))
 
@@ -450,7 +559,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
     fam <- switch(
       model_family,
-      poisson = brms::poisson(),
+      poisson = brms::brmsfamily("poisson"),
       negbin = brms::negbinomial(),
       zip = brms::zero_inflated_poisson(),
       zinb = brms::zero_inflated_negbinomial()
@@ -571,6 +680,20 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       od_id = paste(.data$origin, .data$destination, sep = "___")
     )
 
+  if (!"mpd_observed" %in% names(base_df)) {
+    base_df$mpd_observed <- TRUE
+  } else {
+    base_df$mpd_observed <- base_df$mpd_observed %in% TRUE
+  }
+  if (!"mpd_zero_filled" %in% names(base_df)) {
+    base_df$mpd_zero_filled <- FALSE
+  } else {
+    base_df$mpd_zero_filled <- base_df$mpd_zero_filled %in% TRUE
+  }
+  if (!"mpd_row_status" %in% names(base_df)) {
+    base_df$mpd_row_status <- ifelse(base_df$mpd_observed, "observed", "zero_filled")
+  }
+
   distance_source <- "input"
 
   if (!is.null(distance_df)) {
@@ -600,18 +723,22 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
     area_levels <- sort(unique(c(base_df$origin, base_df$destination)))
     area_lookup <- tibble::tibble(area = area_levels, area_index = seq_along(area_levels))
+    origin_lookup <- area_lookup |>
+      dplyr::transmute(origin = .data$area, origin_index = .data$area_index)
+    destination_lookup <- area_lookup |>
+      dplyr::transmute(destination = .data$area, destination_index = .data$area_index)
 
     base_df <- base_df |>
       dplyr::left_join(
-        dplyr::rename(area_lookup, origin = area, origin_index = area_index),
+        origin_lookup,
         by = "origin"
       ) |>
       dplyr::left_join(
-        dplyr::rename(area_lookup, destination = area, destination_index = area_index),
+        destination_lookup,
         by = "destination"
       ) |>
       dplyr::mutate(distance_km = abs(.data$origin_index - .data$destination_index) + 1) |>
-      dplyr::select(-origin_index, -destination_index)
+      dplyr::select(-dplyr::all_of(c("origin_index", "destination_index")))
   }
 
   base_df <- base_df |>
@@ -677,13 +804,18 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       .groups = "drop"
     )
 
+  origin_incomes <- incomes |>
+    dplyr::transmute(origin = .data$area, income_o = .data$income_val, pop_o = .data$pop_val)
+  destination_incomes <- incomes |>
+    dplyr::transmute(destination = .data$area, income_d = .data$income_val, pop_d = .data$pop_val)
+
   base_df <- base_df |>
     dplyr::left_join(
-      dplyr::rename(incomes, origin = area, income_o = income_val, pop_o = pop_val),
+      origin_incomes,
       by = "origin"
     ) |>
     dplyr::left_join(
-      dplyr::rename(incomes, destination = area, income_d = income_val, pop_d = pop_val),
+      destination_incomes,
       by = "destination"
     ) |>
     dplyr::mutate(

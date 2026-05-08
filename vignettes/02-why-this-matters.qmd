@@ -1,5 +1,5 @@
 ---
-title: "Opening: Why This Matters"
+title: "Why This Matters"
 format:
   html:
     toc: true
@@ -9,30 +9,58 @@ execute:
   message: false
 ---
 
-## Timing
+Mobile-phone-derived mobility data can provide timely evidence on population
+movement, commuting, displacement, transport demand, and service catchments. The
+same data are also selective. People, places, devices, operators, and observation
+windows are not represented evenly.
 
-10-15 minutes.
+## The Challenge
 
-## Purpose
+An observed device count is not a population count. An observed OD flow is not a
+neutral measurement of the true movement system. If mobile phone data under-cover
+some places and over-cover others, then the observed OD matrix can reproduce
+those inequalities as if they were mobility patterns.
 
-Motivate the problem without drowning participants in theory.
+In notation, the observed flow \(F^{mpd}_{ij}\) can differ from the target flow
+\(F^{bench}_{ij}\) or the unobserved true flow because coverage varies across
+origins, destinations, and social contexts. Area \(i\) may have population
+\(P_i\), observed active users \(U_i\), coverage score \(p_i = U_i / P_i\), and
+coverage bias \(b_i = 1 - p_i\).
 
-## Core Message
+## Consequences
 
-Digital trace data can be useful for real-time population and mobility analysis,
-especially in settings such as disaster response, displacement, transport
-planning, and service delivery. But it is not a neutral mirror of the
-population.
+If these biases are ignored, downstream estimates can mislead decisions:
 
-## Framing Question
+- displacement analysis can miss groups with low digital coverage
+- transport models can overstate movement from highly observed areas
+- public health exposure estimates can inherit spatial coverage bias
+- company data products can be used outside the populations they represent
+- policy comparisons can confuse data availability with real mobility
 
-If we observe 10,000 devices in an area, what exactly do we know about the people
-there?
+The problem is not that mobile-phone-derived data are unusable. The problem is
+that their measurement process must be made visible, adjusted where possible,
+and validated against external evidence.
 
-## Topics
+## What `debiasR` Adds
 
-- What digital trace mobility data can offer
-- Why coverage and representativeness matter
-- `debiasR` as a practical framework: measure, explain, adjust
-- The UK Locomizer and Census MSOA example as the running case
+`debiasR` supports a practical workflow:
 
+- measure coverage and representativeness bias
+- model how bias varies across places
+- adjust OD flows using deterministic baselines and a Bayesian multilevel model
+- validate adjusted flows against benchmark OD data
+
+The package's main innovation is `adjust_multilevel_bayes()`. It treats observed
+OD flows as biased counts and estimates adjusted flows through a multilevel count
+model that can include origin and destination attributes, distance, coverage
+residuals, and hierarchical structure. Deterministic methods remain important
+because they are transparent comparators: they help users understand what the
+Bayesian model improves, where it agrees with simpler corrections, and where it
+does not.
+
+## What Adjustment Enables
+
+After adjustment, users can compare raw and adjusted OD matrices, inspect which
+places changed most, and assess whether the adjusted data better reproduce
+benchmark flows. Adjustment does not remove the need for judgement. It makes the
+assumptions explicit enough to test, discuss, and report.

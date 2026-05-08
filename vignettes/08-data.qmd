@@ -1,0 +1,123 @@
+---
+title: "Data"
+format:
+  html:
+    toc: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Aim
+
+This vignette describes the empirical data inputs used in the package examples,
+their sources, their row/column structure, and the OD checks applied before
+adjustment.
+
+```{r setup}
+common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+source(common_path)
+example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+```
+
+## Sources
+
+The empirical MPD input is `msoa_OD_travel2work`, the mobile-phone-derived MSOA
+travel-to-work OD matrix from the Zenodo-derived `debiasRdata` route.
+
+The benchmark is `census_msoa_OD_travel2work`, the matching Census 2021
+`ODWP01EW` MSOA workplace-flow benchmark.
+
+`debiasR_example_data()` normalises both sources to:
+
+- `origin`
+- `destination`
+- `flow`
+
+When `complete_grid = TRUE`, absent OD pairs are zero-filled and tagged with row
+status indicators.
+
+## Tables Returned
+
+```{r}
+tibble::tibble(
+  object = names(example_data),
+  class = vapply(example_data, function(x) paste(class(x), collapse = ", "), character(1)),
+  rows = vapply(example_data, function(x) if (is.data.frame(x)) nrow(x) else NA_integer_, integer(1)),
+  columns = vapply(example_data, function(x) if (is.data.frame(x)) ncol(x) else NA_integer_, integer(1))
+)
+```
+
+## OD Audit
+
+OD data used for method evaluation should have strict support:
+
+- the same set of origins and destinations
+- one row per OD pair
+- no duplicated OD pairs
+- finite nonnegative flows
+- balanced total outflow and inflow at the matrix level
+
+```{r}
+example_data$od_audit
+```
+
+## MPD OD Matrix
+
+```{r}
+names(example_data$msoa_OD_travel2work)
+head(example_data$msoa_OD_travel2work)
+```
+
+The MPD table includes row-status indicators when complete-grid mode is used:
+
+- `mpd_observed`
+- `mpd_zero_filled`
+- `mpd_row_status`
+
+These distinguish originally observed source rows from zero-filled OD cells.
+
+## Benchmark OD Matrix
+
+```{r}
+names(example_data$census_msoa_OD_travel2work)
+head(example_data$census_msoa_OD_travel2work)
+```
+
+The benchmark table includes analogous indicators:
+
+- `benchmark_observed`
+- `benchmark_zero_filled`
+- `benchmark_row_status`
+
+## Derived Area Tables
+
+```{r}
+head(example_data$coverage)
+head(example_data$active_users)
+head(example_data$population)
+head(example_data$covariates)
+```
+
+The coverage table supplies \(P_i\), \(U_i\), \(p_i\), and \(b_i\) inputs for
+measurement and adjustment. The covariate table supplies area-level predictors
+used by diagnostics and adjustment models.
+
+## Distance Inputs
+
+The Bayesian model should use real OD distance when available:
+
+```{r}
+example_data$metadata |>
+  select(distance_source)
+```
+
+```{r}
+head(example_data$distance)
+```
+
+If `distance_source` is `not_available`, final empirical Bayesian rendering is
+blocked until `debiasRdata` exposes a real OD distance table. The package can
+still demonstrate the interface, but real-distance Bayesian validation should
+wait for that input.

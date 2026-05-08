@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-04-26
+Last updated: 2026-05-08
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -8,47 +8,41 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Now
 
-1. Review Stage 3 measure-bias deliverables - `1-2h` - `ready for maintainer review`
-- Review `STAGE3_MEASURE_BIAS_DESIGN_NOTE.md`.
-- Review `STAGE3_IMPLEMENTATION_REPORT.md`.
-- Run or inspect `STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd`.
-- Confirm whether `validate_bias_residual_structure()` should be treated as stable public API immediately.
-- Confirm whether a future model-based residual should be added after an empirical active-user sampling model is agreed.
-- Confirm whether optional plotting should remain inside diagnostics helpers or later move to separate plotting helpers.
+1. Validate optional Bayesian CI workflow and empirical distance readiness - `1-2h`
+- Fast deterministic GitHub Actions validation passed on merged PR #11.
+- Current branch fast deterministic tests pass locally.
+- Local optional Bayesian test-file run passes with `rstanarm`; the remaining workflow check is the manual/optional GitHub Actions lane.
+- Confirm the optional/manual Bayesian lane on GitHub Actions when Bayesian-lane validation is required.
+- Confirm whether `debiasRdata` exposes real OD distance for final empirical Bayesian vignette rendering.
 
-2. Review Stage 2 validation deliverables - `1-2h` - `ready for maintainer review`
-- Review `VALIDATION_STAGE2_DESIGN_NOTE.md`.
-- Review `DATA_REDISTRIBUTION_DECISION.md`.
-- Review `STAGE2_IMPLEMENTATION_REPORT.md`.
-- Run or inspect `STAGE2_VALIDATION_REVIEW_NOTEBOOK.qmd`.
-- Confirm whether `validate_flow_residual_structure()` should be treated as stable public API immediately.
-- Confirm whether optional plotting should remain inside validation helpers or later move to separate plotting helpers.
+## Recently Completed
 
-## Next
+1. Review Stage 2 validation deliverables - `complete`
+- Maintainer review completed on 2026-05-08.
+- `validate_flow_residual_structure()` is stable public API.
+- Optional validation plots remain inside helpers for now.
+- `debiasRdata` is the accepted empirical MSOA data route.
 
-1. Close remaining package-readiness warnings - `3-5h`
-- Resolve or intentionally document long non-portable file paths in notes and rendered vignette asset folders.
-- Add missing Bayesian NSE globals or rewrite affected expressions with `.data`.
-- Decide whether non-standard top-level directories should be excluded from package builds with `.Rbuildignore`.
+2. Close remaining package-readiness warnings - `complete`
+- Long generated paths and non-standard project folders are excluded from package builds through `.Rbuildignore`.
+- Bayesian NSE warnings were removed by tightening tidyselect/tidy-evaluation expressions.
+- The Bayesian draw-summary names mismatch in the optional test file was fixed.
+- Package-readiness check with tests/vignettes/manual skipped now has 0 errors and 0 warnings.
 
-2. Validate CI workflows on GitHub Actions - `2-4h`
-- Confirm the fast deterministic workflow passes on the next PR.
-- Confirm the optional/manual Bayesian lane behaves as expected when optional dependencies are missing.
-- Fold any CI-specific follow-ups back into `TEST_HEALTH.md`.
+3. Keep Bayesian scope aligned - `complete`
+- `adjust_multilevel_bayes()` is documented as the main methodological innovation.
+- Observed-flow mode remains backward compatible.
+- Complete-grid prediction mode is available for strict square OD matrices and preserves row-status metadata.
+- Full empirical Bayesian rendering remains gated by Bayesian dependencies, runtime, and real OD distance from `debiasRdata`.
 
 ## Later
 
-1. Clarify Bayesian scope - `2-3h`
-- Keep `adjust_multilevel_bayes()` explicitly marked as a stage-1 prototype.
-- Document the supported backends and the stage-2 imputation gap.
-- Make sure the status notes and project brief say the same thing.
-
-2. Harden the Bayesian path - `1-2 days`
-- Decide whether the prototype should be promoted beyond stage 1.
-- Add stronger validation and dependency handling if that happens.
+1. Harden the Bayesian path further - `1-2 days`
+- Validate complete-grid Bayesian prediction on real `debiasRdata` inputs with real OD distance.
+- Record feasible empirical grid sizes and runtime expectations.
 - Split the Bayesian tests into a clear optional CI lane if the scope expands.
 
-3. Prepare a release-ready maintenance pass - `1-2 days`
+2. Prepare a release-ready maintenance pass - `1-2 days`
 - Re-run the full package check after the CI and migration work settle.
 - Review examples and vignettes for remaining dependency friction.
 - Decide whether a tagged pre-release makes sense after stabilization.
@@ -63,7 +57,7 @@ Goal: extend validation beyond overall fit so we can compare methods on residual
 
 Estimated effort: `2-4 days`
 
-Status: `implemented; pending maintainer review`
+Status: `complete; maintainer reviewed`
 
 Tasks:
 
@@ -91,6 +85,9 @@ Tasks:
 - Implemented residual-versus-benchmark-flow Pearson correlation and optional scatter plot.
 - Implemented residual-versus-user-selected-covariate Pearson correlation and optional scatter plot.
 - Decision: covariates are passed as a plain area-level data frame plus explicit area and covariate column names.
+- Maintainer review decision: treat `validate_flow_residual_structure()` as stable public API immediately.
+- Maintainer review decision: keep optional diagnostic plots inside the helper for now because they are dependency-light and useful for review; split plotting into separate helpers later only if the plotting surface grows.
+- Maintainer review decision: keep `sf`-aware cartographic support outside the package for now.
 
 5. Add distributional allocation diagnostics.
 - Implemented destination-share distributions by origin for benchmark and adjusted flows.
@@ -106,9 +103,10 @@ Tasks:
 7. Resolve the data and redistribution gate.
 - Documented in `DATA_REDISTRIBUTION_DECISION.md`.
 - Confirmed the Zenodo record is licensed CC BY 4.0, which permits redistribution with attribution, but the full record is too large for the main package.
-- Confirmed `msoa_OD_travel2work.csv.gz` is the preferred empirical candidate if a packaged data asset is needed.
+- Confirmed `msoa_OD_travel2work.csv.gz` is the preferred MPD empirical asset and should be paired with the extracted Census `census_msoa_OD_travel2work` benchmark.
 - Recommended CRAN-safe option: a separate optional `debiasRdata` package licensed for the data, with `debiasR` using `Suggests`, `requireNamespace()`, `system.file()`, and conditional examples/tests/vignettes.
-- Recommended default for `debiasR`: keep simulated/tiny examples in the main package and document external download for the Zenodo resource unless the empirical data package becomes necessary.
+- Updated direction for `debiasR`: keep simulated/tiny data as lightweight test fixtures, but base user-facing examples and vignettes on the optional `debiasRdata` MSOA travel-to-work workflow.
+- Maintainer review decision: accept the optional `debiasRdata` strategy and do not bundle the full Zenodo record in `debiasR`.
 
 Deliverables:
 
@@ -126,7 +124,7 @@ Deliverables:
 Decision gate:
 
 - Do we have a validation layer that compares methods on fit, residual structure, and spatial allocation fidelity, and do we know whether the Zenodo-based data can be used in-package?
-- Stage 2 answer: yes, pending maintainer review. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision.
+- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside validation helpers for now; `sf`-aware cartographic support is deferred; empirical MSOA examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
 
 ### Stage 3: Measure Bias
 
@@ -134,7 +132,7 @@ Goal: extend the bias-measurement layer with residual randomness diagnostics lin
 
 Estimated effort: `1-2 days`
 
-Status: `implemented; pending maintainer review`
+Status: `complete; maintainer reviewed`
 
 Tasks:
 
@@ -146,8 +144,12 @@ Tasks:
   - `user_count_residual = user_count - expected_user_count`
   - `coverage_score_residual = coverage_score - global_coverage_score`
   - `standardized_user_count_residual = user_count_residual / sqrt(expected_user_count)`
+  - `population_lm_residual = user_count - fitted(user_count ~ population)`
 - Decision: use `coverage_score_residual` as the default diagnostic residual because it is scale-free and has a direct active-user coverage interpretation.
 - Decision: implement a separate helper, `validate_bias_residual_structure()`, rather than expanding `measure_bias()`.
+- Maintainer review decision: treat `validate_bias_residual_structure()` as stable public API immediately.
+- Maintainer review decision: add a simple population-only linear-regression residual option. It fits `user_count ~ population` using the benchmark population column and active-user counts in `coverage_df`, then reports observed minus fitted active-user counts. This is a descriptive diagnostic, not a validated active-user sampling model.
+- Maintainer review decision: keep optional `ggplot2` plots inside the diagnostics helper for now because they are optional, dependency-light, and useful for review. Split plotting into separate helpers later only if the plotting surface grows.
 
 2. Add spatial randomness diagnostics.
 - Implemented optional global Moran's I from a user-supplied neighbour-link table.
@@ -170,7 +172,7 @@ Tasks:
 - Added deterministic tests in `tests/testthat/test-validate-bias-residual-structure.R`.
 - Updated `scripts/run_fast_tests.R`.
 - Generated `man/validate_bias_residual_structure.Rd` and updated `NAMESPACE`.
-- Updated README, NEWS, status notes, test health notes, and the simulated walkthrough.
+- Updated README, NEWS, status notes, test health notes, vignettes, and workflow diagrams.
 - Added `STAGE3_IMPLEMENTATION_REPORT.md`.
 - Added and rendered `STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd`.
 
@@ -187,7 +189,7 @@ Deliverables:
 Decision gate:
 
 - Are the new bias diagnostics interpretable enough to keep in the main package API rather than only in analysis notes?
-- Stage 3 answer: yes, pending maintainer review. The implementation uses deterministic coverage residuals directly linked to `measure_bias()`, reuses the Stage 2 diagnostic interfaces, and keeps optional plotting dependency-light.
+- Stage 3 answer: yes, maintainer reviewed on 2026-05-05. The implementation uses deterministic coverage residuals directly linked to `measure_bias()`, includes a simple population-only linear-model residual for diagnostics, reuses the Stage 2 diagnostic interfaces, and keeps optional plotting dependency-light.
 
 ### Stage 4: Validation Modelling Extension
 

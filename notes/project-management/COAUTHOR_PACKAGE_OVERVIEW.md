@@ -67,7 +67,7 @@ Main functions:
 Current status:
 
 - implemented
-- Stage 2 validation layer is ready for maintainer review
+- Stage 2 validation layer is maintainer-reviewed and stable
 
 ## Current Data Position
 
