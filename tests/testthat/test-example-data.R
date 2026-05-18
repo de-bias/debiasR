@@ -4,11 +4,9 @@ test_that("debiasR_example_data normalises empirical travel-to-work files", {
 
   utils::write.csv(
     data.frame(
-      MSOA21CD_home = c("E02000001", "E02000001", "E02000002", "E02000003"),
-      county_home = "GREATER_LONDON_AUTHORITY",
-      MSOA21CD_work = c("E02000001", "E02000002", "E02000001", "E02000003"),
-      county_work = "GREATER_LONDON_AUTHORITY",
-      count = c(10, 4, 5, 1)
+      origin = c("E06000001", "E06000001", "E06000002", "E06000003"),
+      destination = c("E06000001", "E06000002", "E06000001", "E06000003"),
+      flow = c(10, 4, 5, 1)
     ),
     mpd_path,
     row.names = FALSE
@@ -16,14 +14,14 @@ test_that("debiasR_example_data normalises empirical travel-to-work files", {
 
   utils::write.csv(
     data.frame(
-      `Middle layer Super Output Areas code` = c(
-        "E02000001", "E02000001", "E02000002", "E02000003", "E02000001"
+      `Lower tier local authorities code` = c(
+        "E06000001", "E06000001", "E06000002", "E06000003", "E06000001"
       ),
-      `Middle layer Super Output Areas label` = "area",
-      `MSOA of workplace code` = c(
-        "E02000001", "E02000002", "E02000001", "E02000003", "999999999"
+      `Lower tier local authorities label` = "area",
+      `LTLA of workplace code` = c(
+        "E06000001", "E06000002", "E06000001", "E06000003", "999999999"
       ),
-      `MSOA of workplace label` = "work",
+      `LTLA of workplace label` = "work",
       `Place of work indicator (4 categories) code` = c(3, 3, 3, 1, 2),
       `Place of work indicator (4 categories) label` = "label",
       Count = c(100, 25, 50, 200, 999),
@@ -50,9 +48,9 @@ test_that("debiasR_example_data normalises empirical travel-to-work files", {
       "covariates",
       "distance",
       "od_audit",
-      "msoa_OD_travel2work",
-      "census_msoa_OD_travel2work",
-      "metadata"
+      "metadata",
+      "lad_OD_travel2work",
+      "census_lad_OD_travel2work"
     )
   )
   expect_equal(nrow(ex$mpd_od), 3)
@@ -60,10 +58,11 @@ test_that("debiasR_example_data normalises empirical travel-to-work files", {
   expect_true(all(c("origin", "destination", "flow") %in% names(ex$benchmark_od)))
   expect_false("999999999" %in% ex$benchmark_od$destination)
 
-  coverage_1 <- ex$coverage[ex$coverage$origin == "E02000001", ]
+  coverage_1 <- ex$coverage[ex$coverage$origin == "E06000001", ]
   expect_equal(coverage_1$population, 125)
   expect_equal(coverage_1$user_count, 14)
-  expect_equal(coverage_1$mpd_source, "locomizer_travel_to_work")
+  expect_equal(coverage_1$mpd_source, "locomizer_travel_to_work_lad")
+  expect_equal(ex$metadata$geography, "lad")
 })
 
 test_that("debiasR_example_data can return strict complete square OD support", {
@@ -72,8 +71,8 @@ test_that("debiasR_example_data can return strict complete square OD support", {
 
   utils::write.csv(
     data.frame(
-      MSOA21CD_home = c("E02000001", "E02000001", "E02000002", "E02000003"),
-      MSOA21CD_work = c("E02000001", "E02000002", "E02000001", "E02000003"),
+      origin = c("E06000001", "E06000001", "E06000002", "E06000003"),
+      destination = c("E06000001", "E06000002", "E06000001", "E06000003"),
       count = c(10, 4, 5, 1)
     ),
     mpd_path,
@@ -82,11 +81,11 @@ test_that("debiasR_example_data can return strict complete square OD support", {
 
   utils::write.csv(
     data.frame(
-      `Middle layer Super Output Areas code` = c(
-        "E02000001", "E02000001", "E02000002", "E02000003"
+      `Lower tier local authorities code` = c(
+        "E06000001", "E06000001", "E06000002", "E06000003"
       ),
-      `MSOA of workplace code` = c(
-        "E02000001", "E02000002", "E02000001", "E02000003"
+      `LTLA of workplace code` = c(
+        "E06000001", "E06000002", "E06000001", "E06000003"
       ),
       `Place of work indicator (4 categories) code` = c(3, 3, 3, 1),
       Count = c(100, 25, 50, 200),
@@ -125,4 +124,80 @@ test_that("debiasR_example_data can return strict complete square OD support", {
   expect_equal(ex$metadata$benchmark_total_flow, sum(ex$benchmark_od$flow))
   expect_equal(ex$metadata$mpd_balance_diff, 0)
   expect_equal(ex$metadata$benchmark_balance_diff, 0)
+})
+
+test_that("optional example distances can be derived from real centroids", {
+  centroids <- data.frame(
+    lad21cd = c("E06000001", "E06000002", "E06000003"),
+    longitude = c(-1.27018, -1.21099, -1.00608),
+    latitude = c(54.67614, 54.54467, 54.56752)
+  )
+
+  out <- .build_example_centroid_distance(
+    .normalise_example_centroids(
+      centroids,
+      areas = c("E06000001", "E06000002", "E06000003")
+    ),
+    areas = c("E06000001", "E06000002", "E06000003"),
+    include_self_flows = TRUE,
+    distance_source = "debiasRdata_lad_centroids"
+  )
+
+  expect_named(out, c("origin", "destination", "distance_km", "distance_source"))
+  expect_equal(nrow(out), 9)
+  expect_true(all(out$distance_km >= 0))
+  expect_equal(out$distance_source, rep("debiasRdata_lad_centroids", 9))
+  expect_equal(
+    out$distance_km[out$origin == out$destination],
+    rep(0, 3),
+    tolerance = 1e-8
+  )
+})
+
+test_that("optional example distance objects convert metre columns to kilometres", {
+  out <- .normalise_example_distance(
+    data.frame(
+      origin = "E02000001",
+      destination = "E02000002",
+      distance_m = 2500
+    ),
+    areas = c("E02000001", "E02000002"),
+    include_self_flows = TRUE
+  )
+
+  expect_equal(out$distance_km, 2.5)
+  expect_equal(out$distance_source, "debiasRdata")
+})
+
+test_that("default LAD geography rejects MSOA-shaped explicit inputs", {
+  mpd_path <- tempfile(fileext = ".csv")
+  census_path <- tempfile(fileext = ".csv")
+
+  utils::write.csv(
+    data.frame(
+      origin = c("E02000001", "E02000001"),
+      destination = c("E02000001", "E02000002"),
+      flow = c(10, 4)
+    ),
+    mpd_path,
+    row.names = FALSE
+  )
+  utils::write.csv(
+    data.frame(
+      origin = c("E02000001", "E02000001"),
+      destination = c("E02000001", "E02000002"),
+      flow = c(100, 25)
+    ),
+    census_path,
+    row.names = FALSE
+  )
+
+  expect_error(
+    debiasR_example_data(
+      n_areas = Inf,
+      mpd_path = mpd_path,
+      census_path = census_path
+    ),
+    "No overlapping LAD/LTLA codes"
+  )
 })

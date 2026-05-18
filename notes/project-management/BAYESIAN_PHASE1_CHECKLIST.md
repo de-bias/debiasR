@@ -1,8 +1,10 @@
 # Bayesian Phase 1 Checklist
 
-Last updated: 2026-04-03
+Last updated: 2026-05-18
 
-This checklist converts the broader Bayesian development plan into actionable coding work for Stage 1 stabilization.
+This checklist records the completed Phase 1 stabilization work for the
+observed-flow Bayesian prototype. Complete-grid prediction now exists as a
+separate prototype mode, but empirical runtime guidance remains pending.
 
 Reference note:
 
@@ -34,4 +36,4 @@ Reference note:
 - [x] Stage 1 behavior is documented clearly enough that a contributor can explain what `flow_adj` means.
 - [x] Core Stage 1 helper logic is covered by tests that do not depend on heavy Bayesian backends.
 - [x] Successful fits expose enough attributes to debug and interpret the result object.
-- [ ] The next unresolved step is Stage 2 design, not uncertainty about Stage 1 behavior.
+- [x] The next unresolved step is empirical complete-grid/runtime hardening, not uncertainty about observed-flow behavior.

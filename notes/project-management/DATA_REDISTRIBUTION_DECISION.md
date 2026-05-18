@@ -66,7 +66,7 @@ Current strategy:
 - Keep `debiasR` small.
 - Continue shipping simulated/tiny fixtures in the main package.
 - Use the separate optional companion package
-  `debiasRdata` (<https://github.com/de-bias/debiasRdata>) for empirical MSOA
+  `debiasRdata` (<https://github.com/de-bias/debiasRdata>) for empirical
   travel-to-work workflows.
 - Keep `debiasRdata` in `Suggests`, not `Imports`, so examples and checks can
   fail gracefully when the data package is absent.
@@ -79,6 +79,9 @@ Implemented optional data package:
 - Included empirical assets:
   - `msoa_OD_travel2work`
   - `census_msoa_OD_travel2work`
+  - `lad_OD_travel2work`
+  - `census_lad_OD_travel2work`
+  - `lad_centroids`
 - Compressed normalised CSV files are also installed under `inst/extdata` in
   `debiasRdata`.
 - Attribution, DOI, license, checksum, row-count, and source-version metadata
@@ -90,9 +93,10 @@ Implemented optional data package:
 
 Remaining data gap:
 
-- `msoa_OD_distance` is not available yet.
-- Empirical Bayesian rendering in `debiasR` remains gated until `debiasRdata`
-  supplies a real MSOA OD distance table.
+- Full OD distance matrices are not packaged. For the default LAD workflow,
+  `debiasR` derives selected-area distances from `lad_centroids`.
+- MSOA distance-aware examples still need a future `msoa_OD_distance` or
+  `msoa_centroids` asset if `geography = "msoa"` is required.
 
 ## Decision
 
@@ -100,5 +104,5 @@ Remaining data gap:
 
 The separate optional `debiasRdata` package now implements the empirical data
 route. `debiasR` should continue to keep the full Zenodo resource out of the
-main package, use `debiasRdata` conditionally for empirical MSOA examples, and
+main package, use `debiasRdata` conditionally for empirical LAD examples, and
 keep all package checks independent of network access.

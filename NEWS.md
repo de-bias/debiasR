@@ -2,13 +2,13 @@
 
 ## 0.0.0.9000
 
-### Empirical MSOA travel-to-work examples
+### Empirical LAD travel-to-work examples
 
-- Added `debiasR_example_data()` to load and normalise `debiasRdata` MSOA travel-to-work inputs into the package `origin`, `destination`, `flow` schema.
+- Added `debiasR_example_data()` to load and normalise `debiasRdata` LAD travel-to-work inputs into the package `origin`, `destination`, `flow` schema.
 - Added optional complete-grid output to `debiasR_example_data()`, including zero-filled absent OD pairs, source row-status indicators, and an OD audit for strict square support.
-- Added a Census 2021 `ODWP01EW` MSOA workplace-flow extraction script for the benchmark travel-to-work OD matrix.
-- Updated examples to use the optional companion package `de-bias/debiasRdata`, with `msoa_OD_travel2work` as the observed OD matrix and `census_msoa_OD_travel2work` as the Census benchmark, while retaining `simulated_*` datasets as lightweight test fixtures.
-- Real MSOA OD distance remains a future `debiasRdata` asset, so final empirical Bayesian rendering is still gated on that input.
+- Added Census 2021 `ODWP01EW` workplace-flow extraction scripts for the benchmark travel-to-work OD matrices.
+- Updated examples to use the optional companion package `de-bias/debiasRdata`, with `lad_OD_travel2work` as the default observed OD matrix and `census_lad_OD_travel2work` as the Census benchmark, while retaining MSOA access through `geography = "msoa"` and `simulated_*` datasets as lightweight test fixtures.
+- Added selected-area LAD distance derivation from real `debiasRdata::lad_centroids`, avoiding a packaged full OD distance matrix.
 
 ### Bayesian complete-grid prediction
 

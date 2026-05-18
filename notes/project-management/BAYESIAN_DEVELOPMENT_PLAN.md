@@ -1,6 +1,6 @@
 # Bayesian Development Plan
 
-Last updated: 2026-04-03
+Last updated: 2026-05-18
 
 ## Purpose
 
@@ -8,19 +8,27 @@ This note captures the next development steps for the Bayesian path in `debiasR`
 
 The current state is:
 
-- Stage 1 implemented: bias-adjusted observed OD flows
-- Stage 2 not implemented: missing-OD imputation
+- Observed-flow correction implemented and documented
+- Complete-grid prediction mode implemented for supplied square OD matrices
+- Full missing-OD imputation design remains unresolved
 - Backends supported in principle: `rstanarm`, `brms`
 - Current support level: prototype / experimental
 
 ## Current Progress Snapshot
 
-As of 2026-04-20, Phase 1 is no longer just conceptual. The working tree now shows substantive progress on the main stabilization items:
+As of 2026-05-18, Phase 1 stabilization is complete and the prototype has a
+separate complete-grid prediction mode. The default empirical data route is LAD
+through `debiasRdata::lad_OD_travel2work`,
+`debiasRdata::census_lad_OD_travel2work`, and selected-area distances derived
+from `debiasRdata::lad_centroids`.
 
-1. Stage-1 scope is being clarified more explicitly in the function docs.
-2. Result attributes are being expanded so successful fits carry clearer metadata and lightweight diagnostics.
-3. The Bayesian test file has been extended to cover backend auto-selection, formula construction, metadata, and draw-summary behavior.
-4. Stage 2 design and imputation work still remain untouched.
+1. Observed-flow correction scope is clarified in the function docs.
+2. Complete-grid prediction is implemented for explicitly supplied square OD
+   data and preserves row-status metadata.
+3. The Bayesian test file covers backend auto-selection, formula construction,
+   metadata, draw-summary behavior, and complete-grid scaffolding.
+4. Full missing-OD imputation design and empirical LAD runtime guidance remain
+   the main hardening gaps.
 
 This plan is meant to help us continue development deliberately rather than expanding the prototype in an ad hoc way.
 
@@ -39,9 +47,10 @@ What already exists:
 
 What is still missing:
 
-1. A formal definition of the Stage 2 imputation target.
-2. Validation strategy for imputed unseen OD flows.
-3. Clear runtime and dependency expectations for users.
+1. A formal definition of any future imputation target beyond supplied
+   complete-grid prediction.
+2. Validation strategy for unseen or zero-filled OD flows.
+3. Clear runtime and dependency expectations for LAD empirical examples.
 4. A documented decision on whether the default backend should remain `rstanarm` for the practical path.
 
 ## Recommended Next Steps

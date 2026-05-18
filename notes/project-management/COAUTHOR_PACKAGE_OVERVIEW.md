@@ -23,7 +23,7 @@ Main functions:
 Current status:
 
 - implemented
-- Stage 3 diagnostics are ready for maintainer review
+- Stage 3 diagnostics are maintainer-reviewed and stable
 
 ### 2. Adjust Bias
 
@@ -46,8 +46,9 @@ Bayesian method:
 Current status:
 
 - deterministic methods are the main stable path
-- Bayesian method is still a stage-1 prototype for observed OD pairs only
-- stage-2 missing-OD imputation is not implemented
+- Bayesian method is still experimental but now supports observed-flow and
+  complete-grid prediction scopes
+- empirical Bayesian use remains dependency- and runtime-sensitive
 
 ### 3. Validate Adjusted Flows
 
@@ -84,10 +85,10 @@ Empirical data:
 - the Zenodo-based empirical data are not bundled in the main package
 - the separate optional companion package `debiasRdata` is now available at
   <https://github.com/de-bias/debiasRdata>
-- `debiasRdata` supplies `msoa_OD_travel2work` and
-  `census_msoa_OD_travel2work`
-- real MSOA OD distance remains planned, so final empirical Bayesian rendering
-  is still gated
+- `debiasRdata` supplies MSOA and LAD travel-to-work assets
+- `debiasR` now defaults to the LAD route:
+  `lad_OD_travel2work`, `census_lad_OD_travel2work`, and selected-area
+  distances derived from `lad_centroids`
 
 ## What Is Stable Now
 
@@ -102,7 +103,7 @@ Empirical data:
 
 - Stage 4 origin-destination random-effects extension
 - Bayesian path hardening and complete-grid empirical validation
-- real MSOA OD distance for final empirical Bayesian examples
+- empirical Bayesian runtime guidance for feasible LAD grid sizes
 
 ## Suggested Reading Order
 

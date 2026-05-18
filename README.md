@@ -64,8 +64,7 @@ Current progress:
 - Stage 3 measure-bias diagnostics are maintainer-reviewed and stable,
   including a population-only linear residual diagnostic
 - the Bayesian method now has observed and complete-grid prediction scopes, but
-  full empirical Bayesian vignette rendering still depends on Bayesian
-  dependencies and real OD distance inputs
+  full empirical Bayesian validation remains dependency- and runtime-sensitive
 - Stage 4 origin-destination random-effects extension is still planned
 - empirical examples can now use the optional companion
   [`debiasRdata`](https://github.com/de-bias/debiasRdata) package
@@ -89,23 +88,24 @@ If you’re interested in collaborating or contributing, please join our growing
 
 1. Install and load the package from this checkout.
 2. Explore the documentation in `R/` and `man/`.
-3. Install the optional empirical data companion when you need the MSOA
+3. Install the optional empirical data companion when you need the LAD
    travel-to-work examples:
 
 ```r
 remotes::install_github("de-bias/debiasRdata")
 ```
 
-4. Try the empirical MSOA travel-to-work examples through `debiasRdata` and the
+4. Try the empirical LAD travel-to-work examples through `debiasRdata` and the
    walkthroughs in `vignettes/`.
 
 Default example data:
 
-- MPD travel-to-work OD flows: `msoa_OD_travel2work` from `debiasRdata`
-- Census benchmark OD flows: `census_msoa_OD_travel2work`, the matching
-  Census 2021 `ODWP01EW` MSOA workplace-flow extract in `debiasRdata`
-- Real MSOA OD distance is not included yet; empirical Bayesian rendering still
-  falls back to `distance_source = "not_available"` until `debiasRdata` adds it.
+- MPD travel-to-work OD flows: `lad_OD_travel2work` from `debiasRdata`
+- Census benchmark OD flows: `census_lad_OD_travel2work`, the matching
+  Census 2021 `ODWP01EW` LAD/LTLA workplace-flow extract in `debiasRdata`
+- LAD distance inputs are derived at example-load time from real
+  `lad_centroids` supplied by `debiasRdata`; full OD distance matrices are not
+  packaged
 - Package helper: `debiasR_example_data()`, which normalises both sources to
   `origin`, `destination`, and `flow`, can return strict square complete-grid OD
   support, and derives the example coverage table from matched origin totals
@@ -113,9 +113,10 @@ Default example data:
 ```r
 if (requireNamespace("debiasRdata", quietly = TRUE)) {
   ex <- debiasR_example_data(n_areas = Inf, complete_grid = TRUE)
-  msoa_OD_travel2work <- ex$msoa_OD_travel2work
-  census_msoa_OD_travel2work <- ex$census_msoa_OD_travel2work
+  lad_OD_travel2work <- ex$lad_OD_travel2work
+  census_lad_OD_travel2work <- ex$census_lad_OD_travel2work
   coverage <- ex$coverage
+  distance <- ex$distance
 }
 ```
 

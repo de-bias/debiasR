@@ -8,13 +8,13 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Now
 
-1. Validate optional Bayesian CI workflow and empirical distance readiness - `1-2h`
+1. Validate optional Bayesian CI workflow - `1-2h`
 - Fast deterministic GitHub Actions validation passed on merged PR #11.
 - Current branch fast deterministic tests pass locally.
 - Local optional Bayesian test-file run passes with `rstanarm`; the remaining workflow check is the manual/optional GitHub Actions lane.
 - Confirm the optional/manual Bayesian lane on GitHub Actions when Bayesian-lane validation is required.
-- Real OD distance is still not included in `debiasRdata`; keep final empirical
-  Bayesian rendering gated until that asset is added.
+- The default LAD empirical route now has selected-area distance support through
+  `debiasRdata::lad_centroids`.
 
 ## Recently Completed
 
@@ -22,7 +22,7 @@ The staged track below is intended to be implemented one stage per chat window. 
 - Maintainer review completed on 2026-05-08.
 - `validate_flow_residual_structure()` is stable public API.
 - Optional validation plots remain inside helpers for now.
-- `debiasRdata` is the implemented empirical MSOA data route:
+- `debiasRdata` is the implemented empirical data route:
   <https://github.com/de-bias/debiasRdata>.
 
 2. Close remaining package-readiness warnings - `complete`
@@ -36,25 +36,27 @@ The staged track below is intended to be implemented one stage per chat window. 
 - `adjust_multilevel_bayes()` is documented as the main methodological innovation.
 - Observed-flow mode remains backward compatible.
 - Complete-grid prediction mode is available for strict square OD matrices and preserves row-status metadata.
-- Full empirical Bayesian rendering remains gated by Bayesian dependencies, runtime, and real OD distance from `debiasRdata`.
+- Full empirical Bayesian rendering remains gated by Bayesian dependencies, runtime, and empirical runtime validation.
 
 4. Create `debiasRdata` companion package - `complete`
 - Repository: <https://github.com/de-bias/debiasRdata>.
-- Included data objects: `msoa_OD_travel2work` and
-  `census_msoa_OD_travel2work`.
+- Included data objects: `msoa_OD_travel2work`,
+  `census_msoa_OD_travel2work`, `lad_OD_travel2work`,
+  `census_lad_OD_travel2work`, and `lad_centroids`.
 - License and source metadata live in the companion package.
 - `debiasR::debiasR_example_data(n_areas = 5)` was smoke-tested against the
   local sibling `debiasRdata` checkout on 2026-05-18.
-- `msoa_OD_distance` remains planned.
+- `debiasR::debiasR_example_data(n_areas = 5, complete_grid = TRUE)` now
+  defaults to LAD and derives selected-area distances from `lad_centroids`.
 
 ## Later
 
 1. Harden the Bayesian path further - `1-2 days`
 - Validate complete-grid Bayesian prediction on real `debiasRdata` OD inputs.
-- Add or connect real MSOA OD distance in `debiasRdata` before final empirical
-  Bayesian rendering.
+- Use the LAD route as the default empirical path; add MSOA distance assets only
+  if MSOA-specific empirical Bayesian examples are needed.
 - Record feasible empirical grid sizes and runtime expectations.
-- Split the Bayesian tests into a clear optional CI lane if the scope expands.
+- Keep the Bayesian tests in a clear optional CI lane if the scope expands.
 
 2. Prepare a release-ready maintenance pass - `1-2 days`
 - Re-run the full package check after the CI and migration work settle.
@@ -117,13 +119,15 @@ Tasks:
 7. Resolve the data and redistribution gate.
 - Documented in `DATA_REDISTRIBUTION_DECISION.md`.
 - Confirmed the Zenodo record is licensed CC BY 4.0, which permits redistribution with attribution, but the full record is too large for the main package.
-- Confirmed `msoa_OD_travel2work.csv.gz` is the preferred MPD empirical asset and should be paired with the extracted Census `census_msoa_OD_travel2work` benchmark.
+- Confirmed `msoa_OD_travel2work.csv.gz` is the source MPD empirical asset. For
+  `debiasR`, the default user-facing route is the LAD aggregate
+  `lad_OD_travel2work` paired with `census_lad_OD_travel2work`.
 - Recommended CRAN-safe option: a separate optional `debiasRdata` package licensed for the data, with `debiasR` using `Suggests`, `requireNamespace()`, `system.file()`, and conditional examples/tests/vignettes.
-- Updated direction for `debiasR`: keep simulated/tiny data as lightweight test fixtures, but base user-facing examples and vignettes on the optional `debiasRdata` MSOA travel-to-work workflow.
+- Updated direction for `debiasR`: keep simulated/tiny data as lightweight test fixtures, but base user-facing examples on the optional `debiasRdata` LAD travel-to-work workflow.
 - Maintainer review decision: accept the optional `debiasRdata` strategy and do not bundle the full Zenodo record in `debiasR`.
 - Implementation update: `debiasRdata` now exists at
   <https://github.com/de-bias/debiasRdata> and supplies
-  `msoa_OD_travel2work` plus `census_msoa_OD_travel2work`.
+  MSOA and LAD travel-to-work assets plus `lad_centroids`.
 
 Deliverables:
 
@@ -141,7 +145,7 @@ Deliverables:
 Decision gate:
 
 - Do we have a validation layer that compares methods on fit, residual structure, and spatial allocation fidelity, and do we know whether the Zenodo-based data can be used in-package?
-- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside validation helpers for now; `sf`-aware cartographic support is deferred; empirical MSOA examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
+- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside validation helpers for now; `sf`-aware cartographic support is deferred; empirical examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
 
 ### Stage 3: Measure Bias
 
