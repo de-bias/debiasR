@@ -2,6 +2,7 @@
 title: "Validation"
 format:
   html:
+    html-math-method: mathml
     toc: true
 execute:
   echo: true
@@ -18,7 +19,7 @@ complementary diagnostics.
 ```{r setup}
 common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
 source(common_path)
-example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 ```
 
 ```{r}
@@ -28,8 +29,8 @@ benchmark_od <- example_data$census_msoa_OD_travel2work
 
 ## Overall Fit
 
-`validate_flow_overall()` summarises agreement between \(F^{adj}_{ij}\) and
-\(F^{bench}_{ij}\). Correlations describe concordance; RMSE, MAE, and MAPE
+`validate_flow_overall()` summarises agreement between $F^{adj}_{ij}$ and
+$F^{bench}_{ij}$. Correlations describe concordance; RMSE, MAE, and MAPE
 describe error magnitude.
 
 ```{r}
@@ -68,10 +69,10 @@ validate_flow_pairs(
 `validate_flow_residuals()` shows whether adjustment reduced error relative to
 the raw MPD source. The signed residual movement is:
 
-\[
+$$
 (F^{bench}_{ij} - F^{mpd}_{ij}) -
 (F^{bench}_{ij} - F^{adj}_{ij})
-\]
+$$
 
 The absolute residual-reduction metric is easier for method comparison:
 positive values mean the adjusted flow is closer to the benchmark.
@@ -89,7 +90,7 @@ residuals_raking$summary
 
 ```{r}
 residuals_raking$top_worst |>
-  select(origin, destination, mpd_flow, adj_flow, benchmark_flow, abs_adj_residual) |>
+  select(origin, destination, mpd_flow, adj_flow, benchmark_flow, abs_residual_adj_benchmark) |>
   head(10)
 ```
 
@@ -115,7 +116,7 @@ structure_raking$summary
 `validate_flow_distribution()` compares destination-share distributions within
 each origin. It reports:
 
-- KL divergence, \(KL(F^{bench} || F^{adj})\), a directional allocation metric
+- KL divergence, $KL(F^{bench} || F^{adj})$, a directional allocation metric
 - Jensen-Shannon divergence, a symmetric companion metric
 
 Lower values indicate that adjusted flows allocate each origin's flows across

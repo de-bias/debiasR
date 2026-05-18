@@ -11,15 +11,18 @@ Last updated: 2026-05-18
 - Observed behavior today:
   - `Rscript scripts/run_fast_tests.R` passes.
   - merged PR #11 (`Codex/validation distribution`) passed the GitHub Actions fast deterministic workflow for commit `59705b376c26a4b33ecbbc9cd1063b037fd61572`.
-  - current local branch head `b787cfd3edfa8e31660c81a509b6e1f459b2daa2` is newer than the merged PR head and has not yet had a pull-request-triggered workflow run.
-  - package-readiness check with tests/vignettes/manual skipped now completes with 0 errors, 0 warnings, and 2 notes:
+  - the current working tree has been validated locally; the pushed head still needs remote GitHub Actions confirmation.
+  - package-readiness check with tests/vignettes/manual skipped now completes with 0 errors, 0 warnings, and 1 note:
     `devtools::check(document = FALSE, build_args = "--no-build-vignettes", args = c("--no-manual", "--ignore-vignettes", "--no-tests"), error_on = "never")`.
-  - historical package-readiness notes were that optional `debiasRdata` was not installed and the checker could not verify current time.
+  - the remaining package-readiness note is that the checker could not verify current time.
+  - `debiasRdata` is now declared in `Suggests`, so conditional examples no longer trigger an unstated-dependency warning.
   - `debiasRdata` now exists at <https://github.com/de-bias/debiasRdata>; empirical integration should be validated with the installed companion package.
   - local integration smoke check on 2026-05-18 passed by loading `../debiasRdata` and calling `debiasR_example_data(n_areas = 5)`.
+  - core workshop vignettes `vignettes/01-landing-page.qmd` through `vignettes/08-data.qmd` render against the installed `debiasRdata` route using bounded empirical examples.
   - `quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd` passes.
   - core workshop vignettes and updated testing notebooks render cleanly without `debiasRdata` installed by exiting early with an installation note.
   - targeted tests for `measure_bias`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
+  - `validate_bias_residual_structure()` now has a regression test for the documented `population_lm` residual option.
   - `test-adjust-coefficient.R` skips one optional `pscl`-dependent case when `pscl` is not installed.
   - the Bayesian draw-summary names mismatch has been fixed in the optional Bayesian test file.
   - local optional Bayesian test-file run completed with `rstanarm` installed: no failures, one expected skip for the unavailable-backend fallback path, and expected warnings from locale handling, synthetic-distance fallback, and deliberately low-iteration MCMC diagnostics.

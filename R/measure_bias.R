@@ -125,7 +125,8 @@ measure_bias <- function(coverage_df) {
 #'   \code{"coverage_score"} uses the coverage score minus the global coverage
 #'   score, \code{"user_count"} uses observed minus expected user counts, and
 #'   \code{"standardized_user_count"} uses the user-count residual divided by
-#'   \code{sqrt(expected_user_count)}.
+#'   \code{sqrt(expected_user_count)}. \code{"population_lm"} uses residuals
+#'   from a descriptive \code{user_count ~ population} linear model.
 #' @param benchmark_od_df Optional benchmark OD data frame. When supplied,
 #'   benchmark flows are collapsed to area-level origin and/or destination
 #'   totals and correlated with the selected bias residual.
@@ -202,7 +203,8 @@ validate_bias_residual_structure <- function(coverage_df,
                                              residual_type = c(
                                                "coverage_score",
                                                "user_count",
-                                               "standardized_user_count"
+                                               "standardized_user_count",
+                                               "population_lm"
                                              ),
                                              benchmark_od_df = NULL,
                                              origin_col = "origin",
@@ -274,11 +276,54 @@ validate_bias_residual_structure <- function(coverage_df,
       )
     )
 
+  lm_rows <- is.finite(area_level$population) & is.finite(area_level$user_count)
+  can_fit_population_lm <- sum(lm_rows) >= 2L &&
+    length(unique(area_level$population[lm_rows])) >= 2L
+
+  if (can_fit_population_lm) {
+    population_lm_fit <- stats::lm(
+      user_count ~ population,
+      data = area_level[lm_rows, , drop = FALSE]
+    )
+    population_lm_expected <- rep(NA_real_, nrow(area_level))
+    population_lm_expected[lm_rows] <- as.numeric(stats::predict(
+      population_lm_fit,
+      newdata = area_level[lm_rows, , drop = FALSE]
+    ))
+    population_lm_coef <- stats::coef(population_lm_fit)
+    population_lm_summary <- summary(population_lm_fit)
+    population_lm <- tibble::tibble(
+      residual_type = "population_lm",
+      model = "user_count ~ population",
+      n = sum(lm_rows),
+      intercept = unname(population_lm_coef[["(Intercept)"]]),
+      population_coefficient = unname(population_lm_coef[["population"]]),
+      r_squared = unname(population_lm_summary$r.squared)
+    )
+  } else {
+    population_lm_expected <- rep(NA_real_, nrow(area_level))
+    population_lm <- tibble::tibble(
+      residual_type = "population_lm",
+      model = "user_count ~ population",
+      n = sum(lm_rows),
+      intercept = NA_real_,
+      population_coefficient = NA_real_,
+      r_squared = NA_real_
+    )
+  }
+
+  area_level <- area_level |>
+    dplyr::mutate(
+      population_lm_expected_user_count = population_lm_expected,
+      population_lm_residual = .data$user_count - .data$population_lm_expected_user_count
+    )
+
   selected_residual_col <- switch(
     residual_type_label,
     coverage_score = "coverage_score_residual",
     user_count = "user_count_residual",
-    standardized_user_count = "standardized_user_count_residual"
+    standardized_user_count = "standardized_user_count_residual",
+    population_lm = "population_lm_residual"
   )
 
   area_level <- area_level |>
@@ -481,17 +526,20 @@ validate_bias_residual_structure <- function(coverage_df,
     residual = c(
       "coverage_score_residual",
       "user_count_residual",
-      "standardized_user_count_residual"
+      "standardized_user_count_residual",
+      "population_lm_residual"
     ),
     definition = c(
       "coverage_score - global_coverage_score",
       "user_count - expected_user_count",
-      "user_count_residual / sqrt(expected_user_count)"
+      "user_count_residual / sqrt(expected_user_count)",
+      "user_count - fitted(user_count ~ population)"
     ),
     interpretation = c(
       "Positive values mean higher active-user coverage than the global coverage score.",
       "Positive values mean more active users than expected under the global coverage score.",
-      "Positive values mean more active users than expected after a Poisson-style count scaling."
+      "Positive values mean more active users than expected after a Poisson-style count scaling.",
+      "Positive values mean more active users than expected under a descriptive population-only linear trend."
     )
   )
 
@@ -501,6 +549,7 @@ validate_bias_residual_structure <- function(coverage_df,
     moran_i = moran_tbl,
     benchmark_flow_correlation = benchmark_flow_correlation,
     covariate_correlation = covariate_correlation,
+    population_lm = population_lm,
     area_level = area_level,
     map_data = map_data
   )

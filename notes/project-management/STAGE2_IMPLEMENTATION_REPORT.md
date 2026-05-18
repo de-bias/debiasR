@@ -157,6 +157,12 @@ Follow-up on 2026-05-08:
 - Historical remaining notes were the then-missing optional companion data package and current time verification.
 - The Bayesian draw-summary names mismatch was fixed in the optional Bayesian test file.
 
+Follow-up on 2026-05-18:
+
+- `debiasRdata` exists at <https://github.com/de-bias/debiasRdata> and is declared in `Suggests`.
+- Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 1 note.
+- The remaining note is the checker being unable to verify current time.
+
 Vignette smoke checks were run with Quarto on 2026-05-05. The empirical
 `debiasRdata` vignettes render cleanly in an environment without `debiasRdata`
 by exiting early with an installation note.

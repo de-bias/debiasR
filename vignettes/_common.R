@@ -24,13 +24,13 @@ load_debiasr_workshop <- function() {
   invisible(pkg_root)
 }
 
-load_workshop_example <- function(n_areas = Inf, complete_grid = TRUE) {
+load_workshop_example <- function(n_areas = 25, complete_grid = TRUE) {
   load_debiasr_workshop()
 
   if (!requireNamespace("debiasRdata", quietly = TRUE)) {
     cat(
       "Install `debiasRdata` to run the empirical MSOA travel-to-work examples. ",
-      "The installation route is project-specific and still to be confirmed.\n",
+      "Use `remotes::install_github(\"de-bias/debiasRdata\")`.\n",
       sep = ""
     )
     knitr::knit_exit()

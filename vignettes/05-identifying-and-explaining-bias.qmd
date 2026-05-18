@@ -2,6 +2,7 @@
 title: "Identifying and Explaining Bias"
 format:
   html:
+    html-math-method: mathml
     toc: true
 execute:
   echo: true
@@ -17,12 +18,12 @@ are associated with geographic differences in mobile-phone-derived coverage.
 ```{r setup}
 common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
 source(common_path)
-example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 ```
 
 ## Bias as Spatial and Social Structure
 
-Coverage bias is not only a technical nuisance. If \(e_i = p_i - \bar{p}\) is
+Coverage bias is not only a technical nuisance. If $e_i = p_i - \bar{p}$ is
 systematically related to benchmark flows or contextual variables, then the OD
 matrix may encode spatial and social selection.
 

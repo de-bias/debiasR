@@ -9,7 +9,8 @@ validate_bias_residual_structure(
   coverage_area_col = "origin",
   population_col = "population",
   user_count_col = "user_count",
-  residual_type = c("coverage_score", "user_count", "standardized_user_count"),
+  residual_type = c("coverage_score", "user_count", "standardized_user_count",
+    "population_lm"),
   benchmark_od_df = NULL,
   origin_col = "origin",
   destination_col = "destination",
@@ -46,7 +47,8 @@ Default \code{"origin"}.}
 \code{"coverage_score"} uses the coverage score minus the global coverage
 score, \code{"user_count"} uses observed minus expected user counts, and
 \code{"standardized_user_count"} uses the user-count residual divided by
-\code{sqrt(expected_user_count)}.}
+\code{sqrt(expected_user_count)}. \code{"population_lm"} uses residuals
+from a descriptive \code{user_count ~ population} linear model.}
 
 \item{benchmark_od_df}{Optional benchmark OD data frame. When supplied,
 benchmark flows are collapsed to area-level origin and/or destination

@@ -19,6 +19,7 @@ Imports:
     rlang,
     stats
 Suggests:
+    debiasRdata,
     knitr,
     rmarkdown,
     MASS,

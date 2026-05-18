@@ -2,6 +2,7 @@
 title: "Measuring Coverage Bias"
 format:
   html:
+    html-math-method: mathml
     toc: true
 execute:
   echo: true
@@ -17,23 +18,23 @@ representativeness bias before adjusting OD flows.
 ```{r setup}
 common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
 source(common_path)
-example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 ```
 
 ## Coverage Score and Coverage Bias
 
-`measure_bias()` starts from area-level benchmark population \(P_i\) and observed
-active-user count \(U_i\). It returns:
+`measure_bias()` starts from area-level benchmark population $P_i$ and observed
+active-user count $U_i$. It returns:
 
-\[
+$$
 p_i = \frac{U_i}{P_i}
-\]
+$$
 
-\[
+$$
 b_i = 1 - p_i
-\]
+$$
 
-where \(p_i\) is the coverage score and \(b_i\) is the coverage bias.
+where $p_i$ is the coverage score and $b_i$ is the coverage bias.
 
 ```{r}
 bias <- measure_bias(example_data$coverage)
@@ -60,11 +61,11 @@ bias |>
 `validate_bias_residual_structure()` extends the coverage calculation by asking
 whether coverage residuals are structured. The default residual is:
 
-\[
+$$
 e_i = p_i - \bar{p}
-\]
+$$
 
-where \(\bar{p} = \sum_i U_i / \sum_i P_i\). Positive values mean higher
+where $\bar{p} = \sum_i U_i / \sum_i P_i$. Positive values mean higher
 coverage than expected under the global coverage score; negative values mean
 lower coverage.
 

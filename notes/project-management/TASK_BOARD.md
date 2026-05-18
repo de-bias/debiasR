@@ -26,9 +26,10 @@ The staged track below is intended to be implemented one stage per chat window. 
   <https://github.com/de-bias/debiasRdata>.
 
 2. Close remaining package-readiness warnings - `complete`
-- Long generated paths and non-standard project folders are excluded from package builds through `.Rbuildignore`.
+- Long generated notebook paths were removed from tracking; non-standard project folders remain excluded from package builds through `.Rbuildignore`.
 - Bayesian NSE warnings were removed by tightening tidyselect/tidy-evaluation expressions.
 - The Bayesian draw-summary names mismatch in the optional test file was fixed.
+- `debiasRdata` is declared in `Suggests`, closing the conditional-example unstated-dependency warning.
 - Package-readiness check with tests/vignettes/manual skipped now has 0 errors and 0 warnings.
 
 3. Keep Bayesian scope aligned - `complete`

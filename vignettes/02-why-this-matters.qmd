@@ -2,6 +2,7 @@
 title: "Why This Matters"
 format:
   html:
+    html-math-method: mathml
     toc: true
 execute:
   echo: true
@@ -21,11 +22,11 @@ neutral measurement of the true movement system. If mobile phone data under-cove
 some places and over-cover others, then the observed OD matrix can reproduce
 those inequalities as if they were mobility patterns.
 
-In notation, the observed flow \(F^{mpd}_{ij}\) can differ from the target flow
-\(F^{bench}_{ij}\) or the unobserved true flow because coverage varies across
-origins, destinations, and social contexts. Area \(i\) may have population
-\(P_i\), observed active users \(U_i\), coverage score \(p_i = U_i / P_i\), and
-coverage bias \(b_i = 1 - p_i\).
+In notation, the observed flow $F^{mpd}_{ij}$ can differ from the target flow
+$F^{bench}_{ij}$ or the unobserved true flow because coverage varies across
+origins, destinations, and social contexts. Area $i$ may have population
+$P_i$, observed active users $U_i$, coverage score $p_i = U_i / P_i$, and
+coverage bias $b_i = 1 - p_i$.
 
 ## Consequences
 

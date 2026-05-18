@@ -2,3 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
+.DS_Store
+notes/project-management/*_REVIEW_NOTEBOOK.html
+notes/project-management/*_REVIEW_NOTEBOOK_files/

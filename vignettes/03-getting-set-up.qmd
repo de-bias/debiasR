@@ -2,6 +2,7 @@
 title: "Getting Set Up With debiasR"
 format:
   html:
+    html-math-method: mathml
     toc: true
 execute:
   echo: true
@@ -19,8 +20,11 @@ demonstrations.
 
 Install `debiasR` from the project repository or load it from the current
 checkout during development. The empirical examples use the optional
-`debiasRdata` package. Its installation route is project-specific and still to
-be confirmed.
+`debiasRdata` package, available from the DEBIAS GitHub organisation:
+
+```r
+remotes::install_github("de-bias/debiasRdata")
+```
 
 ```{r setup}
 common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
@@ -36,7 +40,7 @@ matching origin and destination area sets, no duplicated OD pairs, nonnegative
 flows, and zero-filled absent pairs.
 
 ```{r}
-example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 
 msoa_OD_travel2work <- example_data$msoa_OD_travel2work
 census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work

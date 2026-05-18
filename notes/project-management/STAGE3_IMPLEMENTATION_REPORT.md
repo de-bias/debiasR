@@ -74,7 +74,7 @@ Added Stage 3 notes:
 
 - `STAGE3_MEASURE_BIAS_DESIGN_NOTE.md`
 - `STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd`
-- rendered review output: `STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.html`
+- review notebook source is retained as Quarto; rendered HTML is generated locally when needed and is not tracked.
 
 Generated package documentation:
 
@@ -125,7 +125,7 @@ quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd
 Result:
 
 - Pass.
-- HTML output created at `notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.html`.
+- HTML output can be regenerated locally from `notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd`.
 
 Full package check attempted on 2026-05-05 before the package-readiness cleanup:
 
@@ -149,6 +149,12 @@ Follow-up on 2026-05-08:
 - Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 2 notes.
 - Historical remaining notes were the then-missing optional companion data package and current time verification. `debiasRdata` now exists at <https://github.com/de-bias/debiasRdata>, but empirical tests should remain conditional because the companion package is optional.
 - The Bayesian draw-summary names mismatch was fixed in the optional Bayesian test file.
+
+Follow-up on 2026-05-18:
+
+- `debiasRdata` is declared in `Suggests`, so conditional examples no longer trigger an unstated-dependency warning.
+- Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 1 note.
+- The remaining note is the checker being unable to verify current time.
 
 ## Maintainer Review Decisions
 

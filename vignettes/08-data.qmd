@@ -2,6 +2,7 @@
 title: "Data"
 format:
   html:
+    html-math-method: mathml
     toc: true
 execute:
   echo: true
@@ -18,7 +19,7 @@ adjustment.
 ```{r setup}
 common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
 source(common_path)
-example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 ```
 
 ## Sources
@@ -100,7 +101,7 @@ head(example_data$population)
 head(example_data$covariates)
 ```
 
-The coverage table supplies \(P_i\), \(U_i\), \(p_i\), and \(b_i\) inputs for
+The coverage table supplies $P_i$, $U_i$, $p_i$, and $b_i$ inputs for
 measurement and adjustment. The covariate table supplies area-level predictors
 used by diagnostics and adjustment models.
 

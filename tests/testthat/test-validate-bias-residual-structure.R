@@ -92,6 +92,37 @@ test_that("validate_bias_residual_structure can select standardized count residu
   )
 })
 
+test_that("validate_bias_residual_structure can select population-only model residuals", {
+  coverage_df <- data.frame(
+    area_id = c("A", "B", "C", "D"),
+    population = c(100, 200, 300, 400),
+    user_count = c(15, 18, 40, 42)
+  )
+
+  res <- validate_bias_residual_structure(
+    coverage_df = coverage_df,
+    coverage_area_col = "area_id",
+    residual_type = "population_lm"
+  )
+
+  expected_fit <- stats::lm(user_count ~ population, data = coverage_df)
+  expected_fitted <- as.numeric(stats::predict(expected_fit, newdata = coverage_df))
+
+  expect_equal(res$summary$selected_residual_col, "population_lm_residual")
+  expect_equal(res$population_lm$model, "user_count ~ population")
+  expect_equal(res$population_lm$n, 4)
+  expect_equal(
+    res$area_level$population_lm_expected_user_count,
+    expected_fitted,
+    tolerance = 1e-12
+  )
+  expect_equal(
+    res$area_level$selected_residual,
+    coverage_df$user_count - expected_fitted,
+    tolerance = 1e-12
+  )
+})
+
 test_that("validate_bias_residual_structure can return ggplot diagnostics", {
   testthat::skip_if_not_installed("ggplot2")
 

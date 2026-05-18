@@ -57,6 +57,7 @@ Last updated: 2026-05-18
 - Stage 3 maintainer review is complete: `validate_bias_residual_structure()` is stable public API; optional diagnostic plots remain inside the helper for now; a simple population-only linear-regression residual is included as a descriptive diagnostic.
 - The Zenodo data gate is documented in `DATA_REDISTRIBUTION_DECISION.md`: do not bundle the full record in `debiasR`; use the separate optional `debiasRdata` package for empirical MSOA travel-to-work examples and keep simulated data as lightweight test fixtures.
 - `debiasRdata` now exists locally and remotely at <https://github.com/de-bias/debiasRdata>. It supplies `msoa_OD_travel2work` and `census_msoa_OD_travel2work`; `msoa_OD_distance` remains planned.
+- Cleanup pass removed tracked rendered notebook HTML/assets from project-management notes while keeping the Quarto sources, and declared `debiasRdata` in `Suggests` for conditional examples.
 
 ## Verification
 
@@ -69,7 +70,7 @@ Last updated: 2026-05-18
   - `test-adjust-coefficient.R` skipped one optional `pscl`-dependent case because `pscl` is not installed
   - full `devtools::check(document = FALSE, build_args = "--no-build-vignettes", args = c("--no-manual", "--ignore-vignettes"), error_on = "never")` was also run on 2026-05-05; it completed with 1 error, 2 warnings, and 3 notes before the 2026-05-08 package-readiness cleanup
 - GitHub Actions on merged PR #11 (`Codex/validation distribution`) completed the fast deterministic workflow successfully for commit `59705b376c26a4b33ecbbc9cd1063b037fd61572`.
-- The current local branch head `b787cfd3edfa8e31660c81a509b6e1f459b2daa2` is newer than the merged PR head and has no pull-request-triggered workflow run yet.
+- The current working tree has been validated locally; the pushed head still needs remote GitHub Actions confirmation.
 - Verified on 2026-05-08 with `Rscript scripts/run_fast_tests.R`.
 - Result: pass.
 - Package-readiness check on 2026-05-08 with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 2 notes:
@@ -78,10 +79,15 @@ Last updated: 2026-05-18
 - A local optional Bayesian test-file run completed on 2026-05-08 with `rstanarm` installed. Result: no failures, one expected skip for the unavailable-backend fallback path, and expected warnings from locale handling, synthetic-distance fallback, and intentionally low-iteration MCMC convergence diagnostics.
 - Verified on 2026-05-18 by loading the sibling `../debiasRdata` checkout and calling `debiasR_example_data(n_areas = 5)`.
 - Result: pass. The helper returned both `msoa_OD_travel2work` and `census_msoa_OD_travel2work`; `distance_source` was `not_available`, matching the current `debiasRdata` scope.
+- Package-readiness cleanup check on 2026-05-18 with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 1 note:
+  - `devtools::check(document = FALSE, build_args = "--no-build-vignettes", args = c("--no-manual", "--ignore-vignettes", "--no-tests"), error_on = "never")`
+  - remaining note: the checker could not verify current time
+- Documentation validation on 2026-05-18 rendered the core workshop vignettes `vignettes/01-landing-page.qmd` through `vignettes/08-data.qmd` against the installed `debiasRdata` route using bounded empirical examples.
+- `validate_bias_residual_structure()` now supports and tests the documented `population_lm` residual option.
 
 ## Current Risks / Blockers
 
-1. Documentation mismatch risk now mainly sits in archival migration materials and older review notebooks that intentionally use deterministic fixtures.
+1. Documentation mismatch risk now mainly sits in archival migration materials and older review notebook sources that intentionally use deterministic fixtures.
 2. Test suite reliability still depends on using the curated runner rather than raw `test_dir()` calls.
 3. Bayesian tests are slower and environment-sensitive due to optional dependencies; run them manually when Bayesian-lane validation is needed.
 4. CI has been scaffolded and the fast deterministic workflow passed on merged PR #11; the current branch head still needs live validation on the next PR or push.

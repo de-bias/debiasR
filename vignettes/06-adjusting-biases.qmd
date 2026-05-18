@@ -2,6 +2,7 @@
 title: "Adjusting Biases in OD Flows"
 format:
   html:
+    html-math-method: mathml
     toc: true
 execute:
   echo: true
@@ -18,7 +19,7 @@ transparent baselines and comparators.
 ```{r setup}
 common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
 source(common_path)
-example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 ```
 
 ## Bayesian Multilevel Adjustment
@@ -26,14 +27,14 @@ example_data <- load_workshop_example(n_areas = Inf, complete_grid = TRUE)
 `adjust_multilevel_bayes()` estimates adjusted OD flows with a multilevel count
 model. The core idea is:
 
-\[
+$$
 \log(\mu_{ij}) =
 f(X_i, X_j, d_{ij}, e_i, u)
-\]
+$$
 
-where \(X_i\) and \(X_j\) are origin and destination attributes, \(d_{ij}\) is
-OD distance, \(e_i\) is the origin coverage residual or bias term, and \(u\) is
-an optional hierarchical term. The adjusted flow \(F^{adj}_{ij}\) is obtained by
+where $X_i$ and $X_j$ are origin and destination attributes, $d_{ij}$ is
+OD distance, $e_i$ is the origin coverage residual or bias term, and $u$ is
+an optional hierarchical term. The adjusted flow $F^{adj}_{ij}$ is obtained by
 removing the estimated coverage-bias contribution from posterior linear
 predictor draws.
 
@@ -83,19 +84,19 @@ The deterministic methods provide interpretable comparators.
 
 ### Inverse Penetration
 
-\[
+$$
 w_i = \frac{P_i}{U_i}
-\]
+$$
 
-\[
+$$
 F^{adj}_{ij} = F^{mpd}_{ij} w_i
-\]
+$$
 
 or, when both origin and destination coverage are used:
 
-\[
+$$
 F^{adj}_{ij} = F^{mpd}_{ij}\sqrt{w_i w_j}
-\]
+$$
 
 ### Selection Rate
 
@@ -107,19 +108,19 @@ parameter to construct multiplicative weights.
 Raking adjusts flows so that supplied origin and destination margins match
 trusted targets:
 
-\[
+$$
 \sum_j F^{adj}_{ij} = T^{O}_i,\qquad
 \sum_i F^{adj}_{ij} = T^{D}_j
-\]
+$$
 
 ### Coefficient Calibration
 
 The coefficient method estimates a global mapping from observed MPD flows to
 benchmark flows:
 
-\[
+$$
 E(F^{bench}_{ij}) = \beta F^{mpd}_{ij}
-\]
+$$
 
 ## Fit Baselines
 
