@@ -13,9 +13,15 @@ adjust_multilevel_bayes(
   income_col = "income_norm",
   pop_col = "population",
   distance_col = "distance_km",
-  random_intercept = c("origin", "destination", "od", "none"),
+  source_col = NULL,
+  time_col = NULL,
+  scenario = c("auto", "s1", "s2", "s3", "s4"),
+  repeated_observation = c("auto", "none", "time", "source", "source_time"),
+  random_intercept = c("origin", "destination", "od", "source", "time", "source_time",
+    "none"),
   custom_formula = NULL,
   model_family = c("poisson", "negbin", "zip", "zinb"),
+  model_engine = c("bayesian", "frequentist"),
   backend = c("auto", "rstanarm", "brms"),
   flow_adj_summary = c("mean", "median"),
   prediction_scope = c("observed", "complete_grid"),
@@ -54,14 +60,37 @@ Default \code{"income_norm"}.}
 \item{distance_col}{Name of distance column in \code{distance_df} (or in
 \code{mpd_od_df} if \code{distance_df = NULL}). Default \code{"distance_km"}.}
 
+\item{source_col}{Optional mobile-phone data source column in
+\code{mpd_od_df}. If \code{NULL} and \code{mpd_source} exists, that column
+is used. Source metadata supports S3 and S4 inputs.}
+
+\item{time_col}{Optional observation-period column in \code{mpd_od_df}.
+Time metadata supports S2 and S4 inputs.}
+
+\item{scenario}{Input scenario contract: \code{"auto"}, \code{"s1"},
+\code{"s2"}, \code{"s3"}, or \code{"s4"}. S1 is single source/single time,
+S2 is single source/multiple times, S3 is multiple sources/single time, and
+S4 is multiple sources/multiple times. \code{"auto"} infers the scenario
+from the supplied source and time columns.}
+
+\item{repeated_observation}{Repeated-observation structure:
+\code{"auto"}, \code{"none"}, \code{"time"}, \code{"source"}, or
+\code{"source_time"}. \code{"auto"} maps from \code{scenario}.}
+
 \item{random_intercept}{Random-intercept structure: \code{"origin"},
-\code{"destination"}, \code{"od"}, or \code{"none"}.}
+\code{"destination"}, \code{"od"}, \code{"source"}, \code{"time"},
+\code{"source_time"}, or \code{"none"}.}
 
 \item{custom_formula}{Optional model formula override (character or formula).
 If provided, it supersedes auto-formula construction.}
 
 \item{model_family}{Count family: \code{"poisson"}, \code{"negbin"},
 \code{"zip"}, or \code{"zinb"}.}
+
+\item{model_engine}{Development engine: \code{"bayesian"} uses the existing
+Stage-1 Bayesian S1 backend; \code{"frequentist"} uses a faster
+Poisson/negative-binomial GLM/GLMM scaffold for S1-S4 model-contract
+development before Bayesian scenario support is promoted.}
 
 \item{backend}{Bayesian backend: \code{"auto"}, \code{"rstanarm"}, or
 \code{"brms"}. \code{"auto"} chooses \pkg{rstanarm} for Poisson/NegBin and
@@ -104,12 +133,16 @@ Attributes:
 \item \code{"model"}: fitted model object
 \item \code{"formula"}: fitted formula
 \item \code{"coefficients"}: fixed-effect summary table
+\item \code{"model_engine"}: \code{"bayesian"} or \code{"frequentist"}
 \item \code{"backend"}: backend used
 \item \code{"model_family"}: fitted family
+\item \code{"model_terms"}: resolved fixed-effect and random-effect terms
 \item \code{"stage"}: development stage label
 \item \code{"stage_scope"}: short statement of scope
 \item \code{"result_metadata"}: compact Stage-1 metadata bundle
 \item \code{"random_intercept"}: grouping structure used
+\item \code{"scenario"}: resolved S1-S4 input scenario
+\item \code{"repeated_observation"}: resolved repeated-observation structure
 \item \code{"flow_adj_summary"}: posterior summary used for \code{flow_adj}
 \item \code{"distance_source"}: where distance came from
 \item \code{"diagnostics"}: lightweight fit/convergence metadata when available

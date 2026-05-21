@@ -23,6 +23,7 @@ Suggests:
     knitr,
     rmarkdown,
     MASS,
+    lme4,
     pscl,
     brms,
     rstanarm,

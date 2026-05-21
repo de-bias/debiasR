@@ -1,6 +1,6 @@
 # Test Health
 
-Last updated: 2026-05-18
+Last updated: 2026-05-21
 
 ## Summary
 
@@ -13,7 +13,7 @@ Last updated: 2026-05-18
 - The runner loads the package with `devtools::load_all(".")` before executing targeted tests.
 - Full suite still includes a slower Bayesian test file with optional dependencies.
 - Observed behavior today:
-  - `Rscript scripts/run_fast_tests.R` passes.
+  - `Rscript scripts/run_fast_tests.R` passes, most recently on 2026-05-21 after adding MSOA-like frequentist multilevel formula-contract tests and a Bayesian S2-S4 deferral guard.
   - merged PR #11 (`Codex/validation distribution`) passed the GitHub Actions fast deterministic workflow for commit `59705b376c26a4b33ecbbc9cd1063b037fd61572`.
   - the current working tree has been validated locally; the pushed head still needs remote GitHub Actions confirmation.
   - package-readiness check with tests/vignettes/manual skipped now completes with 0 errors, 0 warnings, and 1 note:
@@ -26,6 +26,7 @@ Last updated: 2026-05-18
   - `quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd` passes.
   - core workshop vignettes and updated testing notebooks render cleanly without `debiasRdata` installed by exiting early with an installation note.
   - targeted tests for `measure_bias`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
+  - targeted fast tests for `model_engine = "frequentist"` pass under `load_all`, covering S1-S4 scenario resolution, source/time metadata preparation, observed prediction, complete-grid prediction, MSOA-like default formula-contract fixtures, `model_terms` metadata, the Bayesian S2-S4 deferral guard, and the optional `lme4` mixed-model smoke path when installed.
   - `validate_bias_residual_structure()` now has a regression test for the documented `population_lm` residual option.
   - `test-adjust-coefficient.R` skips one optional `pscl`-dependent case when `pscl` is not installed.
   - the Bayesian draw-summary names mismatch has been fixed in the optional Bayesian test file.
@@ -44,6 +45,7 @@ Last updated: 2026-05-18
 - `tests/testthat/test-adjust-selection-rate2.R`
 - `tests/testthat/test-adjust-raking-ratio.R`
 - `tests/testthat/test-adjust-coefficient.R`
+- `tests/testthat/test-adjust-multilevel-frequentist-dev.R`
 - `tests/testthat/test-validate-flow-overall.R`
 - `tests/testthat/test-validate-flow-pairs.R`
 - `tests/testthat/test-validate-flow-residuals.R`
@@ -63,6 +65,7 @@ Last updated: 2026-05-18
 3. Full package checks that run the optional Bayesian lane may still be slow on machines with `rstanarm` installed.
 4. Empirical tests that require `debiasRdata` should remain conditional because the companion package is optional.
 5. Some warnings are locale-related (`LC_ALL='C.UTF-8'`) and mostly non-blocking.
+6. The optional tiny-data `lme4` mixed-model smoke path may print a singular-fit message; this is expected for the deliberately small fixture.
 
 ## Recommended CI Strategy
 
