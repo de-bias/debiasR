@@ -23,6 +23,8 @@ Last updated: 2026-05-21
   - `debiasRdata` now exists at <https://github.com/de-bias/debiasRdata>; empirical integration should be validated with the installed companion package.
   - local integration smoke check on 2026-05-18 passed by loading `../debiasRdata` and calling `debiasR_example_data(n_areas = 5, complete_grid = TRUE)`. The helper returned default LAD objects and `distance_source = "debiasRdata_lad_centroids"`.
   - core workshop vignettes `vignettes/01-landing-page.qmd` through `vignettes/08-data.qmd` render against the installed `debiasRdata` route using bounded empirical examples.
+  - `vignettes/06-adjusting-biases.qmd`, `vignettes/testing/methods-conceptual-guide.qmd`, and `vignettes/testing/simulated-methods-walkthrough.qmd` render after replacing the Bayesian Method 6 example with the S1 frequentist placeholder.
+  - `vignettes/testing/short-illustration.qmd` and `vignettes/testing/method-comparison.qmd` render to a temporary output directory after the same placeholder update.
   - `quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd` passes.
   - core workshop vignettes and updated testing notebooks render cleanly without `debiasRdata` installed by exiting early with an installation note.
   - targeted tests for `measure_bias`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.

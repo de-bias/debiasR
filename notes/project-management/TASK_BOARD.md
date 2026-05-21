@@ -288,6 +288,10 @@ Vignette and teaching-material tasks:
   explain, and teach.
 - Keep examples small enough for optional Bayesian dependencies and vignette
   rendering constraints.
+- Implementation update: the adjustment vignette and testing notebooks now use
+  an S1 `model_engine = "frequentist"` placeholder with one source and one time
+  unit, and describe the parameter switches for S2-S4. Full LAD-scale teaching
+  examples for each separate scenario remain to be completed.
 
 2. Teach the four scenarios separately.
 - Start with S1 as the baseline.

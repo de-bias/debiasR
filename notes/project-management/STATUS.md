@@ -57,6 +57,7 @@ Last updated: 2026-05-21
 - `adjust_multilevel_bayes()` now supports `prediction_scope = "complete_grid"` for supplied square OD matrices; it fits on originally observed source rows when `mpd_observed` is available and predicts across the grid.
 - `adjust_multilevel_bayes()` now has explicit scenario/source/time parameters for the planned S1-S4 multilevel path, plus `model_engine = "frequentist"` for fast design and test iteration while the Bayesian method remains the goal.
 - The default frequentist S1-S4 formula contract is documented: S1 uses the base OD/covariate/bias terms, S2 adds `mpd_time`, S3 adds `mpd_source`, and S4 adds `mpd_source + mpd_time`; S4 source-time interaction remains deferred.
+- The adjustment and testing vignettes now include an S1 `model_engine = "frequentist"` placeholder example with constant source/time columns, plus parameter guidance for S2-S4 source/time structures while Bayesian transfer is incomplete.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
 - Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside the validation helpers for now; `sf`-aware mapping remains outside the package; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.
@@ -98,6 +99,12 @@ Last updated: 2026-05-21
 - Package-readiness check on 2026-05-21 with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 1 note:
   - `devtools::check(document = FALSE, build_args = "--no-build-vignettes", args = c("--no-manual", "--ignore-vignettes", "--no-tests"), error_on = "never")`
   - remaining note: the checker could not verify current time
+- Vignette validation on 2026-05-21 rendered:
+  - `vignettes/06-adjusting-biases.qmd`
+  - `vignettes/testing/methods-conceptual-guide.qmd`
+  - `vignettes/testing/simulated-methods-walkthrough.qmd`
+  - `vignettes/testing/short-illustration.qmd` to a temporary output directory
+  - `vignettes/testing/method-comparison.qmd` to a temporary output directory
 
 ## Current Risks / Blockers
 

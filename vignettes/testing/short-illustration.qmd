@@ -1,14 +1,17 @@
 ---
-title: "Bayesian Multilevel Adjustment Walkthrough"
+title: "Frequentist Placeholder for Bayesian Multilevel Adjustment"
 format: html
 editor: visual
 ---
 
-# Package and data
+# Purpose
 
-This walkthrough uses `adjust_multilevel_bayes()` as a stage-1 prototype. The
-default mode preserves observed OD behavior, while the complete-grid prediction
-scope is used in the main workshop vignettes for square OD adjustment examples.
+This walkthrough uses `adjust_multilevel_bayes()` with
+`model_engine = "frequentist"` as a fast placeholder while the full S1-S4
+Bayesian implementation is completed. The fitted example is S1: one
+mobile-phone data source observed during one time unit.
+
+# Package and data
 
 ```{r}
 candidate_roots <- c(".", "..", "../..")
@@ -27,208 +30,146 @@ if (!requireNamespace("debiasR", quietly = TRUE)) {
 library(debiasR)
 library(dplyr)
 
-has_rstanarm <- requireNamespace("rstanarm", quietly = TRUE)
-if (!has_rstanarm) {
-  cat("This vignette requires the optional 'rstanarm' package. Install it to run the Bayesian walkthrough.\n")
-  knitr::knit_exit()
-}
-
-if (has_rstanarm) {
-  library(rstanarm)
-}
-
-has_debiasRdata <- requireNamespace("debiasRdata", quietly = TRUE)
-if (!has_debiasRdata) {
-  cat("Install `debiasRdata` to run the empirical MSOA travel-to-work walkthrough.\n")
-  knitr::knit_exit()
-}
-
-if (has_rstanarm && has_debiasRdata) {
-  example_data <- debiasR_example_data(n_areas = 30)
-  msoa_OD_travel2work <- example_data$msoa_OD_travel2work
-  census_msoa_OD_travel2work <- example_data$census_msoa_OD_travel2work
-
-  example_mpd_od <- msoa_OD_travel2work
-  example_coverage <- example_data$coverage
-  example_covariates <- example_data$covariates
-  example_distance <- tibble::tibble(
-    origin = character(),
-    destination = character(),
-    distance_km = numeric()
-  )
-  example_benchmark_od <- census_msoa_OD_travel2work
-
-  names(example_coverage)
-
-  tibble::tibble(
-    series = c("benchmark_flow", "mpd_flow"),
-    zero_share = c(
-      mean(example_benchmark_od$flow == 0),
-      mean(example_mpd_od$flow == 0)
-    ),
-    q90_log1p = c(
-      quantile(log1p(example_benchmark_od$flow), 0.9),
-      quantile(log1p(example_mpd_od$flow), 0.9)
-    ),
-    q99_log1p = c(
-      quantile(log1p(example_benchmark_od$flow), 0.99),
-      quantile(log1p(example_mpd_od$flow), 0.99)
-    )
-  )
-}
+data(simulated_mpd.od, package = "debiasR")
+data(simulated_benchmark.od, package = "debiasR")
+data(simulated_coverage, package = "debiasR")
+data(simulated_covariates, package = "debiasR")
+data(simulated_distance, package = "debiasR")
 ```
 
+# Build an S1 source/time structure
 
+S1 means one source and one time unit. The source and time columns can be absent
+for S1, but adding constant columns makes the scenario contract visible and
+keeps the example close to the S2-S4 data structure.
 
-Run model 
 ```{r}
-has_distance_data <- nrow(example_distance) > 0L
-if (!has_distance_data) {
-  cat("Empirical distance data are not available in this example, so the Bayesian prototype is skipped.\n")
-  knitr::knit_exit()
-}
-
-if (has_distance_data) {
-  adj <- adjust_multilevel_bayes(
-    mpd_od_df = example_mpd_od,
-    coverage_df = example_coverage,
-    covariates_df = example_covariates,
-    distance_df = example_distance,
-    random_intercept = "origin",
-    model_family = "poisson",
-    flow_adj_summary = "median",
-    iter = 500,
-    chains = 2,
-    seed = 123,
-    refresh = 0
+example_mpd_od <- simulated_mpd.od |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
   )
 
-  m <- attr(adj, "model")
-  coef_tbl <- attr(adj, "coefficients")
-}
+example_coverage <- simulated_coverage |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
+  )
 
-```
-# Read posterior summaries (fixed effects)
-
-```{r}
-coef_tbl %>%
-  select(any_of(c("term", "mean", "sd", "q2.5", "q97.5"))) %>%
-  print(n = Inf)
-
+example_mpd_od |>
+  select(origin, destination, mpd_source, mpd_time, flow) |>
+  head(5)
 ```
 
-> Interpretation:
+# Fit the frequentist placeholder
 
-- mean: posterior central estimate.
-- q2.5 to q97.5: 95% credible interval.
-- For bias_e_origin (omega): if interval mostly above 0, higher bias term is associated with higher observed flow on log scale (conditional on other terms); if below 0, opposite.
-
-#  Direction probabilities from posterior draws
 ```{r}
-draws <- as.matrix(m)
-
-# Helper to robustly pick a parameter by pattern
-pick <- function(pattern) {
-  nm <- grep(pattern, colnames(draws), value = TRUE)
-  nm[1]
-}
-
-p_bias <- pick("^bias_e_origin$")
-p_dist <- pick("^log_distance$")
-p_inc_o <- pick("^income_o$")
-p_inc_d <- pick("^income_d$")
-
-c(
-  Pr_bias_gt_0 = mean(draws[, p_bias] > 0),
-  Pr_dist_lt_0 = mean(draws[, p_dist] < 0),
-  Pr_inc_o_gt_0 = mean(draws[, p_inc_o] > 0),
-  Pr_inc_d_gt_0 = mean(draws[, p_inc_d] > 0)
+adj <- adjust_multilevel_bayes(
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
+  covariates_df = simulated_covariates,
+  distance_df = simulated_distance,
+  model_engine = "frequentist",
+  scenario = "s1",
+  source_col = "mpd_source",
+  time_col = "mpd_time",
+  repeated_observation = "none",
+  random_intercept = "none",
+  model_family = "poisson",
+  flow_adj_summary = "median"
 )
 
+attr(adj, "result_metadata")[c(
+  "model_engine",
+  "scenario",
+  "repeated_observation",
+  "n_sources",
+  "n_time_periods"
+)]
 ```
 
-> Interpretation:
+The placeholder uses a fast GLM/GLMM engine to check the formula and output
+contract. It is not a substitute for final Bayesian inference.
 
-These are posterior probabilities of effect direction.
-Example: Pr_dist_lt_0 = 0.98 means strong evidence that distance reduces flows.
-
-# Posterior predictive uncertainty
 ```{r}
-# Posterior predictive draws for observed-data scale counts
-pp <- rstanarm::posterior_predict(m)  # draws x N
-
-pred_med <- apply(pp, 2, median)
-pred_lo  <- apply(pp, 2, quantile, 0.05)
-pred_hi  <- apply(pp, 2, quantile, 0.95)
-
-obs <- model.response(model.frame(m))
-
-pred_check <- tibble(
-  obs = obs,
-  pred_med = pred_med,
-  pred_lo = pred_lo,
-  pred_hi = pred_hi
-)
-
-head(pred_check, 10)
-mean(pred_check$obs >= pred_check$pred_lo & pred_check$obs <= pred_check$pred_hi)
-
+attr(adj, "model_terms")
+attr(adj, "coefficients") |>
+  select(any_of(c("term", "mean", "sd", "z value", "Pr(>|z|)"))) |>
+  head(10)
 ```
-> Interpretation:
 
-pred_lo/pred_hi are uncertainty bands for observed counts.
-Coverage proportion gives quick calibration feel (not formal validation alone).
+# Compare raw vs adjusted against the benchmark
 
-# Compare raw vs adjusted against benchmark
 ```{r}
-raw_as_adj <- example_mpd_od %>%
+raw_as_adj <- example_mpd_od |>
   transmute(origin, destination, flow_adj = flow)
 
-val_raw <- debiasR::validate_flow_overall(
+val_raw <- validate_flow_overall(
   adj_df = raw_as_adj,
-  benchmark_od_df = example_benchmark_od,
+  benchmark_od_df = simulated_benchmark.od,
   method_name = "raw_mpd",
   return_joined = FALSE
 )
 
-val_adj <- debiasR::validate_flow_overall(
+val_adj <- validate_flow_overall(
   adj_df = adj,
-  benchmark_od_df = example_benchmark_od,
-  method_name = "adjust_multilevel_bayes",
+  benchmark_od_df = simulated_benchmark.od,
+  method_name = "adjust_multilevel_bayes_frequentist_placeholder",
   return_joined = FALSE
 )
 
-
-```
-
-```{r}
 tibble(
-  method = c("raw_mpd", "adjust_multilevel_bayes"),
+  method = c(val_raw$method, val_adj$method),
   pearson_r = c(val_raw$pearson_r, val_adj$pearson_r),
   rmse = c(val_raw$rmse, val_adj$rmse),
   mae = c(val_raw$mae, val_adj$mae),
   r_squared = c(val_raw$r_squared, val_adj$r_squared)
 )
-
 ```
 
-> Interpretation:
+# Understand row-level changes
 
-If adjusted method is working, you typically want higher correlation and lower error than raw MPD.
-
-# Understand what flow_adj is doing row-by-row
 ```{r}
-adj %>%
-  mutate(delta = flow_adj - flow,
-         pct_change = 100 * (flow_adj - flow) / pmax(flow, 1e-8)) %>%
-  select(origin, destination, flow, flow_adj, bias_e_origin, log_distance, delta, pct_change) %>%
-  arrange(desc(abs(delta))) %>%
+adj |>
+  mutate(
+    delta = .data$flow_adj - .data$flow,
+    pct_change = 100 * (.data$flow_adj - .data$flow) / pmax(.data$flow, 1e-8)
+  ) |>
+  select(
+    origin,
+    destination,
+    mpd_source,
+    mpd_time,
+    flow,
+    flow_adj,
+    bias_e_origin,
+    log_distance,
+    delta,
+    pct_change
+  ) |>
+  arrange(desc(abs(.data$delta))) |>
   head(15)
-
 ```
 
-> Interpretation:
+Large positive `delta` means the placeholder model increases the MPD flow for
+that OD pair. Large negative `delta` means it decreases the MPD flow. The
+`bias_e_origin` column shows the origin-side coverage-bias term used by the
+model.
 
-Large positive delta: model believes MPD undercounts that OD pair.
-Large negative delta: model believes MPD overcounts that OD pair.
-bias_e_origin helps explain where correction pressure comes from.
+# Parameters for alternative data structures
+
+The same function handles the four source/time scenarios by changing the
+scenario metadata and the repeated-observation structure.
+
+```{r}
+tibble::tribble(
+  ~Scenario, ~Data_structure, ~Required_columns, ~Key_parameters,
+  "S1", "one source, one time", "source/time columns optional or constant", "scenario = 's1', repeated_observation = 'none'",
+  "S2", "one source, multiple times", "time column", "scenario = 's2', time_col = '<time>', repeated_observation = 'time'",
+  "S3", "multiple sources, one time", "source column", "scenario = 's3', source_col = '<source>', repeated_observation = 'source'",
+  "S4", "multiple sources, multiple times", "source and time columns", "scenario = 's4', source_col = '<source>', time_col = '<time>', repeated_observation = 'source_time'"
+)
+```
+
+Use `model_engine = "frequentist"` for these S1-S4 examples until the complete
+Bayesian scenario implementation is transferred and validated.

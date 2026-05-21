@@ -18,18 +18,11 @@ zero-mass and upper-tail quantiles more closely.
 
 ## Setup
 ```{r}
-# safest in dev:
-devtools::load_all(".")   # reloads current checkout
-library(debiasR)
-
-# quick check:
-"validate_flow_overall" %in% getNamespaceExports("debiasR")
-
-```
-
-
-```{r}
-pkg_root <- if (file.exists("DESCRIPTION")) "." else ".."
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
 
 if (!requireNamespace("debiasR", quietly = TRUE)) {
   if (!requireNamespace("devtools", quietly = TRUE)) {
@@ -40,7 +33,13 @@ if (!requireNamespace("debiasR", quietly = TRUE)) {
 
 library(debiasR)
 library(tidyverse)
-source(file.path(pkg_root, "style", "data-visualisation_theme.R"))
+
+theme_path <- file.path(pkg_root, "style", "data-visualisation_theme.R")
+if (file.exists(theme_path)) {
+  source(theme_path)
+}
+
+"validate_flow_overall" %in% getNamespaceExports("debiasR")
 ```
 
 ```{r}
@@ -257,36 +256,59 @@ list(coef = attr(adj_m5, "coef"))
 plot_adj_vs_benchmark(adj_m5, simulated_benchmark.od, "Method 5: Adjusted vs Benchmark")
 ```
 
-## 6) `adjust_multilevel_bayes` (prototype)
+## 6) `adjust_multilevel_bayes` (frequentist placeholder)
+
+While the full S1-S4 Bayesian implementation is being completed, this example
+uses the frequentist development engine as a fast placeholder. The data below
+represent S1: one MPD source observed in one time period.
 
 ```{r}
-adj_m6 <- NULL
-
-if (requireNamespace("rstanarm", quietly = TRUE)) {
-  adj_m6 <- adjust_multilevel_bayes(
-    mpd_od_df = simulated_mpd.od,
-    coverage_df = simulated_coverage,
-    covariates_df = simulated_covariates,
-    distance_df = simulated_distance,
-    random_intercept = "origin",
-    model_family = "poisson",
-    flow_adj_summary = "median",
-    iter = 500,
-    chains = 2,
-    seed = 123,
-    refresh = 0
+mpd_s1 <- simulated_mpd.od |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
   )
 
-  attr(adj_m6, "coefficients")
-} else {
-  "Install 'rstanarm' to run the Method 6 prototype section."
-}
+coverage_s1 <- simulated_coverage |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
+  )
+
+adj_m6 <- adjust_multilevel_bayes(
+  mpd_od_df = mpd_s1,
+  coverage_df = coverage_s1,
+  covariates_df = simulated_covariates,
+  distance_df = simulated_distance,
+  model_engine = "frequentist",
+  scenario = "s1",
+  source_col = "mpd_source",
+  time_col = "mpd_time",
+  repeated_observation = "none",
+  random_intercept = "none",
+  model_family = "poisson",
+  flow_adj_summary = "median"
+)
+
+attr(adj_m6, "result_metadata")[c("model_engine", "scenario", "repeated_observation")]
+attr(adj_m6, "model_terms")
 ```
 
 ```{r}
-if (!is.null(adj_m6)) {
-  plot_adj_vs_benchmark(adj_m6, simulated_benchmark.od, "Method 6: Adjusted vs Benchmark")
-}
+plot_adj_vs_benchmark(adj_m6, simulated_benchmark.od, "Method 6: Adjusted vs Benchmark")
+```
+
+Use the same function for other repeated-observation structures by changing the
+scenario metadata:
+
+```{r}
+tibble::tribble(
+  ~scenario, ~data_structure, ~source_col, ~time_col, ~repeated_observation,
+  "s1", "one source, one time", "optional constant", "optional constant", "none",
+  "s2", "one source, multiple times", "optional constant", "time column", "time",
+  "s3", "multiple sources, one time", "source column", "optional constant", "source",
+  "s4", "multiple sources, multiple times", "source column", "time column", "source_time"
+)
 ```
 
 ## Compare Validation Metrics Across Methods
@@ -298,7 +320,7 @@ metrics_tbl <- bind_rows(
   collect_metrics("adjust_selection_rate2", adj_m3),
   collect_metrics("adjust_raking_ratio", adj_m4),
   collect_metrics("adjust_coefficient", adj_m5),
-  if (!is.null(adj_m6)) collect_metrics("adjust_multilevel_bayes", adj_m6)
+  collect_metrics("adjust_multilevel_bayes_frequentist_placeholder", adj_m6)
 ) |>
   arrange(desc(pearson_r))
 

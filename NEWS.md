@@ -10,6 +10,7 @@
 - Added `model_terms` metadata to the multilevel result contract so the resolved default fixed-effect and random-effect structure can be inspected directly.
 - Kept S2-S4 Bayesian scenario fitting explicitly deferred by returning a clear error under `model_engine = "bayesian"` when a repeated source/time scenario is resolved; use `model_engine = "frequentist"` for current S1-S4 development.
 - Expanded fast tests with MSOA-like S1-S4 fixtures that exercise the default frequentist formula contract and complete-grid prediction metadata.
+- Updated workshop/testing vignettes to show an S1 `model_engine = "frequentist"` placeholder example with one source and one time unit, plus parameter guidance for S2-S4 repeated source/time structures.
 
 ### Empirical LAD travel-to-work examples
 

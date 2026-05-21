@@ -13,30 +13,33 @@ execute:
 ## Purpose
 
 This vignette compares the implemented adjustment methods in `debiasR` and
-includes the Bayesian helper as the main experimental prototype:
+includes the multilevel helper as the main experimental prototype:
 
 1. `adjust_inverse_penetration`
 2. `adjust_selection_rate`
 3. `adjust_selection_rate2`
 4. `adjust_raking_ratio`
 5. `adjust_coefficient`
-6. `adjust_multilevel_bayes` (stage-1 prototype with observed and complete-grid prediction scopes)
+6. `adjust_multilevel_bayes` with `model_engine = "frequentist"` (temporary S1 placeholder for the Bayesian model)
 
 It uses a fast but fair comparison protocol:
 
 1. same stratified OD subset for all methods per replicate,
 2. repeated over multiple seeds,
-3. Bayesian prototype with lighter MCMC settings for illustration.
+3. Method 6 fit with the frequentist development engine while S1-S4 Bayesian implementation is completed.
 
 `adjust_multilevel_bayes()` is the main methodological innovation. Treat Method
-6 results here as exploratory unless the optional Bayesian diagnostics,
-complete-grid checks, and runtime gate are explicitly reviewed for the rendered
-data.
+6 results here as a fast scenario-contract check, not final Bayesian inference.
+The example below uses S1 data: one MPD source observed during one time unit.
 
 ## Setup
 
 ```{r}
-pkg_root <- if (file.exists("DESCRIPTION")) "." else ".."
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
 
 if (!requireNamespace("debiasR", quietly = TRUE)) {
   if (!requireNamespace("devtools", quietly = TRUE)) {
@@ -53,10 +56,6 @@ library(tidyr)
 library(readr)
 library(stringr)
 library(purrr)
-
-# Parallel setup for Stan chains
-options(mc.cores = max(1L, parallel::detectCores(logical = FALSE) - 1L))
-Sys.setenv(STAN_NUM_THREADS = 1)
 
 if (!requireNamespace("patchwork", quietly = TRUE)) {
   stop("Install 'patchwork' to render the multi-panel comparison plots.")
@@ -292,8 +291,6 @@ patchwork::wrap_plots(p_fid_1, p_fid_2, p_fid_3, nrow = 1)
 ```{r}
 n_sub <- 12000
 fair_seeds <- c(123, 456, 789)
-m6_iter <- 200
-m6_chains <- 1
 
 make_flow_strata <- function(flow_vec) {
   pos <- flow_vec[flow_vec > 0]
@@ -466,19 +463,30 @@ run_methods_once <- function(seed_id) {
     level = "od"
   )
 
+  mpd_s1 <- mpd_sub |>
+    dplyr::mutate(
+      mpd_source = "operator_a",
+      mpd_time = "2021_q1"
+    )
+  coverage_s1 <- simulated_coverage |>
+    dplyr::mutate(
+      mpd_source = "operator_a",
+      mpd_time = "2021_q1"
+    )
+
   adj_m6 <- adjust_multilevel_bayes(
-    mpd_od_df = mpd_sub,
-    coverage_df = simulated_coverage,
+    mpd_od_df = mpd_s1,
+    coverage_df = coverage_s1,
     covariates_df = simulated_covariates,
     distance_df = distance_sub,
-    random_intercept = "origin",
+    model_engine = "frequentist",
+    scenario = "s1",
+    source_col = "mpd_source",
+    time_col = "mpd_time",
+    repeated_observation = "none",
+    random_intercept = "none",
     model_family = "poisson",
-    backend = "auto",
-    flow_adj_summary = "median",
-    iter = m6_iter,
-    chains = m6_chains,
-    seed = seed_id,
-    refresh = 0
+    flow_adj_summary = "median"
   )
 
   metrics <- dplyr::bind_rows(
@@ -590,11 +598,11 @@ plot_method_triptych(
 )
 ```
 
-### `adjust_multilevel_bayes`
+### `adjust_multilevel_bayes` frequentist placeholder
 
 ```{r}
 plot_method_triptych(
-  "adjust_multilevel_bayes",
+  "adjust_multilevel_bayes (frequentist placeholder)",
   vis$adj$adjust_multilevel_bayes,
   mpd_df = vis$mpd_sub,
   benchmark_df = vis$benchmark_sub
@@ -636,8 +644,17 @@ m6_vis <- vis$adj$adjust_multilevel_bayes
 head(attr(m6_vis, "coefficients"))
 attr(m6_vis, "formula")
 attr(m6_vis, "backend")
+attr(m6_vis, "model_engine")
+attr(m6_vis, "scenario")
 attr(m6_vis, "model_family")
 ```
+
+The example above is S1: one source and one time unit. For repeated
+observations, keep the same function but change `scenario`,
+`source_col`, `time_col`, and `repeated_observation`: use `s2` and
+`repeated_observation = "time"` for one source over multiple periods, `s3` and
+`"source"` for multiple sources in one period, and `s4` plus `"source_time"`
+when both source and time vary.
 
 ## Render
 

@@ -233,15 +233,15 @@ method_summary <- tibble::tribble(
   "Use <code>validate_flow_overall()</code> across families and levels; use <code>validate_flow_residuals()</code> for systematic residuals.",
 
   "<code>adjust_multilevel_bayes()</code>",
-  "Fit a hierarchical count model with coverage bias, covariates, and optional distance, then remove the estimated coverage-bias contribution from posterior fixed-effect predictors.<br/>Current scope is observed OD pairs only.",
+  "Fit a multilevel count model with coverage bias, covariates, and optional distance, then remove the estimated coverage-bias contribution from model fixed-effect predictors.<br/>Current S1-S4 development uses the frequentist engine as a fast placeholder while Bayesian transfer is completed.",
   eq_stack(
     "log(&mu;<sup>obs</sup><sub>ij</sub>) = &alpha; + &beta;<sub>o</sub>X<sub>i</sub> + &beta;<sub>d</sub>X<sub>j</sub> + &gamma; log(<i>d</i><sub>ij</sub>) + &omega;e<sub>i</sub> + <i>u</i>",
     "flow<sub>adj</sub> = summary(exp(&eta;<sup>fix</sup><sub>ij</sub> - &omega;e<sub>i</sub>))"
   ),
   "Yes", "Yes", "No", "Yes", "Yes",
-  "Model family and hierarchy are well specified; coverage bias is captured by the fitted bias term; Stage 1 only adjusts observed OD rows.",
-  "Partial pooling, uncertainty-aware, richer structure, no benchmark OD needed for fitting.",
-  "Prototype, slower, dependency-heavy, and not yet a full missing-OD reconstruction method.",
+  "Model family and hierarchy are well specified; coverage bias is captured by the fitted bias term; S1-S4 source/time structure is declared explicitly.",
+  "Richer structure, no benchmark OD needed for fitting; frequentist engine gives a fast contract check before Bayesian sampling.",
+  "Bayesian S2-S4 implementation is deferred; frequentist output is a development placeholder, not final uncertainty-aware inference.",
   "Promising for noisy or sparse observed OD correction; not yet ready for full OD completion.",
   "Posterior predictive checks plus <code>validate_flow_overall()</code> on observed OD rows; use <code>validate_flow_residuals()</code> for row-level audit."
 )
@@ -259,6 +259,7 @@ cat("<div class='method-table-wrap'>", table_html, "</div>")
 Key contrast:
 - `adjust_coefficient()` directly learns from benchmark flows.
 - `adjust_multilevel_bayes()` does **not** use benchmark flows in model fitting; it adjusts MPD using coverage/covariates/distance/hierarchical structure. It keeps observed OD behavior as the default and now also supports a complete-grid prediction scope for square OD inputs.
+- During S1-S4 scenario development, use `model_engine = "frequentist"` as the fast placeholder. The final inferential target remains the Bayesian engine.
 
 ## Method 1: `adjust_inverse_penetration()`
 
@@ -477,7 +478,7 @@ Fit a Bayesian multilevel count model to observed MPD flows:
 - explicit bias term from coverage (`bias_e_origin`),
 - random intercept structure (for example, origin).
 
-Then remove the estimated coverage-bias contribution from posterior fixed-effect linear predictors to obtain `flow_adj`.
+Then remove the estimated coverage-bias contribution from the model fixed-effect linear predictor to obtain `flow_adj`.
 
 ### Equation (prototype in package)
 
@@ -507,87 +508,79 @@ $$
 F^{adj}_{ij} = \exp(\eta^{adj}_{ij})
 $$
 
-In implementation, this is done draw-by-draw from the posterior and summarized by mean/median. In the current Stage-1 prototype, only observed OD rows are adjusted; missing OD pairs are not imputed.
+In the Bayesian implementation, this is done draw-by-draw from the posterior and summarized by mean/median. While the S1-S4 Bayesian transfer is being completed, the same function can be run with `model_engine = "frequentist"` to test the data contract, formula, and output shape quickly.
 
 ### Implementation in `debiasR`
 
 - Function: `adjust_multilevel_bayes()`
-- Backend: `rstanarm`/`brms` (depends on family/backend choice).
-- Uses posterior draws and summarizes adjusted flows (mean/median).
-- Returns explicit Stage-1 metadata and lightweight diagnostics in attributes.
+- Development engine: `model_engine = "frequentist"` for fast Poisson/negative-binomial GLM or GLMM checks.
+- Bayesian engine: `model_engine = "bayesian"` for the existing Stage-1 S1 path; S2-S4 Bayesian fitting is deferred until the frequentist contract is stable.
+- Returns explicit scenario, formula-term, model, and diagnostic metadata in attributes.
 
-```{r echo=FALSE, include=FALSE}
-coef_m6 <- NULL
+The example below constructs the simplest S1 data structure: one MPD data source
+and one observation period. We include constant `mpd_source` and `mpd_time`
+columns even though S1 can also be inferred without them, because naming those
+columns makes the transition to S2-S4 explicit.
 
-if (requireNamespace("rstanarm", quietly = TRUE)) {
-  adj_m6 <- adjust_multilevel_bayes(
-    mpd_od_df = simulated_mpd.od |> slice_sample(n = 3000),
-    coverage_df = simulated_coverage,
-    covariates_df = simulated_covariates,
-    distance_df = simulated_distance,
-    random_intercept = "origin",
-    model_family = "poisson",
-    flow_adj_summary = "median",
-    iter = 200,
-    chains = 1,
-    seed = 123,
-    refresh = 0
+```{r}
+mpd_s1 <- simulated_mpd.od |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
   )
 
-  coef_m6 <- attr(adj_m6, "coefficients") |> select(any_of(c("term", "mean", "q2.5", "q97.5")))
-}
+coverage_s1 <- simulated_coverage |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
+  )
+
+adj_m6 <- adjust_multilevel_bayes(
+  mpd_od_df = mpd_s1,
+  coverage_df = coverage_s1,
+  covariates_df = simulated_covariates,
+  distance_df = simulated_distance,
+  model_engine = "frequentist",
+  scenario = "s1",
+  source_col = "mpd_source",
+  time_col = "mpd_time",
+  repeated_observation = "none",
+  random_intercept = "none",
+  model_family = "poisson",
+  flow_adj_summary = "median"
+)
+
+adj_m6 |>
+  select(origin, destination, mpd_source, mpd_time, flow, flow_adj) |>
+  slice_head(n = 5)
 ```
 
-The caterpillar plot below summarizes the most extreme origin random intercepts returned in `attr(adj_m6, "coefficients")`.
+Inspect the metadata to confirm this was treated as S1 and to see the resolved
+formula terms used by the placeholder engine.
 
-```{r echo=FALSE, fig.height=9, fig.width=8}
-if (!is.null(coef_m6) && requireNamespace("ggplot2", quietly = TRUE)) {
-  plot_terms <- coef_m6 |>
-    filter(grepl("^b\\[\\(Intercept\\) origin:", .data$term)) |>
-    transmute(
-      area = sub("\\]$", "", sub("^b\\[\\(Intercept\\) origin:", "", .data$term)),
-      mean = .data$mean,
-      lower = .data[["q2.5"]],
-      upper = .data[["q97.5"]]
-    ) |>
-    arrange(.data$mean)
+```{r}
+attr(adj_m6, "result_metadata")[c(
+  "model_engine",
+  "scenario",
+  "repeated_observation",
+  "n_sources",
+  "n_time_periods"
+)]
 
-  if (nrow(plot_terms) > 30) {
-    plot_terms <- bind_rows(
-      slice_head(plot_terms, n = 15),
-      slice_tail(plot_terms, n = 15)
-    ) |>
-      distinct(.data$area, .keep_all = TRUE)
-  }
+attr(adj_m6, "model_terms")
+```
 
-  plot_terms <- plot_terms |>
-    mutate(area = factor(.data$area, levels = .data$area))
+To fit alternative data structures, keep the same function and change the
+scenario columns and repeated-observation contract:
 
-  ggplot2::ggplot(plot_terms, ggplot2::aes(x = .data$mean, y = .data$area)) +
-    ggplot2::geom_vline(xintercept = 0, linetype = "dashed", color = "#94a3b8") +
-    ggplot2::geom_segment(
-      ggplot2::aes(x = .data$lower, xend = .data$upper, yend = .data$area),
-      linewidth = 1,
-      color = "#94a3b8"
-    ) +
-    ggplot2::geom_point(size = 2.3, color = "#0f766e") +
-    ggplot2::labs(
-      title = "Origin random intercepts from `adjust_multilevel_bayes()`",
-      subtitle = "Posterior mean with 95% intervals; showing the most extreme origin effects",
-      x = "Coefficient estimate",
-      y = NULL
-    ) +
-    ggplot2::theme_minimal(base_size = 11) +
-    ggplot2::theme(
-      panel.grid.major.y = ggplot2::element_blank(),
-      plot.title = ggplot2::element_text(face = "bold"),
-      axis.text.y = ggplot2::element_text(size = 8)
-    )
-} else if (!is.null(coef_m6)) {
-  "Install 'ggplot2' to render the caterpillar plot."
-} else {
-  "Install 'rstanarm' to fit the Bayesian example and generate the caterpillar plot."
-}
+```{r}
+tibble::tribble(
+  ~Data_structure, ~scenario, ~source_col, ~time_col, ~repeated_observation, ~typical_random_intercept,
+  "S1: one source, one time", "s1", "optional constant source column", "optional constant time column", "none", "none or origin",
+  "S2: one source, multiple times", "s2", "optional constant source column", "time-period column", "time", "time or origin",
+  "S3: multiple sources, one time", "s3", "source column", "optional constant time column", "source", "source or origin",
+  "S4: multiple sources, multiple times", "s4", "source column", "time-period column", "source_time", "source_time, source, time, or origin"
+)
 ```
 
 ## How to Read Outputs
