@@ -1,5 +1,9 @@
 ---
 title: "Why this matters"
+vignette: >
+  %\VignetteIndexEntry{Why this matters}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
 format:
   html:
     toc: true

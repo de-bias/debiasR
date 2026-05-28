@@ -1,5 +1,9 @@
 ---
 title: "debiasR: Bayesian-Centred OD Bias Adjustment"
+vignette: >
+  %\VignetteIndexEntry{debiasR: Bayesian-Centred OD Bias Adjustment}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
 format:
   html:
     toc: true
@@ -13,7 +17,7 @@ editor:
     wrap: 72
 ---
 
-![](../assets/debias-logo-white.JPEG){width="260px"}
+![](figures/debias-logo-white.JPEG){width="260px"}
 
 ## Overview
 

@@ -1,6 +1,4 @@
-# debiasR NEWS
-
-## 0.0.0.9000
+# debiasR 0.0.0.9000
 
 ### Multilevel scenario development
 

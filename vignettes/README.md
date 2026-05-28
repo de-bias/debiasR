@@ -1,36 +1,35 @@
-# debiasR Training Workshop
+# debiasR package vignettes
 
-This folder contains the eight-part tutorial sequence for illustrating the
-package workflow.
+This folder contains the package-facing Quarto vignettes for `debiasR`.
+They are intended to be built and installed with the package, and should stay
+focused on stable user workflows rather than workshop planning, exploratory
+method testing, or rendered preview artifacts.
 
-The running example is the empirical MSOA travel-to-work workflow from
-`debiasRdata`. Vignettes load `msoa_OD_travel2work` as the observed
-mobile-phone-derived OD matrix and `census_msoa_OD_travel2work` as the Census
-benchmark OD matrix via `debiasR::debiasR_example_data()`.
-
-The main method demonstrations request `complete_grid = TRUE` so the MPD and
-benchmark OD matrices share strict square support. Adjustment is presented as a
-menu of methods with different data requirements, assumptions, advantages, and
-limitations. `adjust_multilevel_bayes()` is treated as the main methodological
-innovation, with empirical rendering conditional on Bayesian dependencies and
-real OD distance being available.
+The running examples use the optional `debiasRdata` package at LAD scale by
+default. Vignettes call `debiasR::debiasR_example_data()` through `_common.R`
+so examples can render with bounded empirical inputs and exit cleanly when the
+optional data package is not installed.
 
 ## Structure
 
-1. `01-landing-page.qmd`
-2. `02-why-this-matters.qmd`
-3. `03-getting-set-up.qmd`
-4. `04-measuring-coverage-bias.qmd`
-5. `05-identifying-and-explaining-bias.qmd`
-6. `06-adjusting-biases.qmd`
-7. `07-validation.qmd`
-8. `08-data.qmd`
+1. `v01-landing-page.qmd`
+2. `v02-why-this-matters.qmd`
+3. `v03-getting-set-up.qmd`
+4. `v04-measuring-coverage-bias.qmd`
+5. `v05-identifying-and-explaining-bias.qmd`
+6. `v06-adjusting-biases.qmd`
+7. `v07-validation.qmd`
+8. `v08-data.qmd`
 
-Supporting materials belong in:
+Supporting package-vignette assets belong in:
 
-- `data/README.md`
-- `figures/README.md`
-- `exercises/README.md`
+- `figures/`
+- `data/`
+- `exercises/`
 
-Longer method-testing notebooks live in `testing/`, including
-`testing/empirical-methods-walkthrough.qmd`.
+Longer workshop, teaching, and method-testing notebooks live outside the
+package vignette tree in `notes/workshop/`.
+
+Generated render artifacts such as `.html`, extracted `.R`, `.knit.md`,
+`.rmarkdown`, `.quarto/`, `*_files/`, and `.quarto_ipynb` files should not be
+committed from this folder.

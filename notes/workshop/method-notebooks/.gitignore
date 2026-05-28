@@ -1,10 +1,9 @@
 *.html
 *.R
-!_common.R
 *.knit.md
 *.rmarkdown
 *_files/
-
 /.quarto/
 
 **/*.quarto_ipynb
+.Rhistory

@@ -1,4 +1,11 @@
 locate_debiasr_root <- function() {
+  if (exists("debiasr_pkg_root", inherits = TRUE)) {
+    candidate_root <- get("debiasr_pkg_root", inherits = TRUE)
+    if (file.exists(file.path(candidate_root, "DESCRIPTION"))) {
+      return(candidate_root)
+    }
+  }
+
   candidate_roots <- c(".", "..", "../..")
   candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
 }

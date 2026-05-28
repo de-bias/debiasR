@@ -1,5 +1,9 @@
 ---
 title: "Getting started with debiasR"
+vignette: >
+  %\VignetteIndexEntry{Getting started with debiasR}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
 format:
   html:
     toc: true
@@ -25,7 +29,12 @@ A typical `debiasR` workflow starts by:
 The previous vignette showed how to install `debiasR` and the optional `debiasRdata` package. Here we load the package and prepare the shared setup used by the remaining vignettes.
 
 ```{r setup}
-common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+input_dir <- dirname(knitr::current_input(dir = TRUE))
+debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
+common_path <- file.path(input_dir, "_common.R")
+if (!file.exists(common_path)) {
+  common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+}
 source(common_path)
 example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 ```

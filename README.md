@@ -3,7 +3,7 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-<img src="assets/debias-logo-white.JPEG" alt="debiasR Logo" width="300"/>
+<img src="man/figures/debias-logo-white.JPEG" alt="debiasR Logo" width="300"/>
 
 # debiasR R Package Repository
 
@@ -77,7 +77,7 @@ Current progress:
 - empirical examples can now use the optional companion
   [`debiasRdata`](https://github.com/de-bias/debiasRdata) package
 
-![debiasR package overview and status](assets/package-overview-status.svg)
+![debiasR package overview and status](man/figures/package-overview-status.svg)
 
 For a slightly fuller coauthor-oriented summary, see [notes/project-management/COAUTHOR_PACKAGE_OVERVIEW.md](notes/project-management/COAUTHOR_PACKAGE_OVERVIEW.md).
 
@@ -168,8 +168,8 @@ See the [LICENSE](LICENSE) file for full details.
 - `data-raw/` - scripts for rebuilding simulated data and extracting empirical benchmarks
 - `man/` - generated documentation for exported objects
 - `tests/` - `testthat` tests
-- `vignettes/` - empirical `debiasRdata` walkthroughs and comparison notebooks
-- `notes/` - project briefs, migration notes, and status tracking
+- `vignettes/` - package-facing Quarto vignettes built into the documentation site
+- `notes/` - project briefs, migration notes, workshop material, and status tracking
 - `style/` - plotting and Quarto styling helpers
 - `.github/` - issue and pull request templates
 - `assets/` - logos and other static assets

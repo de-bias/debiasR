@@ -1,5 +1,9 @@
 ---
 title: "Identifying and explaining population coverage bias"
+vignette: >
+  %\VignetteIndexEntry{Identifying and explaining population coverage bias}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
 format:
   html:
     toc: true
@@ -31,7 +35,12 @@ for package users.
 In this vignette, we illustrate how `debiasR` can be used with example UK data at the local authority district (LAD) level. We start with two tables from debiasRdata: a coverage table and a covariates table. The coverage table contains the benchmark Census population and the observed digital trace user count for each LAD. The covariate table contains selected area-level characteristics from the 2021 Census.
 
 ```{r setup}
-common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+input_dir <- dirname(knitr::current_input(dir = TRUE))
+debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
+common_path <- file.path(input_dir, "_common.R")
+if (!file.exists(common_path)) {
+  common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+}
 source(common_path)
 example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 library(ggplot2)

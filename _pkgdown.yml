@@ -1,0 +1,93 @@
+url: https://de-bias.github.io/debiasR/
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left: [home, news, reference, foundations, measure, adjust, validate, data]
+    right: [github]
+  components:
+    foundations:
+      text: Foundations
+      menu:
+      - text: Package overview
+        href: articles/v01-landing-page.html
+      - text: Why this matters
+        href: articles/v02-why-this-matters.html
+      - text: Getting set up
+        href: articles/v03-getting-set-up.html
+    measure:
+      text: Measure bias
+      menu:
+      - text: Measuring coverage bias
+        href: articles/v04-measuring-coverage-bias.html
+      - text: Identifying and explaining bias
+        href: articles/v05-identifying-and-explaining-bias.html
+      - text: Bias measurement reference
+        href: reference/index.html#measure-bias
+    adjust:
+      text: Adjust flows
+      menu:
+      - text: Adjusting origin-destination flows
+        href: articles/v06-adjusting-biases.html
+      - text: Adjustment reference
+        href: reference/index.html#adjust-flows
+    validate:
+      text: Validate
+      menu:
+      - text: Validation workflow
+        href: articles/v07-validation.html
+      - text: Validation reference
+        href: reference/index.html#validate-flows
+    data:
+      text: Data
+      menu:
+      - text: Data overview
+        href: articles/v08-data.html
+      - text: Example data reference
+        href: reference/index.html#example-data
+    articles:
+      text: All articles
+      href: articles/v01-landing-page.html
+
+articles:
+- title: Foundations
+  navbar: Foundations
+  contents:
+  - v01-landing-page
+  - v02-why-this-matters
+  - v03-getting-set-up
+- title: Measure bias
+  navbar: Measure bias
+  contents:
+  - v04-measuring-coverage-bias
+  - v05-identifying-and-explaining-bias
+- title: Adjust flows
+  navbar: Adjust flows
+  contents:
+  - v06-adjusting-biases
+- title: Validate flows
+  navbar: Validate
+  contents:
+  - v07-validation
+- title: Data
+  navbar: Data
+  contents:
+  - v08-data
+
+reference:
+- title: Example data
+  contents:
+  - debiasR_example_data
+  - starts_with("simulated_")
+- title: Measure bias
+  contents:
+  - measure_bias
+  - validate_bias_residual_structure
+- title: Adjust flows
+  contents:
+  - starts_with("adjust_")
+- title: Validate flows
+  contents:
+  - starts_with("validate_flow_")
