@@ -1,5 +1,5 @@
 ---
-title: "Adjusting Biases in OD Flows"
+title: "Adjusting Biases in Origin-Destination Flows"
 format:
   html:
     html-math-method: mathml
@@ -12,35 +12,19 @@ execute:
 
 ## Aim
 
-This vignette explains how each `debiasR` adjustment method works and how to
-run it on empirical origin-destination (OD) data from `debiasRdata`. All methods
-start from observed mobile-phone-derived flows and return an adjusted flow
-column, `flow_adj`. They differ in how they infer the correction: some use
-coverage rates, some use benchmark OD information, some enforce margins, and
-the multilevel method models bias through coverage, covariates, distance, and
-hierarchical structure.
+This vignette describes the set of adjustment methods included in `debiasR` to correct mobile-phone-derived origin-destination mobility counts. It describes how each adjustment method works, associated functions and how to implement it.
+All the methods in `debiasR` use mobile-phone-derived flows as input data and return an adjusted flow `flow_adj`. However, they differ in fundamental ways, in terms of data input requirements, how they derive adjustement weights and extent of bias adjustment. These differences are described in more detail in this vignette. The practical choice should be guided by what data
+are available and validation against a credible benchmark. A key innovation of `debiasR` is the introduction of a Bayesian multilevel modelling approach which we explain below.
 
-The Bayesian multilevel model, `adjust_multilevel_bayes()`, is the main
-methodological innovation. The package also provides a menu of widely used
-adjustment approaches, each with different input requirements, assumptions,
-strengths, and limitations. The practical choice should be guided by what data
-are available and by validation against a credible benchmark.
 
-```{r setup}
-common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
-source(common_path)
-example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
-```
+## Intuition
 
-## Shared Intuition
-
-Let $F^{mpd}_{ij}$ denote the observed mobile-phone-derived flow from origin
-$i$ to destination $j$, and let $F^{adj}_{ij}$ denote the adjusted flow. If a
+Let us very quickly recall the challenge we face when working with mobile-phone-derived mobility flows. These flows are typically represent an small proportion of the resident population, hence we end up under-counting these populations. So the idea of the methods included in `debiasR` is to adjust these counts to make these counts more representative of the actual observed flow. Formally, let $F^{mpd}_{ij}$ denote the observed mobile-phone-derived flow from origin $i$ to destination $j$, and let $F^{adj}_{ij}$ denote the adjusted flow. If a
 method treats the observed MPD flow as under-counted, it increases
 $F^{adj}_{ij}$. If it treats the observed MPD flow as over-counted, it reduces
 $F^{adj}_{ij}$.
 
-The key quantities used throughout this vignette are:
+Where, let us recall:
 
 - $F^{mpd}_{ij}$: observed MPD flow from origin $i$ to destination $j$.
 - $F^{bench}_{ij}$: benchmark flow from origin $i$ to destination $j$.
@@ -67,6 +51,14 @@ The first five methods are stable adjustment options. The multilevel function
 contains the Bayesian innovation and now also exposes a fast development engine
 for testing S1-S4 source/time data contracts before the full Bayesian transfer
 is completed.
+
+## Data
+
+```{r setup}
+common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+source(common_path)
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
+```
 
 ## Adjustment Method Summary
 
