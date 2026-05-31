@@ -5,7 +5,6 @@
 ^\.github$
 ^\.all-contributorsrc$
 ^_pkgdown\.yml$
-^pkgdown$
 ^docs$
 ^AGENTS\.md$
 ^CODE_OF_CONDUCT\.md$

@@ -16,10 +16,11 @@ load_debiasr_workshop <- function() {
     stop("Could not locate the debiasR package root.")
   }
 
-  if (requireNamespace("devtools", quietly = TRUE)) {
+  if (!requireNamespace("debiasR", quietly = TRUE)) {
+    if (!requireNamespace("devtools", quietly = TRUE)) {
+      stop("Install either `debiasR` or `devtools` to load the local package.")
+    }
     devtools::load_all(pkg_root, quiet = TRUE)
-  } else if (!requireNamespace("debiasR", quietly = TRUE)) {
-    stop("Install either `debiasR` or `devtools` to load the local package.")
   }
 
   suppressPackageStartupMessages({
@@ -92,16 +93,13 @@ validation_row <- function(method_name, adj_df, benchmark_od_df) {
   )
 }
 
-fit_adjustment_methods <- function(example_data,
-                                   include_multilevel = FALSE,
-                                   multilevel_engine = "frequentist",
-                                   covariate_col = "rural_pct") {
+fit_adjustment_methods <- function(example_data) {
   mpd_od <- example_data$mpd_od
   benchmark_od <- example_data$benchmark_od
   coverage <- example_data$coverage
   covariates <- example_data$covariates
 
-  method_results <- list(
+  list(
     inverse_penetration = debiasR::adjust_inverse_penetration(
       mpd_od_df = mpd_od,
       coverage_df = coverage,
@@ -111,7 +109,7 @@ fit_adjustment_methods <- function(example_data,
       mpd_od_df = mpd_od,
       coverage_df = coverage,
       covariates_df = covariates,
-      covariate_col = covariate_col,
+      income_col = "income_norm",
       weight_by = "origin",
       benchmark_od_df = benchmark_od,
       calibration_aggregate = "origin"
@@ -134,41 +132,4 @@ fit_adjustment_methods <- function(example_data,
       level = "od"
     )
   )
-
-  if (isTRUE(include_multilevel)) {
-    if (!"distance" %in% names(example_data) || nrow(example_data$distance) == 0L) {
-      stop("`include_multilevel = TRUE` requires OD distance inputs.")
-    }
-
-    mpd_s1 <- mpd_od
-    if (!"mpd_source" %in% names(mpd_s1)) {
-      mpd_s1$mpd_source <- "operator_a"
-    }
-    mpd_s1$mpd_time <- "2021_q1"
-
-    coverage_s1 <- coverage
-    if (!"mpd_source" %in% names(coverage_s1)) {
-      coverage_s1$mpd_source <- "operator_a"
-    }
-    coverage_s1$mpd_time <- "2021_q1"
-
-    method_results$multilevel_bayes <- debiasR::adjust_multilevel_bayes(
-      mpd_od_df = mpd_s1,
-      coverage_df = coverage_s1,
-      covariates_df = covariates,
-      distance_df = example_data$distance,
-      income_col = covariate_col,
-      model_engine = multilevel_engine,
-      scenario = "s1",
-      source_col = "mpd_source",
-      time_col = "mpd_time",
-      repeated_observation = "none",
-      prediction_scope = "complete_grid",
-      random_intercept = "none",
-      model_family = "poisson",
-      flow_adj_summary = "median"
-    )
-  }
-
-  method_results
 }
