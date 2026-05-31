@@ -11,23 +11,24 @@ debiasR_example_data(
   census_path = NULL,
   include_self_flows = TRUE,
   complete_grid = FALSE,
-  fill_missing_flow = 0
+  fill_missing_flow = 0,
+  geography = c("lad", "msoa")
 )
 }
 \arguments{
-\item{n_areas}{Number of high-flow overlapping MSOAs to keep for examples.
+\item{n_areas}{Number of high-flow overlapping areas to keep for examples.
 Use \code{Inf} or \code{NULL} to keep all overlapping areas.}
 
 \item{data_package}{Data package containing the empirical files. Default
 \code{"debiasRdata"}.}
 
-\item{mpd_path}{Optional explicit path to \code{msoa_OD_travel2work.csv} or
+\item{mpd_path}{Optional explicit path to the observed MPD OD CSV or
 \code{.csv.gz}.}
 
 \item{census_path}{Optional explicit path to the extracted Census 2021
-MSOA travel-to-work OD CSV or \code{.csv.gz}.}
+travel-to-work OD CSV or \code{.csv.gz}.}
 
-\item{include_self_flows}{Logical; keep within-MSOA flows. Default \code{TRUE}.}
+\item{include_self_flows}{Logical; keep within-area flows. Default \code{TRUE}.}
 
 \item{complete_grid}{Logical; if \code{TRUE}, return MPD and benchmark OD tables
 on the same square area grid after area selection. Missing OD pairs are
@@ -36,20 +37,26 @@ preserves the observed positive-flow support.}
 
 \item{fill_missing_flow}{Numeric value used for absent OD pairs when
 \code{complete_grid = TRUE}. Default \code{0}.}
+
+\item{geography}{Area level to load from \code{debiasRdata}. The default \code{"lad"}
+uses \code{lad_OD_travel2work}, \code{census_lad_OD_travel2work}, and optional
+\code{lad_centroids}. Use \code{"msoa"} only when MSOA-level examples are explicitly
+required.}
 }
 \value{
 A named list with normalised OD matrices and derived teaching tables:
-\code{msoa_OD_travel2work} and \code{mpd_od} for observed MPD flows,
-\code{census_msoa_OD_travel2work} and \code{benchmark_od} for the Census benchmark,
+\code{lad_OD_travel2work} and \code{mpd_od} for observed MPD flows,
+\code{census_lad_OD_travel2work} and \code{benchmark_od} for the Census benchmark,
 plus \code{coverage}, \code{active_users}, \code{population}, \code{covariates}, \code{distance},
 \code{od_audit}, and \code{metadata}.
 }
 \description{
-Loads the MSOA travel-to-work example inputs used by package examples and
-vignettes. The mobile-phone-derived OD data are read from \code{debiasRdata}
-(\code{msoa_OD_travel2work.csv} or \code{.csv.gz}). The benchmark OD data are the
-matching Census 2021 workplace-flow extract, also expected from
-\code{debiasRdata}.
+Loads the LAD travel-to-work example inputs used by package examples and
+vignettes. By default, the mobile-phone-derived OD data are read from the
+optional companion package \code{debiasRdata}
+(\url{https://github.com/de-bias/debiasRdata}) as \code{lad_OD_travel2work}. The
+benchmark OD data are the matching Census 2021 workplace-flow extract
+\code{census_lad_OD_travel2work}, also supplied by \code{debiasRdata}.
 }
 \details{
 Both sources are normalised to the package schema:
@@ -57,12 +64,15 @@ Both sources are normalised to the package schema:
 from matched origin totals: Census workplace outflow is used as the benchmark
 population-like denominator and MPD travel-to-work outflow is used as the
 active-user numerator for the empirical examples.
+If \code{debiasRdata} supplies LAD centroids, the optional distance table is
+computed for the selected example areas from those real centroids rather than
+from a synthetic placeholder.
 }
 \examples{
 \dontshow{if (requireNamespace("debiasRdata", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 ex <- debiasR_example_data(n_areas = 12)
 names(ex)
-head(ex$msoa_OD_travel2work)
-head(ex$census_msoa_OD_travel2work)
+head(ex$lad_OD_travel2work)
+head(ex$census_lad_OD_travel2work)
 \dontshow{\}) # examplesIf}
 }

@@ -1,13 +1,22 @@
-# debiasR NEWS
+# debiasR 0.0.0.9000
 
-## 0.0.0.9000
+### Multilevel scenario development
 
-### Empirical MSOA travel-to-work examples
+- Added an S1-S4 scenario contract for `adjust_multilevel_bayes()` covering single/multiple mobile-phone-derived data sources crossed with single/multiple observation periods.
+- Added `scenario`, `source_col`, `time_col`, `repeated_observation`, and `model_engine` parameters so the multilevel path can validate and carry source/time metadata without introducing separate user-facing functions.
+- Added a frequentist development engine for fast testing of the shared multilevel data contract, complete-grid semantics, and bias-removal algebra; new S1-S4 model development should use this engine before Bayesian sampling is promoted.
+- Added `model_terms` metadata to the multilevel result contract so the resolved default fixed-effect and random-effect structure can be inspected directly.
+- Kept S2-S4 Bayesian scenario fitting explicitly deferred by returning a clear error under `model_engine = "bayesian"` when a repeated source/time scenario is resolved; use `model_engine = "frequentist"` for current S1-S4 development.
+- Expanded fast tests with MSOA-like S1-S4 fixtures that exercise the default frequentist formula contract and complete-grid prediction metadata.
+- Updated workshop/testing vignettes to show an S1 `model_engine = "frequentist"` placeholder example with one source and one time unit, plus parameter guidance for S2-S4 repeated source/time structures.
 
-- Added `debiasR_example_data()` to load and normalise `debiasRdata` MSOA travel-to-work inputs into the package `origin`, `destination`, `flow` schema.
+### Empirical LAD travel-to-work examples
+
+- Added `debiasR_example_data()` to load and normalise `debiasRdata` LAD travel-to-work inputs into the package `origin`, `destination`, `flow` schema.
 - Added optional complete-grid output to `debiasR_example_data()`, including zero-filled absent OD pairs, source row-status indicators, and an OD audit for strict square support.
-- Added a Census 2021 `ODWP01EW` MSOA workplace-flow extraction script for the benchmark travel-to-work OD matrix.
-- Updated examples and vignettes to use the empirical `debiasRdata` workflow, with `msoa_OD_travel2work` as the observed OD matrix and `census_msoa_OD_travel2work` as the Census benchmark, while retaining `simulated_*` datasets as lightweight test fixtures.
+- Added Census 2021 `ODWP01EW` workplace-flow extraction scripts for the benchmark travel-to-work OD matrices.
+- Updated examples to use the optional companion package `de-bias/debiasRdata`, with `lad_OD_travel2work` as the default observed OD matrix and `census_lad_OD_travel2work` as the Census benchmark, while retaining MSOA access through `geography = "msoa"` and `simulated_*` datasets as lightweight test fixtures.
+- Added selected-area LAD distance derivation from real `debiasRdata::lad_centroids`, avoiding a packaged full OD distance matrix.
 
 ### Bayesian complete-grid prediction
 

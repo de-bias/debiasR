@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-05-08
+Last updated: 2026-05-21
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -8,12 +8,16 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Now
 
-1. Validate optional Bayesian CI workflow and empirical distance readiness - `1-2h`
-- Fast deterministic GitHub Actions validation passed on merged PR #11.
-- Current branch fast deterministic tests pass locally.
+1. Validate optional Bayesian CI workflow - `1-2h`
+- Fast core GitHub Actions validation passed on merged PR #11.
+- Current branch fast core tests pass locally.
 - Local optional Bayesian test-file run passes with `rstanarm`; the remaining workflow check is the manual/optional GitHub Actions lane.
 - Confirm the optional/manual Bayesian lane on GitHub Actions when Bayesian-lane validation is required.
-- Confirm whether `debiasRdata` exposes real OD distance for final empirical Bayesian vignette rendering.
+- The full optional Bayesian implementation for the S1-S4 multilevel scenario
+  path has not been implemented yet; current S1-S4 development should proceed
+  through the frequentist engine first.
+- The default LAD empirical route now has selected-area distance support through
+  `debiasRdata::lad_centroids`.
 
 ## Recently Completed
 
@@ -21,26 +25,41 @@ The staged track below is intended to be implemented one stage per chat window. 
 - Maintainer review completed on 2026-05-08.
 - `validate_flow_residual_structure()` is stable public API.
 - Optional validation plots remain inside helpers for now.
-- `debiasRdata` is the accepted empirical MSOA data route.
+- `debiasRdata` is the implemented empirical data route:
+  <https://github.com/de-bias/debiasRdata>.
 
 2. Close remaining package-readiness warnings - `complete`
-- Long generated paths and non-standard project folders are excluded from package builds through `.Rbuildignore`.
+- Long generated notebook paths were removed from tracking; non-standard project folders remain excluded from package builds through `.Rbuildignore`.
 - Bayesian NSE warnings were removed by tightening tidyselect/tidy-evaluation expressions.
 - The Bayesian draw-summary names mismatch in the optional test file was fixed.
+- `debiasRdata` is declared in `Suggests`, closing the conditional-example unstated-dependency warning.
 - Package-readiness check with tests/vignettes/manual skipped now has 0 errors and 0 warnings.
 
 3. Keep Bayesian scope aligned - `complete`
 - `adjust_multilevel_bayes()` is documented as the main methodological innovation.
 - Observed-flow mode remains backward compatible.
 - Complete-grid prediction mode is available for strict square OD matrices and preserves row-status metadata.
-- Full empirical Bayesian rendering remains gated by Bayesian dependencies, runtime, and real OD distance from `debiasRdata`.
+- Full empirical Bayesian rendering remains gated by Bayesian dependencies, runtime, and empirical runtime validation.
+
+4. Create `debiasRdata` companion package - `complete`
+- Repository: <https://github.com/de-bias/debiasRdata>.
+- Included data objects: `msoa_OD_travel2work`,
+  `census_msoa_OD_travel2work`, `lad_OD_travel2work`,
+  `census_lad_OD_travel2work`, and `lad_centroids`.
+- License and source metadata live in the companion package.
+- `debiasR::debiasR_example_data(n_areas = 5)` was smoke-tested against the
+  local sibling `debiasRdata` checkout on 2026-05-18.
+- `debiasR::debiasR_example_data(n_areas = 5, complete_grid = TRUE)` now
+  defaults to LAD and derives selected-area distances from `lad_centroids`.
 
 ## Later
 
 1. Harden the Bayesian path further - `1-2 days`
-- Validate complete-grid Bayesian prediction on real `debiasRdata` inputs with real OD distance.
+- Validate complete-grid Bayesian prediction on real `debiasRdata` OD inputs.
+- Use the LAD route as the default empirical path; add MSOA distance assets only
+  if MSOA-specific empirical Bayesian examples are needed.
 - Record feasible empirical grid sizes and runtime expectations.
-- Split the Bayesian tests into a clear optional CI lane if the scope expands.
+- Keep the Bayesian tests in a clear optional CI lane if the scope expands.
 
 2. Prepare a release-ready maintenance pass - `1-2 days`
 - Re-run the full package check after the CI and migration work settle.
@@ -103,10 +122,15 @@ Tasks:
 7. Resolve the data and redistribution gate.
 - Documented in `DATA_REDISTRIBUTION_DECISION.md`.
 - Confirmed the Zenodo record is licensed CC BY 4.0, which permits redistribution with attribution, but the full record is too large for the main package.
-- Confirmed `msoa_OD_travel2work.csv.gz` is the preferred MPD empirical asset and should be paired with the extracted Census `census_msoa_OD_travel2work` benchmark.
+- Confirmed `msoa_OD_travel2work.csv.gz` is the source MPD empirical asset. For
+  `debiasR`, the default user-facing route is the LAD aggregate
+  `lad_OD_travel2work` paired with `census_lad_OD_travel2work`.
 - Recommended CRAN-safe option: a separate optional `debiasRdata` package licensed for the data, with `debiasR` using `Suggests`, `requireNamespace()`, `system.file()`, and conditional examples/tests/vignettes.
-- Updated direction for `debiasR`: keep simulated/tiny data as lightweight test fixtures, but base user-facing examples and vignettes on the optional `debiasRdata` MSOA travel-to-work workflow.
+- Updated direction for `debiasR`: keep simulated/tiny data as lightweight test fixtures, but base user-facing examples on the optional `debiasRdata` LAD travel-to-work workflow.
 - Maintainer review decision: accept the optional `debiasRdata` strategy and do not bundle the full Zenodo record in `debiasR`.
+- Implementation update: `debiasRdata` now exists at
+  <https://github.com/de-bias/debiasRdata> and supplies
+  MSOA and LAD travel-to-work assets plus `lad_centroids`.
 
 Deliverables:
 
@@ -124,7 +148,7 @@ Deliverables:
 Decision gate:
 
 - Do we have a validation layer that compares methods on fit, residual structure, and spatial allocation fidelity, and do we know whether the Zenodo-based data can be used in-package?
-- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside validation helpers for now; `sf`-aware cartographic support is deferred; empirical MSOA examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
+- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside validation helpers for now; `sf`-aware cartographic support is deferred; empirical examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
 
 ### Stage 3: Measure Bias
 
@@ -169,7 +193,7 @@ Tasks:
 - Returned scatter-plot-ready data and optional `ggplot2` scatter plots.
 
 5. Add tests and documentation.
-- Added deterministic tests in `tests/testthat/test-validate-bias-residual-structure.R`.
+- Added focused tests in `tests/testthat/test-validate-bias-residual-structure.R`.
 - Updated `scripts/run_fast_tests.R`.
 - Generated `man/validate_bias_residual_structure.Rd` and updated `NAMESPACE`.
 - Updated README, NEWS, status notes, test health notes, vignettes, and workflow diagrams.
@@ -179,7 +203,7 @@ Tasks:
 Deliverables:
 
 - [x] a Stage 3 design note with a clear residual definition for `measure_bias()`-related diagnostics
-- [x] a deterministic bias residual diagnostics helper or a documented extension to `measure_bias()`
+- [x] a bias residual diagnostics helper or a documented extension to `measure_bias()`
 - [x] spatial randomness summary and map-ready area data
 - [x] benchmark-flow and covariate correlation diagnostics
 - [x] focused tests and generated documentation
@@ -189,57 +213,104 @@ Deliverables:
 Decision gate:
 
 - Are the new bias diagnostics interpretable enough to keep in the main package API rather than only in analysis notes?
-- Stage 3 answer: yes, maintainer reviewed on 2026-05-05. The implementation uses deterministic coverage residuals directly linked to `measure_bias()`, includes a simple population-only linear-model residual for diagnostics, reuses the Stage 2 diagnostic interfaces, and keeps optional plotting dependency-light.
+- Stage 3 answer: yes, maintainer reviewed on 2026-05-05. The implementation uses reproducible coverage residuals directly linked to `measure_bias()`, includes a simple population-only linear-model residual for diagnostics, reuses the Stage 2 diagnostic interfaces, and keeps optional plotting dependency-light.
 
-### Stage 4: Validation Modelling Extension
+### Stage 4: Multilevel Model Scenario Extension
 
-Goal: extend the modelling strategy to origin-destination random effects under repeated-observation settings.
+Goal: extend `adjust_multilevel_bayes()` so one Bayesian path can support four
+mobile-phone-derived input scenarios.
 
 Estimated effort: `3-5 days`
 
-Status: `planned`
+Status: `in progress; frequentist-first scaffold implemented`
+
+Scenario plan:
+
+- See [MULTILEVEL_MODEL_SCENARIO_PLAN.md](MULTILEVEL_MODEL_SCENARIO_PLAN.md).
+- S1: single source, single time.
+- S2: single source, multiple times.
+- S3: multiple sources, single time.
+- S4: multiple sources, multiple times.
 
 Working recommendation:
 
-- Start with two separate example datasets, not one unified dataset.
-- Reason: this is clearer for users, keeps the two repeated-observation assumptions explicit, makes examples easier to explain, and reduces the risk of one overloaded schema trying to cover two conceptually different designs.
-- Revisit a unified internal representation only later if duplication becomes a real maintenance burden.
+- Add scenario support through parameters in `adjust_multilevel_bayes()`, not
+  separate exported functions.
+- Use MSOA-scale data for software development and internal stress testing.
+- Use LAD-scale data for vignettes and teaching materials.
+- Use `model_engine = "frequentist"` as the active development scaffold for
+  formula, data-shape, and runtime checks; skip new Bayesian scenario work until
+  the complete S1-S4 model contract is stable.
+- Keep `model_engine = "bayesian"` as the existing Stage-1 path and final
+  inferential target.
+- Full optional Bayesian S1-S4 support is explicitly not implemented in this
+  stage; it remains a later transfer step after the frequentist model contract
+  is complete.
 
-Tasks:
+Software-development tasks:
 
-1. Write a short design note before implementation.
-- Compare a two-dataset versus one-dataset approach explicitly.
-- Record why the default choice is two datasets unless a strong reason emerges to unify them.
-- Keep transparency and user-friendliness as the primary criteria, with computational efficiency secondary.
-- Before implementation, explicitly ask which datasets should be used for Stage 4 examples and modelling tests.
-- Confirm whether Stage 4 should use simulated data, empirical data, or one of each for the two formulations.
+1. Define the scenario parameters.
+- Decide whether users pass an explicit `scenario` argument, source/time column
+  arguments, or both.
+- Validate that S1-S4 are distinguishable from the supplied columns.
+- Keep existing observed-flow and complete-grid behavior backward compatible.
+- Implementation update: `scenario`, `source_col`, `time_col`,
+  `repeated_observation`, and `model_engine` are now parameters on
+  `adjust_multilevel_bayes()`. S2-S4 Bayesian use is explicitly deferred with a
+  clear error; current scenario development uses `model_engine =
+  "frequentist"`.
 
-2. Formulation A: repeated observations for an OD pair from a single data source.
-- Create a dataset to support this formulation.
-- Add level-1 variables needed to control temporal variation.
-- Decide what the minimum reproducible example should look like.
+2. Build the internal modelling scaffold.
+- Prototype formula and random-effect structures with a faster frequentist
+  implementation first.
+- Transfer the selected structure into the Bayesian backend only once the data
+  contract and output contract are stable.
+- Keep the frequentist path as a development engine option, not a separate
+  exported adjustment function.
+- Implementation update: the default frequentist formula contract is now
+  recorded in `MULTILEVEL_MODEL_SCENARIO_PLAN.md` and returned in
+  `model_terms` metadata. S1 has no source/time term; S2 adds `mpd_time`; S3
+  adds `mpd_source`; S4 adds `mpd_source + mpd_time`.
 
-3. Formulation B: repeated observations for an OD pair from multiple data sources.
-- Create a dataset to support this formulation.
-- Add level-1 variables needed to control data-source variation.
-- Decide what the minimum reproducible example should look like.
+3. Test against MSOA-scale inputs.
+- Use MSOA data for internal software tests and runtime checks because it is the
+  stricter scale for grid size and repeated observations.
+- Add focused tests for scenario detection, required columns, output metadata,
+  and compatibility with existing Bayesian prediction scopes.
+- Implementation update: the fast tier now includes deterministic MSOA-like
+  S1-S4 fixtures for default frequentist formula terms, metadata, and S4
+  complete-grid prediction.
 
-4. Improve modelling flexibility.
-- Explore an interface that lets users define the model they want to estimate.
-- Keep the modelling API transparent enough that users can see what is being fit.
-- Decide how much formula freedom is realistic without making the function too opaque or fragile.
+Vignette and teaching-material tasks:
 
-5. Validate the user-facing design.
-- Compare whether two separate datasets really do improve transparency and onboarding.
-- Check whether a single internal helper could still support both examples without exposing unnecessary complexity.
+1. Design LAD-scale examples.
+- Use LAD data for user-facing vignettes because it is easier to render,
+  explain, and teach.
+- Keep examples small enough for optional Bayesian dependencies and vignette
+  rendering constraints.
+- Implementation update: the adjustment vignette and testing notebooks now use
+  an S1 `model_engine = "frequentist"` placeholder with one source and one time
+  unit, and describe the parameter switches for S2-S4. Full LAD-scale teaching
+  examples for each separate scenario remain to be completed.
+
+2. Teach the four scenarios separately.
+- Start with S1 as the baseline.
+- Introduce time effects with S2, source effects with S3, and the combined
+  source-time setting with S4.
+- Make clear that the frequentist engine is for development iteration and that
+  the intended final inferential method is Bayesian.
 
 Deliverables:
 
-- a written modelling design note
-- one example dataset for single-source repeated OD observations
-- one example dataset for multi-source repeated OD observations
-- a recommendation on flexible model specification
+- [x] a written multilevel model scenario plan
+- [x] scenario parameters for `adjust_multilevel_bayes()`
+- [x] internal MSOA-like software tests for S1-S4 data contracts
+- [ ] LAD vignette examples for the teachable scenario path
+- [ ] a documented decision on when the frequentist development engine is ready to
+  transfer into the Bayesian implementation
 
 Decision gate:
 
-- Do two separate datasets remain the clearest path for users after we draft the examples, or is there a strong enough maintenance case to justify a unified structure?
+- Do the S1-S4 parameters make the Bayesian path flexible enough for mobile
+  phone-derived inputs without turning `adjust_multilevel_bayes()` into an
+  opaque general modelling wrapper?

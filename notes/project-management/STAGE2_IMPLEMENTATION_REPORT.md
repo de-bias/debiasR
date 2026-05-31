@@ -1,6 +1,6 @@
 # Stage 2 Implementation Report
 
-Last updated: 2026-05-08
+Last updated: 2026-05-18
 
 ## Summary
 
@@ -154,8 +154,14 @@ Historical result on 2026-05-05 before the package-readiness cleanup:
 Follow-up on 2026-05-08:
 
 - Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 2 notes.
-- Remaining notes are optional `debiasRdata` unavailable for checking and current time verification.
+- Historical remaining notes were the then-missing optional companion data package and current time verification.
 - The Bayesian draw-summary names mismatch was fixed in the optional Bayesian test file.
+
+Follow-up on 2026-05-18:
+
+- `debiasRdata` exists at <https://github.com/de-bias/debiasRdata> and is declared in `Suggests`.
+- Package-readiness check with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 1 note.
+- The remaining note is the checker being unable to verify current time.
 
 Vignette smoke checks were run with Quarto on 2026-05-05. The empirical
 `debiasRdata` vignettes render cleanly in an environment without `debiasRdata`
@@ -167,13 +173,17 @@ Decision:
 
 - Do not bundle the full Zenodo record in `debiasR`.
 - Keep `debiasR` small with simulated/tiny test fixtures.
-- Use a separate optional data package such as `debiasRdata` for empirical examples and vignettes.
+- Use the separate optional companion package `debiasRdata`
+  (<https://github.com/de-bias/debiasRdata>) for empirical examples and
+  vignettes.
 
 Rationale:
 
 - The Zenodo record is licensed `CC BY 4.0`, so redistribution appears legally compatible with attribution.
 - The full record is too large for the main package.
-- `msoa_OD_travel2work.csv.gz` is the preferred MPD candidate in `debiasRdata`, paired with the extracted Census benchmark `census_msoa_OD_travel2work`.
+- `debiasRdata` supplies MSOA and LAD empirical data objects. The default
+  `debiasR` empirical route now uses `lad_OD_travel2work`, paired with the
+  Census LAD/LTLA benchmark object `census_lad_OD_travel2work`.
 
 ## Maintainer Review Decisions
 
@@ -184,7 +194,8 @@ Decisions:
 1. Treat `validate_flow_residual_structure()` as stable public API immediately.
 2. Keep optional plot generation inside the validation helper for now because the plots are dependency-light and useful during review. Split plotting into separate helpers later only if the plotting surface grows.
 3. Keep `sf`-aware map support outside the package for now. The package should continue returning map-ready area data and user-supplied coordinate plots rather than owning full cartographic workflows.
-4. Accept the data-redistribution decision: do not bundle the full Zenodo resource in `debiasR`; use the optional `debiasRdata` package for empirical MSOA travel-to-work examples.
+4. Accept the data-redistribution decision: do not bundle the full Zenodo resource in `debiasR`; use the optional `debiasRdata` companion package for empirical travel-to-work examples.
+5. Implementation update on 2026-05-18: `debiasRdata` now exists locally and remotely at <https://github.com/de-bias/debiasRdata>. It includes MSOA and LAD OD assets plus `lad_centroids`; `debiasR` defaults to the LAD route and derives selected-area distances from those centroids.
 
 ## Subsequent Stage Status
 

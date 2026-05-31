@@ -4,8 +4,10 @@
 ^\.Rhistory$
 ^\.github$
 ^\.all-contributorsrc$
+^_pkgdown\.yml$
+^pkgdown$
+^docs$
 ^AGENTS\.md$
-^blueprint-code\.R$
 ^CODE_OF_CONDUCT\.md$
 ^CONTRIBUTING\.md$
 ^LICENSE\.md$
@@ -15,7 +17,11 @@
 ^scripts$
 ^style$
 ^tmp-render$
+^vignettes/.*\.html$
 ^vignettes/.*_files$
+^vignettes/\.quarto$
+^vignettes/.*/\.quarto$
+^vignettes/.*\.quarto_ipynb$
 ^vignettes/\.DS_Store$
 ^vignettes/\.Rhistory$
 ^vignettes/\.gitignore$

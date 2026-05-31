@@ -1,44 +1,56 @@
 #' Load empirical travel-to-work example data
 #'
-#' Loads the MSOA travel-to-work example inputs used by package examples and
-#' vignettes. The mobile-phone-derived OD data are read from `debiasRdata`
-#' (`msoa_OD_travel2work.csv` or `.csv.gz`). The benchmark OD data are the
-#' matching Census 2021 workplace-flow extract, also expected from
-#' `debiasRdata`.
+#' Loads the LAD travel-to-work example inputs used by package examples and
+#' vignettes. By default, the mobile-phone-derived OD data are read from the
+#' optional companion package `debiasRdata`
+#' (<https://github.com/de-bias/debiasRdata>) as `lad_OD_travel2work`. The
+#' benchmark OD data are the matching Census 2021 workplace-flow extract
+#' `census_lad_OD_travel2work`, also supplied by `debiasRdata`.
 #'
 #' Both sources are normalised to the package schema:
 #' `origin`, `destination`, and `flow`. The returned coverage table is derived
 #' from matched origin totals: Census workplace outflow is used as the benchmark
 #' population-like denominator and MPD travel-to-work outflow is used as the
 #' active-user numerator for the empirical examples.
+#' If `debiasRdata` supplies area-level covariates, the returned `covariates`
+#' table uses the selected rows from `lad_covariates` or `msoa_covariates`. If
+#' no matching covariate object is available, the package falls back to the
+#' derived covariates used in earlier examples.
+#' If `debiasRdata` supplies LAD centroids, the optional distance table is
+#' computed for the selected example areas from those real centroids rather than
+#' from a synthetic placeholder.
 #'
-#' @param n_areas Number of high-flow overlapping MSOAs to keep for examples.
+#' @param n_areas Number of high-flow overlapping areas to keep for examples.
 #'   Use `Inf` or `NULL` to keep all overlapping areas.
 #' @param data_package Data package containing the empirical files. Default
 #'   `"debiasRdata"`.
-#' @param mpd_path Optional explicit path to `msoa_OD_travel2work.csv` or
+#' @param mpd_path Optional explicit path to the observed MPD OD CSV or
 #'   `.csv.gz`.
 #' @param census_path Optional explicit path to the extracted Census 2021
-#'   MSOA travel-to-work OD CSV or `.csv.gz`.
-#' @param include_self_flows Logical; keep within-MSOA flows. Default `TRUE`.
+#'   travel-to-work OD CSV or `.csv.gz`.
+#' @param include_self_flows Logical; keep within-area flows. Default `TRUE`.
 #' @param complete_grid Logical; if `TRUE`, return MPD and benchmark OD tables
 #'   on the same square area grid after area selection. Missing OD pairs are
 #'   retained with zero-filled flows and row-status indicators. Default `FALSE`
 #'   preserves the observed positive-flow support.
 #' @param fill_missing_flow Numeric value used for absent OD pairs when
 #'   `complete_grid = TRUE`. Default `0`.
+#' @param geography Area level to load from `debiasRdata`. The default `"lad"`
+#'   uses `lad_OD_travel2work`, `census_lad_OD_travel2work`, optional
+#'   `lad_covariates`, and optional `lad_centroids`. Use `"msoa"` only when
+#'   MSOA-level examples are explicitly required.
 #'
 #' @return A named list with normalised OD matrices and derived teaching tables:
-#'   `msoa_OD_travel2work` and `mpd_od` for observed MPD flows,
-#'   `census_msoa_OD_travel2work` and `benchmark_od` for the Census benchmark,
+#'   `lad_OD_travel2work` and `mpd_od` for observed MPD flows,
+#'   `census_lad_OD_travel2work` and `benchmark_od` for the Census benchmark,
 #'   plus `coverage`, `active_users`, `population`, `covariates`, `distance`,
 #'   `od_audit`, and `metadata`.
 #'
 #' @examplesIf requireNamespace("debiasRdata", quietly = TRUE)
 #' ex <- debiasR_example_data(n_areas = 12)
 #' names(ex)
-#' head(ex$msoa_OD_travel2work)
-#' head(ex$census_msoa_OD_travel2work)
+#' head(ex$lad_OD_travel2work)
+#' head(ex$census_lad_OD_travel2work)
 #'
 #' @export
 debiasR_example_data <- function(n_areas = 25,
@@ -47,7 +59,9 @@ debiasR_example_data <- function(n_areas = 25,
                                  census_path = NULL,
                                  include_self_flows = TRUE,
                                  complete_grid = FALSE,
-                                 fill_missing_flow = 0) {
+                                 fill_missing_flow = 0,
+                                 geography = c("lad", "msoa")) {
+  geography <- match.arg(geography)
   complete_grid <- isTRUE(complete_grid)
   if (!is.numeric(fill_missing_flow) ||
       length(fill_missing_flow) != 1L ||
@@ -56,38 +70,34 @@ debiasR_example_data <- function(n_areas = 25,
     stop("`fill_missing_flow` must be a single finite non-negative number.")
   }
 
+  source_spec <- .example_source_spec(geography)
+
   mpd_raw <- .load_example_source(
     path = mpd_path,
-    object_names = c("msoa_OD_travel2work", "msoa_od_travel2work"),
-    file_names = c("msoa_OD_travel2work.csv.gz", "msoa_OD_travel2work.csv"),
+    object_names = source_spec$mpd_object_names,
+    file_names = source_spec$mpd_file_names,
     data_package = data_package,
-    label = "MPD travel-to-work OD data"
+    label = source_spec$mpd_label
   )
 
   census_raw <- .load_example_source(
     path = census_path,
-    object_names = c(
-      "census_msoa_OD_travel2work",
-      "census_msoa_od_travel2work",
-      "odwp01ew_msoa_travel2work",
-      "ODWP01EW_MSOA"
-    ),
-    file_names = c(
-      "census_msoa_OD_travel2work.csv.gz",
-      "census_msoa_OD_travel2work.csv",
-      "msoa_census_travel2work.csv.gz",
-      "msoa_census_travel2work.csv",
-      "ODWP01EW_MSOA_travel2work.csv.gz",
-      "ODWP01EW_MSOA_travel2work.csv",
-      "ODWP01EW_MSOA.csv.gz",
-      "ODWP01EW_MSOA.csv"
-    ),
+    object_names = source_spec$census_object_names,
+    file_names = source_spec$census_file_names,
     data_package = data_package,
-    label = "Census MSOA travel-to-work benchmark OD data"
+    label = source_spec$census_label
   )
 
-  mpd_od <- .normalise_mpd_travel_to_work(mpd_raw, include_self_flows)
-  benchmark_od <- .normalise_census_travel_to_work(census_raw, include_self_flows)
+  mpd_od <- .normalise_mpd_travel_to_work(
+    mpd_raw,
+    include_self_flows,
+    geography = geography
+  )
+  benchmark_od <- .normalise_census_travel_to_work(
+    census_raw,
+    include_self_flows,
+    geography = geography
+  )
 
   common_areas <- intersect(
     union(mpd_od$origin, mpd_od$destination),
@@ -95,7 +105,11 @@ debiasR_example_data <- function(n_areas = 25,
   )
 
   if (length(common_areas) == 0L) {
-    stop("No overlapping MSOA codes were found between MPD and Census OD data.")
+    stop(
+      "No overlapping ",
+      source_spec$area_label,
+      " codes were found between MPD and Census OD data."
+    )
   }
 
   area_scores <- dplyr::bind_rows(
@@ -128,7 +142,7 @@ debiasR_example_data <- function(n_areas = 25,
       .data$origin %in% selected_areas,
       .data$destination %in% selected_areas
     ) |>
-    dplyr::mutate(mpd_source = "locomizer_travel_to_work") |>
+    dplyr::mutate(mpd_source = source_spec$mpd_source) |>
     dplyr::select(.data$origin, .data$destination, .data$mpd_source, .data$flow) |>
     dplyr::arrange(.data$origin, .data$destination)
 
@@ -140,7 +154,7 @@ debiasR_example_data <- function(n_areas = 25,
     dplyr::arrange(.data$origin, .data$destination)
 
   if (nrow(mpd_od) == 0L || nrow(benchmark_od) == 0L) {
-    stop("The selected MSOAs do not contain overlapping MPD and Census OD flows.")
+    stop("The selected areas do not contain overlapping MPD and Census OD flows.")
   }
 
   coverage <- .build_example_coverage(mpd_od, benchmark_od)
@@ -177,11 +191,25 @@ debiasR_example_data <- function(n_areas = 25,
     )
   }
 
-  covariates <- .build_example_covariates(mpd_od, benchmark_od, coverage)
+  derived_covariates <- .build_example_covariates(mpd_od, benchmark_od, coverage)
+  covariate_bundle <- .load_optional_example_covariates(
+    data_package = data_package,
+    areas = final_areas,
+    geography = geography
+  )
+  if (nrow(covariate_bundle$covariates) > 0L) {
+    covariates <- covariate_bundle$covariates
+    covariate_source <- covariate_bundle$covariate_source
+  } else {
+    covariates <- derived_covariates
+    covariate_source <- "derived_from_od_flows"
+  }
+
   distance <- .load_optional_example_distance(
     data_package = data_package,
     areas = final_areas,
-    include_self_flows = include_self_flows
+    include_self_flows = include_self_flows,
+    geography = geography
   )
   distance_source <- if (nrow(distance) > 0L) {
     distance$distance_source[[1]]
@@ -189,7 +217,7 @@ debiasR_example_data <- function(n_areas = 25,
     "not_available"
   }
 
-  list(
+  out <- list(
     mpd_od = mpd_od,
     benchmark_od = benchmark_od,
     coverage = coverage,
@@ -200,12 +228,12 @@ debiasR_example_data <- function(n_areas = 25,
     covariates = covariates,
     distance = distance,
     od_audit = od_audit,
-    msoa_OD_travel2work = mpd_od,
-    census_msoa_OD_travel2work = benchmark_od,
     metadata = tibble::tibble(
       data_package = data_package,
-      mpd_source = "Zenodo 10.5281/zenodo.13327082: msoa_OD_travel2work",
-      benchmark_source = "Census 2021 ODWP01EW MSOA workplace flows",
+      geography = geography,
+      mpd_source = source_spec$mpd_metadata_source,
+      benchmark_source = source_spec$benchmark_metadata_source,
+      covariate_source = covariate_source,
       distance_source = distance_source,
       complete_grid = complete_grid,
       include_self_flows = include_self_flows,
@@ -221,6 +249,82 @@ debiasR_example_data <- function(n_areas = 25,
       mpd_balance_diff = od_audit$mpd_balance_diff[[1]],
       benchmark_balance_diff = od_audit$benchmark_balance_diff[[1]]
     )
+  )
+
+  out[[source_spec$mpd_return_name]] <- out$mpd_od
+  out[[source_spec$census_return_name]] <- out$benchmark_od
+  if (geography == "msoa") {
+    out$msoa_OD_travel2work <- out$mpd_od
+    out$census_msoa_OD_travel2work <- out$benchmark_od
+  }
+
+  out
+}
+
+.example_source_spec <- function(geography) {
+  if (identical(geography, "lad")) {
+    return(list(
+      area_label = "LAD/LTLA",
+      mpd_object_names = c("lad_OD_travel2work", "lad_od_travel2work", "OD_travel2work"),
+      mpd_file_names = c(
+        "lad_OD_travel2work.csv.gz",
+        "lad_OD_travel2work.csv",
+        "OD_travel2work.csv.gz",
+        "OD_travel2work.csv"
+      ),
+      census_object_names = c(
+        "census_lad_OD_travel2work",
+        "census_lad_od_travel2work",
+        "census_OD_travel2work",
+        "ODWP01EW_LTLA"
+      ),
+      census_file_names = c(
+        "census_lad_OD_travel2work.csv.gz",
+        "census_lad_OD_travel2work.csv",
+        "census_OD_travel2work.csv.gz",
+        "census_OD_travel2work.csv",
+        "ODWP01EW_LTLA_travel2work.csv.gz",
+        "ODWP01EW_LTLA_travel2work.csv",
+        "ODWP01EW_LTLA.csv.gz",
+        "ODWP01EW_LTLA.csv"
+      ),
+      mpd_label = "MPD LAD travel-to-work OD data",
+      census_label = "Census LAD/LTLA travel-to-work benchmark OD data",
+      mpd_source = "locomizer_travel_to_work_lad",
+      mpd_metadata_source = "Zenodo 10.5281/zenodo.13327082: lad_OD_travel2work LAD aggregate",
+      benchmark_metadata_source = "Census 2021 ODWP01EW LTLA workplace flows",
+      mpd_return_name = "lad_OD_travel2work",
+      census_return_name = "census_lad_OD_travel2work"
+    ))
+  }
+
+  list(
+    area_label = "MSOA",
+    mpd_object_names = c("msoa_OD_travel2work", "msoa_od_travel2work"),
+    mpd_file_names = c("msoa_OD_travel2work.csv.gz", "msoa_OD_travel2work.csv"),
+    census_object_names = c(
+      "census_msoa_OD_travel2work",
+      "census_msoa_od_travel2work",
+      "odwp01ew_msoa_travel2work",
+      "ODWP01EW_MSOA"
+    ),
+    census_file_names = c(
+      "census_msoa_OD_travel2work.csv.gz",
+      "census_msoa_OD_travel2work.csv",
+      "msoa_census_travel2work.csv.gz",
+      "msoa_census_travel2work.csv",
+      "ODWP01EW_MSOA_travel2work.csv.gz",
+      "ODWP01EW_MSOA_travel2work.csv",
+      "ODWP01EW_MSOA.csv.gz",
+      "ODWP01EW_MSOA.csv"
+    ),
+    mpd_label = "MPD MSOA travel-to-work OD data",
+    census_label = "Census MSOA travel-to-work benchmark OD data",
+    mpd_source = "locomizer_travel_to_work_msoa",
+    mpd_metadata_source = "Zenodo 10.5281/zenodo.13327082: msoa_OD_travel2work",
+    benchmark_metadata_source = "Census 2021 ODWP01EW MSOA workplace flows",
+    mpd_return_name = "msoa_OD_travel2work",
+    census_return_name = "census_msoa_OD_travel2work"
   )
 }
 
@@ -410,34 +514,165 @@ debiasR_example_data <- function(n_areas = 25,
   )
 }
 
+.empty_example_covariate_bundle <- function() {
+  list(
+    covariates = tibble::tibble(),
+    covariate_source = "not_available"
+  )
+}
+
+.load_optional_example_covariates <- function(data_package,
+                                              areas,
+                                              geography) {
+  if (!requireNamespace(data_package, quietly = TRUE)) {
+    return(.empty_example_covariate_bundle())
+  }
+
+  covariate_spec <- .example_covariate_spec(geography)
+  covariates_raw <- .load_optional_example_object(
+    object_names = covariate_spec$covariate_object_names,
+    data_package = data_package
+  )
+
+  if (is.null(covariates_raw)) {
+    covariate_path <- .find_example_file(
+      file_names = covariate_spec$covariate_file_names,
+      data_package = data_package
+    )
+    if (!is.null(covariate_path)) {
+      covariates_raw <- .read_example_csv(covariate_path)
+    }
+  }
+
+  if (is.null(covariates_raw)) {
+    return(.empty_example_covariate_bundle())
+  }
+
+  covariates <- .normalise_example_covariates(
+    covariates_raw,
+    areas = areas
+  )
+
+  if (nrow(covariates) == 0L) {
+    return(.empty_example_covariate_bundle())
+  }
+
+  list(
+    covariates = covariates,
+    covariate_source = paste0(data_package, "::", covariate_spec$covariate_source)
+  )
+}
+
+.example_covariate_spec <- function(geography) {
+  if (identical(geography, "lad")) {
+    return(list(
+      covariate_object_names = c(
+        "lad_covariates",
+        "lad_covariate",
+        "lad_area_covariates",
+        "covariates"
+      ),
+      covariate_file_names = c(
+        "lad_covariates.csv.gz",
+        "lad_covariates.csv",
+        "lad_area_covariates.csv.gz",
+        "lad_area_covariates.csv",
+        "covariates.csv.gz",
+        "covariates.csv"
+      ),
+      covariate_source = "lad_covariates"
+    ))
+  }
+
+  list(
+    covariate_object_names = c(
+      "msoa_covariates",
+      "msoa_covariate",
+      "msoa_area_covariates",
+      "covariates"
+    ),
+    covariate_file_names = c(
+      "msoa_covariates.csv.gz",
+      "msoa_covariates.csv",
+      "msoa_area_covariates.csv.gz",
+      "msoa_area_covariates.csv",
+      "covariates.csv.gz",
+      "covariates.csv"
+    ),
+    covariate_source = "msoa_covariates"
+  )
+}
+
+.normalise_example_covariates <- function(df, areas) {
+  area_col <- .find_col(
+    df,
+    c(
+      "area",
+      "lad",
+      "lad21cd",
+      "lad22cd",
+      "ltla",
+      "ltla_code",
+      "msoa",
+      "msoa21cd",
+      "msoa_code",
+      "code"
+    ),
+    required = FALSE
+  )
+
+  if (is.null(area_col)) {
+    return(tibble::tibble())
+  }
+
+  areas <- sort(unique(as.character(areas)))
+  out <- tibble::as_tibble(df)
+  out$area <- as.character(out[[area_col]])
+  if (!identical(area_col, "area")) {
+    out <- out |>
+      dplyr::select(-dplyr::all_of(area_col))
+  }
+
+  out <- out |>
+    dplyr::filter(
+      .data$area %in% areas,
+      !is.na(.data$area)
+    ) |>
+    dplyr::select(dplyr::all_of("area"), dplyr::everything()) |>
+    dplyr::group_by(.data$area) |>
+    dplyr::summarise(
+      dplyr::across(dplyr::everything(), ~ dplyr::first(.x)),
+      .groups = "drop"
+    )
+
+  if (!all(areas %in% out$area)) {
+    return(tibble::tibble())
+  }
+
+  out |>
+    dplyr::mutate(.area_order = match(.data$area, areas)) |>
+    dplyr::arrange(.data$.area_order) |>
+    dplyr::select(-dplyr::all_of(".area_order")) |>
+    tibble::as_tibble()
+}
+
 .load_optional_example_distance <- function(data_package,
                                             areas,
-                                            include_self_flows) {
+                                            include_self_flows,
+                                            geography) {
   if (!requireNamespace(data_package, quietly = TRUE)) {
     return(.empty_example_distance())
   }
 
+  distance_spec <- .example_distance_spec(geography)
   distance_raw <- .load_optional_example_object(
-    object_names = c(
-      "msoa_OD_distance",
-      "msoa_od_distance",
-      "msoa_distance",
-      "msoa_distance_matrix",
-      "distance"
-    ),
+    object_names = distance_spec$distance_object_names,
     data_package = data_package
   )
 
   if (is.null(distance_raw)) {
     distance_path <- .find_example_file(
-      file_names = c(
-        "msoa_OD_distance.csv.gz",
-        "msoa_OD_distance.csv",
-        "msoa_distance.csv.gz",
-        "msoa_distance.csv",
-        "distance.csv.gz",
-        "distance.csv"
-      ),
+      file_names = distance_spec$distance_file_names,
       data_package = data_package
     )
     if (!is.null(distance_path)) {
@@ -445,14 +680,108 @@ debiasR_example_data <- function(n_areas = 25,
     }
   }
 
-  if (is.null(distance_raw)) {
+  if (!is.null(distance_raw)) {
+    distance <- .normalise_example_distance(
+      distance_raw,
+      areas = areas,
+      include_self_flows = include_self_flows
+    )
+    if (nrow(distance) > 0L) {
+      return(distance)
+    }
+  }
+
+  centroids_raw <- .load_optional_example_object(
+    object_names = distance_spec$centroid_object_names,
+    data_package = data_package
+  )
+
+  if (is.null(centroids_raw)) {
+    centroid_path <- .find_example_file(
+      file_names = distance_spec$centroid_file_names,
+      data_package = data_package
+    )
+    if (!is.null(centroid_path)) {
+      centroids_raw <- .read_example_csv(centroid_path)
+    }
+  }
+
+  if (is.null(centroids_raw)) {
     return(.empty_example_distance())
   }
 
-  .normalise_example_distance(
-    distance_raw,
+  centroids <- .normalise_example_centroids(centroids_raw, areas = areas)
+  .build_example_centroid_distance(
+    centroids,
     areas = areas,
-    include_self_flows = include_self_flows
+    include_self_flows = include_self_flows,
+    distance_source = distance_spec$centroid_distance_source
+  )
+}
+
+.example_distance_spec <- function(geography) {
+  if (identical(geography, "lad")) {
+    return(list(
+      distance_object_names = c(
+        "lad_OD_distance",
+        "lad_od_distance",
+        "lad_distance",
+        "lad_distance_matrix",
+        "distance"
+      ),
+      distance_file_names = c(
+        "lad_OD_distance.csv.gz",
+        "lad_OD_distance.csv",
+        "lad_distance.csv.gz",
+        "lad_distance.csv",
+        "distance.csv.gz",
+        "distance.csv"
+      ),
+      centroid_object_names = c(
+        "lad_centroids",
+        "lad_centroid",
+        "lad_area_centroids",
+        "lad_points"
+      ),
+      centroid_file_names = c(
+        "lad_centroids.csv.gz",
+        "lad_centroids.csv",
+        "lad_centroid.csv.gz",
+        "lad_centroid.csv"
+      ),
+      centroid_distance_source = "debiasRdata_lad_centroids"
+    ))
+  }
+
+  list(
+    distance_object_names = c(
+      "msoa_OD_distance",
+      "msoa_od_distance",
+      "msoa_distance",
+      "msoa_distance_matrix",
+      "distance"
+    ),
+    distance_file_names = c(
+      "msoa_OD_distance.csv.gz",
+      "msoa_OD_distance.csv",
+      "msoa_distance.csv.gz",
+      "msoa_distance.csv",
+      "distance.csv.gz",
+      "distance.csv"
+    ),
+    centroid_object_names = c(
+      "msoa_centroids",
+      "msoa_centroid",
+      "msoa_area_centroids",
+      "msoa_points"
+    ),
+    centroid_file_names = c(
+      "msoa_centroids.csv.gz",
+      "msoa_centroids.csv",
+      "msoa_centroid.csv.gz",
+      "msoa_centroid.csv"
+    ),
+    centroid_distance_source = "debiasRdata_msoa_centroids"
   )
 }
 
@@ -484,7 +813,7 @@ debiasR_example_data <- function(n_areas = 25,
   )
   distance_col <- .find_col(
     df,
-    c("distance_km", "distance", "dist_km", "distance_m", "dist"),
+    c("distance_km", "distance", "dist_km", "distance_m", "dist_m", "dist"),
     required = FALSE
   )
 
@@ -494,10 +823,15 @@ debiasR_example_data <- function(n_areas = 25,
 
   areas <- sort(unique(as.character(areas)))
 
+  distance <- suppressWarnings(as.numeric(df[[distance_col]]))
+  if (.clean_colnames(distance_col) %in% c("distance_m", "dist_m")) {
+    distance <- distance / 1000
+  }
+
   out <- tibble::tibble(
     origin = as.character(df[[origin_col]]),
     destination = as.character(df[[destination_col]]),
-    distance_km = suppressWarnings(as.numeric(df[[distance_col]]))
+    distance_km = distance
   ) |>
     dplyr::filter(
       .data$origin %in% areas,
@@ -517,6 +851,193 @@ debiasR_example_data <- function(n_areas = 25,
     dplyr::mutate(distance_source = "debiasRdata") |>
     dplyr::arrange(.data$origin, .data$destination) |>
     tibble::as_tibble()
+}
+
+.normalise_example_centroids <- function(df, areas) {
+  area_col <- .find_col(
+    df,
+    c(
+      "area",
+      "lad",
+      "lad21cd",
+      "lad22cd",
+      "ltla",
+      "ltla_code",
+      "msoa",
+      "msoa21cd",
+      "msoa_code",
+      "code"
+    ),
+    required = FALSE
+  )
+  longitude_col <- .find_col(
+    df,
+    c("longitude", "long", "lon", "x_longitude"),
+    required = FALSE
+  )
+  latitude_col <- .find_col(
+    df,
+    c("latitude", "lat", "y_latitude"),
+    required = FALSE
+  )
+  easting_col <- .find_col(
+    df,
+    c("easting", "bng_e", "x", "x_coord"),
+    required = FALSE
+  )
+  northing_col <- .find_col(
+    df,
+    c("northing", "bng_n", "y", "y_coord"),
+    required = FALSE
+  )
+
+  if (is.null(area_col) ||
+      ((is.null(longitude_col) || is.null(latitude_col)) &&
+        (is.null(easting_col) || is.null(northing_col)))) {
+    return(.empty_example_centroids())
+  }
+
+  areas <- sort(unique(as.character(areas)))
+  out <- tibble::tibble(
+    area = as.character(df[[area_col]]),
+    longitude = .numeric_or_missing(df, longitude_col),
+    latitude = .numeric_or_missing(df, latitude_col),
+    easting = .numeric_or_missing(df, easting_col),
+    northing = .numeric_or_missing(df, northing_col)
+  ) |>
+    dplyr::filter(
+      .data$area %in% areas,
+      !is.na(.data$area)
+    ) |>
+    dplyr::group_by(.data$area) |>
+    dplyr::summarise(
+      longitude = dplyr::first(.data$longitude),
+      latitude = dplyr::first(.data$latitude),
+      easting = dplyr::first(.data$easting),
+      northing = dplyr::first(.data$northing),
+      .groups = "drop"
+    ) |>
+    dplyr::arrange(.data$area)
+
+  if (!all(areas %in% out$area)) {
+    return(.empty_example_centroids())
+  }
+
+  out |>
+    tibble::as_tibble()
+}
+
+.empty_example_centroids <- function() {
+  tibble::tibble(
+    area = character(),
+    longitude = numeric(),
+    latitude = numeric(),
+    easting = numeric(),
+    northing = numeric()
+  )
+}
+
+.numeric_or_missing <- function(df, col) {
+  if (is.null(col)) {
+    return(rep(NA_real_, nrow(df)))
+  }
+  suppressWarnings(as.numeric(df[[col]]))
+}
+
+.build_example_centroid_distance <- function(centroids,
+                                             areas,
+                                             include_self_flows,
+                                             distance_source = "debiasRdata_centroids") {
+  areas <- sort(unique(as.character(areas)))
+  if (length(areas) == 0L ||
+      nrow(centroids) == 0L ||
+      !all(areas %in% centroids$area)) {
+    return(.empty_example_distance())
+  }
+
+  grid <- expand.grid(
+    origin = areas,
+    destination = areas,
+    stringsAsFactors = FALSE
+  ) |>
+    tibble::as_tibble()
+
+  if (!include_self_flows) {
+    grid <- grid |>
+      dplyr::filter(.data$origin != .data$destination)
+  }
+
+  origin_coords <- centroids |>
+    dplyr::transmute(
+      origin = .data$area,
+      origin_longitude = .data$longitude,
+      origin_latitude = .data$latitude,
+      origin_easting = .data$easting,
+      origin_northing = .data$northing
+    )
+  destination_coords <- centroids |>
+    dplyr::transmute(
+      destination = .data$area,
+      destination_longitude = .data$longitude,
+      destination_latitude = .data$latitude,
+      destination_easting = .data$easting,
+      destination_northing = .data$northing
+    )
+
+  out <- grid |>
+    dplyr::left_join(origin_coords, by = "origin") |>
+    dplyr::left_join(destination_coords, by = "destination")
+
+  can_use_lon_lat <- all(is.finite(out$origin_longitude)) &&
+    all(is.finite(out$origin_latitude)) &&
+    all(is.finite(out$destination_longitude)) &&
+    all(is.finite(out$destination_latitude))
+  can_use_bng <- all(is.finite(out$origin_easting)) &&
+    all(is.finite(out$origin_northing)) &&
+    all(is.finite(out$destination_easting)) &&
+    all(is.finite(out$destination_northing))
+
+  if (can_use_lon_lat) {
+    distance_km <- .haversine_km(
+      lon1 = out$origin_longitude,
+      lat1 = out$origin_latitude,
+      lon2 = out$destination_longitude,
+      lat2 = out$destination_latitude
+    )
+  } else if (can_use_bng) {
+    distance_km <- sqrt(
+      (out$destination_easting - out$origin_easting)^2 +
+        (out$destination_northing - out$origin_northing)^2
+    ) / 1000
+  } else {
+    return(.empty_example_distance())
+  }
+
+  out |>
+    dplyr::transmute(
+      .data$origin,
+      .data$destination,
+      distance_km = distance_km,
+      distance_source = distance_source
+    ) |>
+    dplyr::filter(is.finite(.data$distance_km), .data$distance_km >= 0) |>
+    dplyr::arrange(.data$origin, .data$destination) |>
+    tibble::as_tibble()
+}
+
+.haversine_km <- function(lon1, lat1, lon2, lat2) {
+  radius_km <- 6371.0088
+  to_radians <- pi / 180
+  lon1 <- lon1 * to_radians
+  lat1 <- lat1 * to_radians
+  lon2 <- lon2 * to_radians
+  lat2 <- lat2 * to_radians
+
+  delta_lon <- lon2 - lon1
+  delta_lat <- lat2 - lat1
+  a <- sin(delta_lat / 2)^2 +
+    cos(lat1) * cos(lat2) * sin(delta_lon / 2)^2
+  2 * radius_km * asin(pmin(1, sqrt(a)))
 }
 
 .load_example_source <- function(path,
@@ -614,9 +1135,31 @@ debiasR_example_data <- function(n_areas = 25,
   )
 }
 
-.normalise_mpd_travel_to_work <- function(df, include_self_flows) {
-  origin_col <- .find_col(df, c("origin", "MSOA21CD_home", "msoa21cd_home"))
-  destination_col <- .find_col(df, c("destination", "MSOA21CD_work", "msoa21cd_work"))
+.normalise_mpd_travel_to_work <- function(df, include_self_flows, geography) {
+  origin_col <- .find_col(
+    df,
+    c(
+      "origin",
+      "MSOA21CD_home",
+      "msoa21cd_home",
+      "LAD22CD_home",
+      "lad22cd_home",
+      "origin_lad",
+      "from"
+    )
+  )
+  destination_col <- .find_col(
+    df,
+    c(
+      "destination",
+      "MSOA21CD_work",
+      "msoa21cd_work",
+      "LAD22CD_work",
+      "lad22cd_work",
+      "destination_lad",
+      "to"
+    )
+  )
   flow_col <- .find_col(df, c("flow", "count", "total_flow"))
 
   .normalise_od_table(
@@ -625,11 +1168,11 @@ debiasR_example_data <- function(n_areas = 25,
     destination_col = destination_col,
     flow_col = flow_col,
     include_self_flows = include_self_flows,
-    filter_msoa_codes = TRUE
+    area_pattern = .example_area_pattern(geography)
   )
 }
 
-.normalise_census_travel_to_work <- function(df, include_self_flows) {
+.normalise_census_travel_to_work <- function(df, include_self_flows, geography) {
   indicator_col <- .find_col(
     df,
     c(
@@ -649,6 +1192,8 @@ debiasR_example_data <- function(n_areas = 25,
     df,
     c(
       "origin",
+      "Lower tier local authorities code",
+      "lower_tier_local_authorities_code",
       "Middle layer Super Output Areas code",
       "middle_layer_super_output_areas_code",
       "Area of residence"
@@ -658,6 +1203,8 @@ debiasR_example_data <- function(n_areas = 25,
     df,
     c(
       "destination",
+      "LTLA of workplace code",
+      "ltla_of_workplace_code",
       "MSOA of workplace code",
       "msoa_of_workplace_code",
       "Area of workplace"
@@ -679,7 +1226,16 @@ debiasR_example_data <- function(n_areas = 25,
     destination_col = destination_col,
     flow_col = flow_col,
     include_self_flows = include_self_flows,
-    filter_msoa_codes = TRUE
+    area_pattern = .example_area_pattern(geography)
+  )
+}
+
+.example_area_pattern <- function(geography) {
+  switch(
+    geography,
+    lad = "^(E0[6789]|W06)[0-9]{6}$",
+    msoa = "^[EW][0-9]{8}$",
+    "^(E0[6789]|W06)[0-9]{6}$"
   )
 }
 
@@ -688,7 +1244,7 @@ debiasR_example_data <- function(n_areas = 25,
                                 destination_col,
                                 flow_col,
                                 include_self_flows,
-                                filter_msoa_codes) {
+                                area_pattern) {
   out <- tibble::tibble(
     origin = as.character(df[[origin_col]]),
     destination = as.character(df[[destination_col]]),
@@ -701,11 +1257,11 @@ debiasR_example_data <- function(n_areas = 25,
       .data$flow >= 0
     )
 
-  if (filter_msoa_codes) {
+  if (!is.null(area_pattern) && nzchar(area_pattern)) {
     out <- out |>
       dplyr::filter(
-        grepl("^[EW][0-9]{8}$", .data$origin),
-        grepl("^[EW][0-9]{8}$", .data$destination)
+        grepl(area_pattern, .data$origin),
+        grepl(area_pattern, .data$destination)
       )
   }
 
@@ -748,6 +1304,12 @@ debiasR_example_data <- function(n_areas = 25,
 }
 
 .build_example_coverage <- function(mpd_od, benchmark_od) {
+  source_value <- if ("mpd_source" %in% names(mpd_od) && nrow(mpd_od) > 0L) {
+    mpd_od$mpd_source[[1]]
+  } else {
+    "locomizer_travel_to_work"
+  }
+
   mpd_origin <- mpd_od |>
     dplyr::group_by(.data$origin) |>
     dplyr::summarise(user_count = sum(.data$flow, na.rm = TRUE), .groups = "drop")
@@ -760,7 +1322,7 @@ debiasR_example_data <- function(n_areas = 25,
     dplyr::filter(.data$population > 0, .data$user_count > 0) |>
     dplyr::mutate(
       destination = .data$origin,
-      mpd_source = "locomizer_travel_to_work"
+      mpd_source = source_value
     ) |>
     dplyr::select(
       .data$origin,

@@ -19,9 +19,12 @@ Imports:
     rlang,
     stats
 Suggests:
+    debiasRdata,
     knitr,
+    quarto,
     rmarkdown,
     MASS,
+    lme4,
     pscl,
     brms,
     rstanarm,
@@ -37,7 +40,8 @@ Suggests:
     patchwork,
     testthat (>= 3.2.0)
 Config/testthat/edition: 3
-VignetteBuilder: knitr
+Config/Needs/website: pkgdown
+VignetteBuilder: quarto
 LazyData: true
-URL: https://github.com/de-bias/debiasR
+URL: https://de-bias.github.io/debiasR/, https://github.com/de-bias/debiasR
 BugReports: https://github.com/de-bias/debiasR/issues

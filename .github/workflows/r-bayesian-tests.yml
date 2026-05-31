@@ -6,8 +6,11 @@ on:
 jobs:
   bayesian-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      RSTAN_NUM_THREADS: "1"
 
     steps:
       - name: Check out repository
@@ -26,5 +29,5 @@ jobs:
             any::rstanarm
 
       - name: Run Bayesian tests
-        run: |
-          Rscript -e 'devtools::load_all(".", quiet = TRUE); testthat::test_file("tests/testthat/test-adjust-multilevel-bayes.R", reporter = "summary")'
+        timeout-minutes: 20
+        run: Rscript scripts/run_bayesian_tests.R

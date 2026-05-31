@@ -1,0 +1,663 @@
+---
+title: "debiasR: Method Comparison Walkthrough"
+format:
+  html:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Purpose
+
+This vignette compares the implemented adjustment methods in `debiasR` and
+includes the multilevel helper as the main experimental prototype:
+
+1. `adjust_inverse_penetration`
+2. `adjust_selection_rate`
+3. `adjust_selection_rate2`
+4. `adjust_raking_ratio`
+5. `adjust_coefficient`
+6. `adjust_multilevel_bayes` with `model_engine = "frequentist"` (temporary S1 placeholder for the Bayesian model)
+
+It uses a fast but fair comparison protocol:
+
+1. same stratified OD subset for all methods per replicate,
+2. repeated over multiple seeds,
+3. Method 6 fit with the frequentist development engine while S1-S4 Bayesian implementation is completed.
+
+`adjust_multilevel_bayes()` is the main methodological innovation. Treat Method
+6 results here as a fast scenario-contract check, not final Bayesian inference.
+The example below uses S1 data: one MPD source observed during one time unit.
+
+## Setup
+
+```{r}
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
+
+if (!requireNamespace("debiasR", quietly = TRUE)) {
+  if (!requireNamespace("devtools", quietly = TRUE)) {
+    stop("Install either `debiasR` or `devtools` to load the local package.")
+  }
+  devtools::load_all(pkg_root, quiet = TRUE)
+}
+
+library(debiasR)
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(tidyr)
+library(readr)
+library(stringr)
+library(purrr)
+
+if (!requireNamespace("patchwork", quietly = TRUE)) {
+  stop("Install 'patchwork' to render the multi-panel comparison plots.")
+}
+```
+
+## Data
+
+```{r}
+data("simulated_mpd.od", package = "debiasR")
+data("simulated_benchmark.od", package = "debiasR")
+data("simulated_coverage", package = "debiasR")
+data("simulated_covariates", package = "debiasR")
+data("simulated_distance", package = "debiasR")
+
+tibble::tibble(
+  dataset = c(
+    "simulated_mpd.od",
+    "simulated_benchmark.od",
+    "simulated_coverage",
+    "simulated_covariates",
+    "simulated_distance"
+  ),
+  rows = c(
+    nrow(simulated_mpd.od),
+    nrow(simulated_benchmark.od),
+    nrow(simulated_coverage),
+    nrow(simulated_covariates),
+    nrow(simulated_distance)
+  )
+)
+
+# coverage_df schema used by methods in this walkthrough
+names(simulated_coverage)
+```
+
+## Simulation Fidelity Check
+
+```{r}
+std_area <- function(x) stringr::str_squish(as.character(x))
+std_source <- function(x) {
+  x <- tolower(stringr::str_squish(as.character(x)))
+  dplyr::case_when(
+    stringr::str_detect(x, "facebook|fb") ~ "facebook",
+    stringr::str_detect(x, "twitter| x ") ~ "twitter",
+    stringr::str_detect(x, "multi.?app.?1") ~ "multiapp1",
+    stringr::str_detect(x, "multi.?app.?2") ~ "multiapp2",
+    TRUE ~ x
+  )
+}
+safe_max <- function(x) {
+  x <- suppressWarnings(as.numeric(x))
+  if (!any(is.finite(x))) return(NA_real_)
+  max(x, na.rm = TRUE)
+}
+
+aup_raw <- readr::read_csv(file.path(pkg_root, "data-raw", "active-user-count_data.csv"), show_col_types = FALSE)
+pop_raw <- readr::read_csv(file.path(pkg_root, "data-raw", "benchmark-population_data.csv"), show_col_types = FALSE)
+mpd_raw <- readr::read_csv(file.path(pkg_root, "data-raw", "od_df_mar2020_feb2021.csv"), show_col_types = FALSE)
+bench_raw <- readr::read_csv(file.path(pkg_root, "data-raw", "internal-migration-benchmark_data.csv"), show_col_types = FALSE)
+
+users_wide <- aup_raw |>
+  dplyr::transmute(
+    area = std_area(.data$name),
+    user_count_raw = suppressWarnings(as.numeric(.data$origin_users)),
+    mpd_source = std_source(.data$source_mpd)
+  ) |>
+  dplyr::group_by(.data$area, .data$mpd_source) |>
+  dplyr::summarise(user_count = safe_max(.data$user_count_raw), .groups = "drop") |>
+  dplyr::filter(is.finite(.data$user_count), .data$user_count > 0)
+
+pop_wide <- pop_raw |>
+  dplyr::transmute(
+    area = std_area(.data$lad_name),
+    population_raw = suppressWarnings(as.numeric(.data$origin_population))
+  ) |>
+  dplyr::group_by(.data$area) |>
+  dplyr::summarise(population = safe_max(.data$population_raw), .groups = "drop") |>
+  dplyr::filter(is.finite(.data$population), .data$population > 0)
+
+bench_norm <- bench_raw |>
+  dplyr::transmute(
+    origin = std_area(.data$lad_name_2020),
+    destination = std_area(.data$lad_name_2021),
+    flow = suppressWarnings(as.numeric(.data$Count))
+  ) |>
+  dplyr::filter(is.finite(.data$flow), .data$flow >= 0) |>
+  dplyr::group_by(.data$origin, .data$destination) |>
+  dplyr::summarise(flow = sum(.data$flow), .groups = "drop")
+
+mpd_norm <- mpd_raw |>
+  dplyr::transmute(
+    origin = std_area(.data$origin),
+    destination = std_area(.data$destination),
+    flow = suppressWarnings(as.numeric(.data$total_flow)),
+    mpd_source = std_source(.data$source_mpd)
+  ) |>
+  dplyr::filter(is.finite(.data$flow), .data$flow >= 0) |>
+  dplyr::group_by(.data$origin, .data$destination, .data$mpd_source) |>
+  dplyr::summarise(flow = sum(.data$flow), .groups = "drop")
+
+top_source <- mpd_norm |>
+  dplyr::group_by(.data$mpd_source) |>
+  dplyr::summarise(total = sum(.data$flow), .groups = "drop") |>
+  dplyr::arrange(dplyr::desc(.data$total)) |>
+  dplyr::slice(1) |>
+  dplyr::pull(.data$mpd_source)
+
+S <- Reduce(
+  intersect,
+  list(
+    unique(bench_norm$origin),
+    unique(bench_norm$destination),
+    unique(pop_wide$area),
+    unique(users_wide$area)
+  )
+) |>
+  sort()
+
+bench_emp <- tidyr::crossing(origin = S, destination = S) |>
+  dplyr::left_join(
+    bench_norm |>
+      dplyr::filter(.data$origin %in% S, .data$destination %in% S) |>
+      dplyr::select(.data$origin, .data$destination, .data$flow),
+    by = c("origin", "destination")
+  ) |>
+  dplyr::mutate(flow = tidyr::replace_na(.data$flow, 0)) |>
+  dplyr::filter(.data$origin != .data$destination)
+
+mpd_emp <- tidyr::crossing(origin = S, destination = S) |>
+  dplyr::left_join(
+    mpd_norm |>
+      dplyr::filter(.data$origin %in% S, .data$destination %in% S, .data$mpd_source == top_source) |>
+      dplyr::select(.data$origin, .data$destination, .data$flow),
+    by = c("origin", "destination")
+  ) |>
+  dplyr::mutate(flow = tidyr::replace_na(.data$flow, 0)) |>
+  dplyr::filter(.data$origin != .data$destination)
+
+cov_emp <- pop_wide |>
+  dplyr::filter(.data$area %in% S) |>
+  dplyr::left_join(
+    users_wide |>
+      dplyr::filter(.data$mpd_source == top_source) |>
+      dplyr::select(.data$area, .data$user_count),
+    by = "area"
+  ) |>
+  dplyr::mutate(
+    user_count = ifelse(is.finite(.data$user_count), .data$user_count, .data$population * 0.6),
+    coverage_rate = .data$user_count / .data$population,
+    coverage_bias = 1 - .data$coverage_rate
+  )
+
+cov_sim <- simulated_coverage |>
+  dplyr::transmute(
+    area = .data$origin,
+    population = .data$population,
+    user_count = .data$user_count,
+    coverage_rate = .data$user_count / .data$population,
+    coverage_bias = 1 - .data$coverage_rate
+  )
+
+compare_distribution <- function(x, y, label) {
+  qx <- stats::quantile(x, probs = c(0.1, 0.5, 0.9), na.rm = TRUE)
+  qy <- stats::quantile(y, probs = c(0.1, 0.5, 0.9), na.rm = TRUE)
+  ks <- suppressWarnings(stats::ks.test(x, y))
+
+  tibble::tibble(
+    series = label,
+    n_emp = length(x),
+    n_sim = length(y),
+    mean_emp = mean(x, na.rm = TRUE),
+    mean_sim = mean(y, na.rm = TRUE),
+    q10_emp = qx[[1]],
+    q10_sim = qy[[1]],
+    q50_emp = qx[[2]],
+    q50_sim = qy[[2]],
+    q90_emp = qx[[3]],
+    q90_sim = qy[[3]],
+    ks_D = as.numeric(ks$statistic),
+    ks_p = ks$p.value
+  )
+}
+
+fidelity_tbl <- dplyr::bind_rows(
+  compare_distribution(log1p(bench_emp$flow), log1p(simulated_benchmark.od$flow), "benchmark_flow_log1p"),
+  compare_distribution(log1p(mpd_emp$flow), log1p(simulated_mpd.od$flow), "mpd_flow_log1p"),
+  compare_distribution(cov_emp$coverage_rate, cov_sim$coverage_rate, "coverage_rate"),
+  compare_distribution(cov_emp$coverage_bias, cov_sim$coverage_bias, "coverage_bias")
+)
+
+fidelity_tbl
+```
+
+```{r}
+plot_fidelity_ecdf <- function(emp, sim, xlab, title) {
+  df <- dplyr::bind_rows(
+    tibble::tibble(value = emp, source = "Empirical"),
+    tibble::tibble(value = sim, source = "Simulated")
+  )
+
+  ggplot(df, aes(x = .data$value, color = .data$source)) +
+    stat_ecdf(linewidth = 1) +
+    labs(title = title, x = xlab, y = "ECDF", color = NULL)
+}
+
+p_fid_1 <- plot_fidelity_ecdf(
+  log1p(bench_emp$flow),
+  log1p(simulated_benchmark.od$flow),
+  xlab = "log1p(flow)",
+  title = "Benchmark Flow Distribution"
+)
+
+p_fid_2 <- plot_fidelity_ecdf(
+  log1p(mpd_emp$flow),
+  log1p(simulated_mpd.od$flow),
+  xlab = "log1p(flow)",
+  title = "MPD Flow Distribution"
+)
+
+p_fid_3 <- plot_fidelity_ecdf(
+  cov_emp$coverage_bias,
+  cov_sim$coverage_bias,
+  xlab = "coverage bias = 1 - user_count/population",
+  title = "Coverage-Bias Distribution"
+)
+
+patchwork::wrap_plots(p_fid_1, p_fid_2, p_fid_3, nrow = 1)
+```
+
+## Fair-Lite Settings
+
+```{r}
+n_sub <- 12000
+fair_seeds <- c(123, 456, 789)
+
+make_flow_strata <- function(flow_vec) {
+  pos <- flow_vec[flow_vec > 0]
+  q50 <- stats::quantile(pos, 0.50, na.rm = TRUE)
+  q90 <- stats::quantile(pos, 0.90, na.rm = TRUE)
+
+  dplyr::case_when(
+    flow_vec <= 0 ~ "zero",
+    flow_vec <= q50 ~ "low",
+    flow_vec <= q90 ~ "mid",
+    TRUE ~ "high"
+  )
+}
+
+draw_fair_subset <- function(mpd_df, n_target, seed) {
+  set.seed(seed)
+  tmp <- mpd_df |>
+    dplyr::mutate(stratum = make_flow_strata(.data$flow))
+
+  counts <- tmp |>
+    dplyr::count(.data$stratum, name = "n_stratum") |>
+    dplyr::mutate(
+      n_take = pmax(1L, round(n_target * .data$n_stratum / sum(.data$n_stratum)))
+    )
+
+  # Force exact sample size by adjusting the largest stratum.
+  diff_n <- n_target - sum(counts$n_take)
+  if (diff_n != 0) {
+    idx <- which.max(counts$n_stratum)
+    counts$n_take[idx] <- pmax(1L, counts$n_take[idx] + diff_n)
+  }
+
+  sampled <- lapply(counts$stratum, function(s) {
+    df_s <- tmp[tmp$stratum == s, , drop = FALSE]
+    n_take_s <- counts$n_take[counts$stratum == s][1]
+    n_take_s <- min(n_take_s, nrow(df_s))
+    df_s[sample.int(nrow(df_s), size = n_take_s), , drop = FALSE]
+  }) |>
+    dplyr::bind_rows()
+
+  sampled |>
+    dplyr::select(-.data$stratum)
+}
+```
+
+## Validation functions
+
+```{r}
+collect_metrics <- function(method_name, adj_df, benchmark_df, seed_id) {
+  v <- validate_flow_overall(
+    adj_df = adj_df,
+    benchmark_od_df = benchmark_df,
+    method_name = method_name,
+    return_joined = FALSE
+  )
+
+  tibble::tibble(
+    seed = seed_id,
+    method = v$method,
+    n = v$n,
+    pearson_r = v$pearson_r,
+    spearman_rho = v$spearman_rho,
+    rmse = v$rmse,
+    mae = v$mae,
+    mape = v$mape,
+    r_squared = v$r_squared
+  )
+}
+
+build_compare_df <- function(adj_df, mpd_df, benchmark_df) {
+  adj_df |>
+    dplyr::select(origin, destination, flow_adj) |>
+    dplyr::inner_join(
+      mpd_df |>
+        dplyr::select(origin, destination, flow_mpd = flow),
+      by = c("origin", "destination")
+    ) |>
+    dplyr::inner_join(
+      benchmark_df |>
+        dplyr::select(origin, destination, flow_bench = flow),
+      by = c("origin", "destination")
+    )
+}
+
+plot_method_triptych <- function(method_label, adj_df, mpd_df, benchmark_df) {
+  df <- build_compare_df(adj_df, mpd_df = mpd_df, benchmark_df = benchmark_df)
+
+  p1 <- ggplot(df, aes(x = flow_mpd, y = flow_adj)) +
+    geom_point(alpha = 0.2, size = 0.8, color = "#2B8CBE") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#D95F0E") +
+    labs(
+      title = "Adjusted vs MPD",
+      x = "Mobile-phone-derived flow",
+      y = "Adjusted flow"
+    )
+
+  p2 <- ggplot(df, aes(x = flow_bench, y = flow_adj)) +
+    geom_point(alpha = 0.2, size = 0.8, color = "#41AE76") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#D95F0E") +
+    labs(
+      title = "Adjusted vs Benchmark",
+      x = "Benchmark flow",
+      y = "Adjusted flow"
+    )
+
+  p3 <- ggplot(df, aes(x = flow_bench, y = flow_mpd)) +
+    geom_point(alpha = 0.2, size = 0.8, color = "#756BB1") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#D95F0E") +
+    labs(
+      title = "MPD vs Benchmark",
+      x = "Benchmark flow",
+      y = "Mobile-phone-derived flow"
+    )
+
+  patchwork::wrap_plots(p1, p2, p3, nrow = 1) +
+    patchwork::plot_annotation(title = method_label)
+}
+```
+
+## Run Methods (Fair-Lite)
+
+```{r}
+run_methods_once <- function(seed_id) {
+  mpd_sub <- draw_fair_subset(simulated_mpd.od, n_target = n_sub, seed = seed_id)
+  benchmark_sub <- simulated_benchmark.od |>
+    dplyr::inner_join(
+      mpd_sub |> dplyr::select(origin, destination),
+      by = c("origin", "destination")
+    )
+
+  distance_sub <- simulated_distance |>
+    dplyr::inner_join(
+      mpd_sub |> dplyr::select(origin, destination),
+      by = c("origin", "destination")
+    )
+
+  adj_m1 <- adjust_inverse_penetration(
+    mpd_od_df = mpd_sub,
+    coverage_df = simulated_coverage,
+    weight_by = "both"
+  )
+
+  adj_m2 <- adjust_selection_rate(
+    mpd_od_df = mpd_sub,
+    coverage_df = simulated_coverage,
+    covariates_df = simulated_covariates,
+    income_col = "income_norm",
+    weight_by = "origin",
+    benchmark_od_df = benchmark_sub,
+    calibration_aggregate = "origin"
+  )
+
+  adj_m3 <- adjust_selection_rate2(
+    mpd_od_df = mpd_sub,
+    coverage_df = simulated_coverage,
+    weight_by = "origin",
+    benchmark_od_df = benchmark_sub,
+    calibration_aggregate = "origin"
+  )
+
+  adj_m4 <- adjust_raking_ratio(
+    mpd_od_df = mpd_sub,
+    benchmark_od_df = benchmark_sub
+  )
+
+  adj_m5 <- adjust_coefficient(
+    mpd_od_df = mpd_sub,
+    benchmark_od_df = benchmark_sub,
+    model_family = "ols",
+    level = "od"
+  )
+
+  mpd_s1 <- mpd_sub |>
+    dplyr::mutate(
+      mpd_source = "operator_a",
+      mpd_time = "2021_q1"
+    )
+  coverage_s1 <- simulated_coverage |>
+    dplyr::mutate(
+      mpd_source = "operator_a",
+      mpd_time = "2021_q1"
+    )
+
+  adj_m6 <- adjust_multilevel_bayes(
+    mpd_od_df = mpd_s1,
+    coverage_df = coverage_s1,
+    covariates_df = simulated_covariates,
+    distance_df = distance_sub,
+    model_engine = "frequentist",
+    scenario = "s1",
+    source_col = "mpd_source",
+    time_col = "mpd_time",
+    repeated_observation = "none",
+    random_intercept = "none",
+    model_family = "poisson",
+    flow_adj_summary = "median"
+  )
+
+  metrics <- dplyr::bind_rows(
+    collect_metrics("adjust_inverse_penetration", adj_m1, benchmark_sub, seed_id),
+    collect_metrics("adjust_selection_rate", adj_m2, benchmark_sub, seed_id),
+    collect_metrics("adjust_selection_rate2", adj_m3, benchmark_sub, seed_id),
+    collect_metrics("adjust_raking_ratio", adj_m4, benchmark_sub, seed_id),
+    collect_metrics("adjust_coefficient", adj_m5, benchmark_sub, seed_id),
+    collect_metrics("adjust_multilevel_bayes", adj_m6, benchmark_sub, seed_id)
+  )
+
+  list(
+    mpd_sub = mpd_sub,
+    benchmark_sub = benchmark_sub,
+    adj = list(
+      adjust_inverse_penetration = adj_m1,
+      adjust_selection_rate = adj_m2,
+      adjust_selection_rate2 = adj_m3,
+      adjust_raking_ratio = adj_m4,
+      adjust_coefficient = adj_m5,
+      adjust_multilevel_bayes = adj_m6
+    ),
+    metrics = metrics
+  )
+}
+
+res_list <- purrr::map(fair_seeds, run_methods_once)
+metrics_tbl <- dplyr::bind_rows(purrr::map(res_list, "metrics"))
+
+metrics_summary <- metrics_tbl |>
+  dplyr::group_by(.data$method) |>
+  dplyr::summarise(
+    n_mean = mean(.data$n),
+    pearson_r_mean = mean(.data$pearson_r),
+    pearson_r_sd = stats::sd(.data$pearson_r),
+    rmse_mean = mean(.data$rmse),
+    rmse_sd = stats::sd(.data$rmse),
+    r_squared_mean = mean(.data$r_squared),
+    r_squared_sd = stats::sd(.data$r_squared),
+    .groups = "drop"
+  ) |>
+  dplyr::arrange(dplyr::desc(.data$pearson_r_mean))
+
+metrics_summary
+```
+
+## Replicate-Level Metrics
+
+```{r}
+metrics_tbl
+```
+
+## Scatterplot Rows By Method (Seed 123)
+
+```{r}
+vis <- res_list[[1]]
+```
+
+```{r}
+plot_method_triptych(
+  "adjust_inverse_penetration",
+  vis$adj$adjust_inverse_penetration,
+  mpd_df = vis$mpd_sub,
+  benchmark_df = vis$benchmark_sub
+)
+```
+
+### `adjust_selection_rate`
+
+```{r}
+plot_method_triptych(
+  "adjust_selection_rate",
+  vis$adj$adjust_selection_rate,
+  mpd_df = vis$mpd_sub,
+  benchmark_df = vis$benchmark_sub
+)
+```
+
+### `adjust_selection_rate2`
+
+```{r}
+plot_method_triptych(
+  "adjust_selection_rate2",
+  vis$adj$adjust_selection_rate2,
+  mpd_df = vis$mpd_sub,
+  benchmark_df = vis$benchmark_sub
+)
+```
+
+### `adjust_raking_ratio`
+
+```{r}
+plot_method_triptych(
+  "adjust_raking_ratio",
+  vis$adj$adjust_raking_ratio,
+  mpd_df = vis$mpd_sub,
+  benchmark_df = vis$benchmark_sub
+)
+```
+
+### `adjust_coefficient`
+
+```{r}
+plot_method_triptych(
+  "adjust_coefficient",
+  vis$adj$adjust_coefficient,
+  mpd_df = vis$mpd_sub,
+  benchmark_df = vis$benchmark_sub
+)
+```
+
+### `adjust_multilevel_bayes` frequentist placeholder
+
+```{r}
+plot_method_triptych(
+  "adjust_multilevel_bayes (frequentist placeholder)",
+  vis$adj$adjust_multilevel_bayes,
+  mpd_df = vis$mpd_sub,
+  benchmark_df = vis$benchmark_sub
+)
+```
+
+## Plot Comparison (Mean Across Seeds)
+
+```{r}
+metrics_summary |>
+  dplyr::mutate(method = forcats::fct_reorder(method, pearson_r_mean)) |>
+  ggplot(aes(x = method, y = pearson_r_mean)) +
+  geom_col(fill = "#2B8CBE", alpha = 0.9) +
+  coord_flip() +
+  labs(
+    title = "Pearson Correlation by Method (Mean Across Seeds)",
+    x = "Method",
+    y = "Pearson r"
+  )
+```
+
+```{r}
+metrics_summary |>
+  dplyr::mutate(method = forcats::fct_reorder(method, r_squared_mean)) |>
+  ggplot(aes(x = method, y = r_squared_mean)) +
+  geom_col(fill = "#41AE76", alpha = 0.9) +
+  coord_flip() +
+  labs(
+    title = "R-squared by Method (Mean Across Seeds)",
+    x = "Method",
+    y = "R-squared"
+  )
+```
+
+## Inspect Method 6 Attributes (Seed 123)
+
+```{r}
+m6_vis <- vis$adj$adjust_multilevel_bayes
+head(attr(m6_vis, "coefficients"))
+attr(m6_vis, "formula")
+attr(m6_vis, "backend")
+attr(m6_vis, "model_engine")
+attr(m6_vis, "scenario")
+attr(m6_vis, "model_family")
+```
+
+The example above is S1: one source and one time unit. For repeated
+observations, keep the same function but change `scenario`,
+`source_col`, `time_col`, and `repeated_observation`: use `s2` and
+`repeated_observation = "time"` for one source over multiple periods, `s3` and
+`"source"` for multiple sources in one period, and `s4` plus `"source_time"`
+when both source and time vary.
+
+## Render
+
+```bash
+quarto render vignettes/method-comparison.qmd
+```

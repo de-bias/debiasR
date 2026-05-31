@@ -1,23 +1,35 @@
 # Test Health
 
-Last updated: 2026-05-08
+Last updated: 2026-05-21
 
 ## Summary
 
 - Recommended fast-tier entry point:
   - `Rscript scripts/run_fast_tests.R`
+- Recommended broad local development runner:
+  - `Rscript scripts/run_dev_tests.R`
+- Optional Bayesian runner:
+  - `Rscript scripts/run_bayesian_tests.R`
 - The runner loads the package with `devtools::load_all(".")` before executing targeted tests.
 - Full suite still includes a slower Bayesian test file with optional dependencies.
 - Observed behavior today:
-  - `Rscript scripts/run_fast_tests.R` passes.
+  - `Rscript scripts/run_fast_tests.R` passes, most recently on 2026-05-21 after adding MSOA-like frequentist multilevel formula-contract tests and a Bayesian S2-S4 deferral guard.
   - merged PR #11 (`Codex/validation distribution`) passed the GitHub Actions fast deterministic workflow for commit `59705b376c26a4b33ecbbc9cd1063b037fd61572`.
-  - current local branch head `b787cfd3edfa8e31660c81a509b6e1f459b2daa2` is newer than the merged PR head and has not yet had a pull-request-triggered workflow run.
-  - package-readiness check with tests/vignettes/manual skipped now completes with 0 errors, 0 warnings, and 2 notes:
+  - the current working tree has been validated locally; the pushed head still needs remote GitHub Actions confirmation.
+  - package-readiness check with tests/vignettes/manual skipped now completes with 0 errors, 0 warnings, and 1 note:
     `devtools::check(document = FALSE, build_args = "--no-build-vignettes", args = c("--no-manual", "--ignore-vignettes", "--no-tests"), error_on = "never")`.
-  - the remaining package-readiness notes are that optional `debiasRdata` is not installed and the checker cannot verify current time.
+  - the remaining package-readiness note is that the checker could not verify current time.
+  - `debiasRdata` is now declared in `Suggests`, so conditional examples no longer trigger an unstated-dependency warning.
+  - `debiasRdata` now exists at <https://github.com/de-bias/debiasRdata>; empirical integration should be validated with the installed companion package.
+  - local integration smoke check on 2026-05-18 passed by loading `../debiasRdata` and calling `debiasR_example_data(n_areas = 5, complete_grid = TRUE)`. The helper returned default LAD objects and `distance_source = "debiasRdata_lad_centroids"`.
+  - core workshop vignettes `vignettes/01-landing-page.qmd` through `vignettes/08-data.qmd` render against the installed `debiasRdata` route using bounded empirical examples.
+  - `vignettes/06-adjusting-biases.qmd`, `vignettes/testing/methods-conceptual-guide.qmd`, and `vignettes/testing/simulated-methods-walkthrough.qmd` render after replacing the Bayesian Method 6 example with the S1 frequentist placeholder.
+  - `vignettes/testing/short-illustration.qmd` and `vignettes/testing/method-comparison.qmd` render to a temporary output directory after the same placeholder update.
   - `quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd` passes.
   - core workshop vignettes and updated testing notebooks render cleanly without `debiasRdata` installed by exiting early with an installation note.
   - targeted tests for `measure_bias`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
+  - targeted fast tests for `model_engine = "frequentist"` pass under `load_all`, covering S1-S4 scenario resolution, source/time metadata preparation, observed prediction, complete-grid prediction, MSOA-like default formula-contract fixtures, `model_terms` metadata, the Bayesian S2-S4 deferral guard, and the optional `lme4` mixed-model smoke path when installed.
+  - `validate_bias_residual_structure()` now has a regression test for the documented `population_lm` residual option.
   - `test-adjust-coefficient.R` skips one optional `pscl`-dependent case when `pscl` is not installed.
   - the Bayesian draw-summary names mismatch has been fixed in the optional Bayesian test file.
   - local optional Bayesian test-file run completed with `rstanarm` installed: no failures, one expected skip for the unavailable-backend fallback path, and expected warnings from locale handling, synthetic-distance fallback, and deliberately low-iteration MCMC diagnostics.
@@ -35,6 +47,7 @@ Last updated: 2026-05-08
 - `tests/testthat/test-adjust-selection-rate2.R`
 - `tests/testthat/test-adjust-raking-ratio.R`
 - `tests/testthat/test-adjust-coefficient.R`
+- `tests/testthat/test-adjust-multilevel-frequentist-dev.R`
 - `tests/testthat/test-validate-flow-overall.R`
 - `tests/testthat/test-validate-flow-pairs.R`
 - `tests/testthat/test-validate-flow-residuals.R`
@@ -52,7 +65,9 @@ Last updated: 2026-05-08
 1. Direct `testthat::test_dir("tests/testthat")` without package load context may fail.
 2. Bayesian tests are slower and environment-sensitive because of optional dependencies.
 3. Full package checks that run the optional Bayesian lane may still be slow on machines with `rstanarm` installed.
-4. Some warnings are locale-related (`LC_ALL='C.UTF-8'`) and mostly non-blocking.
+4. Empirical tests that require `debiasRdata` should remain conditional because the companion package is optional.
+5. Some warnings are locale-related (`LC_ALL='C.UTF-8'`) and mostly non-blocking.
+6. The optional tiny-data `lme4` mixed-model smoke path may print a singular-fit message; this is expected for the deliberately small fixture.
 
 ## Recommended CI Strategy
 
@@ -66,6 +81,16 @@ Last updated: 2026-05-08
 ```r
 # Local fast tier
 Rscript scripts/run_fast_tests.R
+```
+
+```r
+# Local development tier, excluding optional Bayesian tests by default
+Rscript scripts/run_dev_tests.R
+```
+
+```r
+# Optional Bayesian tier
+Rscript scripts/run_bayesian_tests.R
 ```
 
 ```bash

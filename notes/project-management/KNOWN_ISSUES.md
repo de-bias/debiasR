@@ -1,6 +1,6 @@
 # Known Issues
 
-Last updated: 2026-04-02
+Last updated: 2026-05-18
 
 ## High Priority
 
@@ -14,10 +14,10 @@ Last updated: 2026-04-02
 - Impact: unreliable signal in local and CI usage.
 - Suggested fix: keep contributors and CI on `Rscript scripts/run_fast_tests.R` for the fast tier, and reserve raw `test_dir()` runs for explicit development/debugging.
 
-3. Prototype Bayesian pathway not clearly bounded in all docs
-- Description: `adjust_multilevel_bayes()` is stage-1 only; stage-2 imputation pending.
+3. Prototype Bayesian pathway still needs empirical runtime guidance
+- Description: `adjust_multilevel_bayes()` supports observed-flow and complete-grid prediction scopes, but the empirical LAD runtime envelope has not been documented yet.
 - Impact: users may over-interpret readiness/scope.
-- Suggested fix: keep the README and status page explicit that the Bayesian path is experimental.
+- Suggested fix: keep the README and status page explicit that the Bayesian path is experimental, and record feasible LAD grid sizes after empirical validation.
 
 ## Medium Priority
 
@@ -31,7 +31,12 @@ Last updated: 2026-04-02
 - Impact: some review and onboarding friction remains.
 - Suggested fix: keep follow-up cleanup small and focused, using the task board to prioritize only active work.
 
-3. README structure section is not fully descriptive
+3. MSOA distance remains optional/future
+- Description: the default LAD route can derive selected-area distance from `lad_centroids`, but MSOA distance-aware examples still need a future `msoa_OD_distance` or `msoa_centroids` asset.
+- Impact: users choosing `geography = "msoa"` may still see `distance_source = "not_available"`.
+- Suggested fix: add MSOA distance assets only if MSOA-specific empirical Bayesian examples become a priority.
+
+4. README structure section is not fully descriptive
 - Description: top-level docs are much better aligned now, but they still need periodic checks against the exported API and workflow files.
 - Impact: drift could reappear as new methods or notes are added.
 - Suggested fix: review README/CONTRIBUTING/STATUS whenever exported functions or CI entry points change.

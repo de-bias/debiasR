@@ -32,12 +32,30 @@
 #'   \code{coverage_df}.
 #' @param distance_col Name of distance column in \code{distance_df} (or in
 #'   \code{mpd_od_df} if \code{distance_df = NULL}). Default \code{"distance_km"}.
+#' @param source_col Optional mobile-phone data source column in
+#'   \code{mpd_od_df}. If \code{NULL} and \code{mpd_source} exists, that column
+#'   is used. Source metadata supports S3 and S4 inputs.
+#' @param time_col Optional observation-period column in \code{mpd_od_df}.
+#'   Time metadata supports S2 and S4 inputs.
+#' @param scenario Input scenario contract: \code{"auto"}, \code{"s1"},
+#'   \code{"s2"}, \code{"s3"}, or \code{"s4"}. S1 is single source/single time,
+#'   S2 is single source/multiple times, S3 is multiple sources/single time, and
+#'   S4 is multiple sources/multiple times. \code{"auto"} infers the scenario
+#'   from the supplied source and time columns.
+#' @param repeated_observation Repeated-observation structure:
+#'   \code{"auto"}, \code{"none"}, \code{"time"}, \code{"source"}, or
+#'   \code{"source_time"}. \code{"auto"} maps from \code{scenario}.
 #' @param random_intercept Random-intercept structure: \code{"origin"},
-#'   \code{"destination"}, \code{"od"}, or \code{"none"}.
+#'   \code{"destination"}, \code{"od"}, \code{"source"}, \code{"time"},
+#'   \code{"source_time"}, or \code{"none"}.
 #' @param custom_formula Optional model formula override (character or formula).
 #'   If provided, it supersedes auto-formula construction.
 #' @param model_family Count family: \code{"poisson"}, \code{"negbin"},
 #'   \code{"zip"}, or \code{"zinb"}.
+#' @param model_engine Development engine: \code{"bayesian"} uses the existing
+#'   Stage-1 Bayesian S1 backend; \code{"frequentist"} uses a faster
+#'   Poisson/negative-binomial GLM/GLMM scaffold for S1-S4 model-contract
+#'   development before Bayesian scenario support is promoted.
 #' @param backend Bayesian backend: \code{"auto"}, \code{"rstanarm"}, or
 #'   \code{"brms"}. \code{"auto"} chooses \pkg{rstanarm} for Poisson/NegBin and
 #'   \pkg{brms} for zero-inflated families.
@@ -70,12 +88,16 @@
 #'     \item \code{"model"}: fitted model object
 #'     \item \code{"formula"}: fitted formula
 #'     \item \code{"coefficients"}: fixed-effect summary table
+#'     \item \code{"model_engine"}: \code{"bayesian"} or \code{"frequentist"}
 #'     \item \code{"backend"}: backend used
 #'     \item \code{"model_family"}: fitted family
+#'     \item \code{"model_terms"}: resolved fixed-effect and random-effect terms
 #'     \item \code{"stage"}: development stage label
 #'     \item \code{"stage_scope"}: short statement of scope
 #'     \item \code{"result_metadata"}: compact Stage-1 metadata bundle
 #'     \item \code{"random_intercept"}: grouping structure used
+#'     \item \code{"scenario"}: resolved S1-S4 input scenario
+#'     \item \code{"repeated_observation"}: resolved repeated-observation structure
 #'     \item \code{"flow_adj_summary"}: posterior summary used for \code{flow_adj}
 #'     \item \code{"distance_source"}: where distance came from
 #'     \item \code{"diagnostics"}: lightweight fit/convergence metadata when available
@@ -90,9 +112,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                     income_col = "income_norm",
                                     pop_col = "population",
                                     distance_col = "distance_km",
-                                    random_intercept = c("origin", "destination", "od", "none"),
+                                    source_col = NULL,
+                                    time_col = NULL,
+                                    scenario = c("auto", "s1", "s2", "s3", "s4"),
+                                    repeated_observation = c("auto", "none", "time", "source", "source_time"),
+                                    random_intercept = c("origin", "destination", "od", "source", "time", "source_time", "none"),
                                     custom_formula = NULL,
                                     model_family = c("poisson", "negbin", "zip", "zinb"),
+                                    model_engine = c("bayesian", "frequentist"),
                                     backend = c("auto", "rstanarm", "brms"),
                                     flow_adj_summary = c("mean", "median"),
                                     prediction_scope = c("observed", "complete_grid"),
@@ -104,18 +131,64 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                     keep_cols = character()) {
 
   random_intercept <- match.arg(random_intercept)
+  scenario <- match.arg(scenario)
   model_family <- match.arg(model_family)
-  backend <- .resolve_multilevel_backend(
-    model_family = model_family,
-    backend = backend
-  )
+  model_engine <- match.arg(model_engine)
+  repeated_observation <- match.arg(repeated_observation)
   flow_adj_summary <- match.arg(flow_adj_summary)
   prediction_scope <- match.arg(prediction_scope)
   start_time <- Sys.time()
 
+  if (model_engine == "frequentist") {
+    return(.adjust_multilevel_frequentist_dev(
+      mpd_od_df = mpd_od_df,
+      coverage_df = coverage_df,
+      covariates_df = covariates_df,
+      distance_df = distance_df,
+      flow_col = flow_col,
+      income_col = income_col,
+      pop_col = pop_col,
+      distance_col = distance_col,
+      source_col = source_col,
+      time_col = time_col,
+      scenario = scenario,
+      repeated_observation = repeated_observation,
+      random_intercept = random_intercept,
+      custom_formula = custom_formula,
+      model_family = model_family,
+      flow_adj_summary = flow_adj_summary,
+      prediction_scope = prediction_scope,
+      include_flow_adj_draws = include_flow_adj_draws,
+      keep_cols = keep_cols,
+      start_time = start_time
+    ))
+  }
+
+  backend <- .resolve_multilevel_backend(
+    model_family = model_family,
+    backend = backend
+  )
+
+  scenario_info <- .resolve_multilevel_scenario(
+    mpd_od_df = mpd_od_df,
+    coverage_df = coverage_df,
+    source_col = source_col,
+    time_col = time_col,
+    scenario = scenario,
+    repeated_observation = repeated_observation
+  )
+  .validate_multilevel_engine_scope(
+    model_engine = model_engine,
+    scenario_info = scenario_info
+  )
+
   od_audit <- NULL
   if (prediction_scope == "complete_grid") {
-    od_audit <- .audit_multilevel_complete_grid(mpd_od_df, flow_col = flow_col)
+    od_audit <- .audit_multilevel_complete_grid(
+      mpd_od_df,
+      flow_col = flow_col,
+      scenario_cols = scenario_info$audit_cols
+    )
     if (!isTRUE(od_audit$strict_square_support[[1]])) {
       stop(
         "`prediction_scope = 'complete_grid'` requires a strict square OD grid: ",
@@ -133,7 +206,10 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     flow_col = flow_col,
     income_col = income_col,
     pop_col = pop_col,
-    distance_col = distance_col
+    distance_col = distance_col,
+    source_col = source_col,
+    time_col = time_col,
+    scenario_info = scenario_info
   )
 
   prediction_df <- prep$model_df
@@ -147,24 +223,26 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     stop("Insufficient rows for fitting after preprocessing. Need at least 2 complete rows.")
   }
 
-  if (random_intercept == "origin" && length(unique(fit_df$origin)) < 2L) {
-    stop("`random_intercept = 'origin'` requires at least 2 distinct origins.")
-  }
-  if (random_intercept == "destination" && length(unique(fit_df$destination)) < 2L) {
-    stop("`random_intercept = 'destination'` requires at least 2 distinct destinations.")
-  }
+  .validate_multilevel_random_intercept(fit_df, random_intercept)
 
-  if (random_intercept == "od") {
+  if (random_intercept == "od" && max(tabulate(factor(fit_df$od_id))) <= 1L) {
     warning(
       "OD random intercepts may be weakly identified when each OD pair appears once. ",
       "Use with caution."
     )
   }
 
+  scenario_terms <- .resolve_multilevel_formula_terms(
+    data = fit_df,
+    repeated_observation = scenario_info$repeated_observation,
+    random_intercept = random_intercept
+  )
+
   fit_formula <- .build_multilevel_formula(
     random_intercept = random_intercept,
     custom_formula = custom_formula,
-    include_pop_terms = prep$has_pop_terms
+    include_pop_terms = prep$has_pop_terms,
+    scenario_terms = scenario_terms
   )
 
   fit <- .fit_multilevel_bayes(
@@ -225,6 +303,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   select_cols <- c(
     "origin", "destination",
     if ("mpd_source" %in% names(base_out)) "mpd_source",
+    if ("mpd_time" %in% names(base_out)) "mpd_time",
     keep_cols,
     "mpd_observed",
     "mpd_zero_filled",
@@ -247,6 +326,13 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     backend = backend,
     probs = c(0.025, 0.975)
   )
+  model_terms <- .summarize_multilevel_model_terms(
+    formula = fit_formula,
+    custom_formula = custom_formula,
+    include_pop_terms = prep$has_pop_terms,
+    scenario_terms = scenario_terms,
+    random_intercept = random_intercept
+  )
 
   runtime_seconds <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
   stage_scope <- if (prediction_scope == "complete_grid") {
@@ -257,10 +343,19 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
   result_metadata <- list(
     backend = backend,
+    model_engine = model_engine,
     model_family = model_family,
     stage = "stage_1",
     stage_scope = stage_scope,
     prediction_scope = prediction_scope,
+    scenario = scenario_info$scenario,
+    source_col = scenario_info$source_col,
+    time_col = scenario_info$time_col,
+    repeated_observation = scenario_info$repeated_observation,
+    scenario_cols = scenario_info$scenario_cols,
+    n_sources = scenario_info$n_sources,
+    n_time_periods = scenario_info$n_time_periods,
+    model_terms = model_terms,
     random_intercept = random_intercept,
     flow_adj_summary = flow_adj_summary,
     distance_source = prep$distance_source,
@@ -282,11 +377,18 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "formula") <- deparse(fit_formula)
   attr(out, "coefficients") <- coef_tbl
   attr(out, "backend") <- backend
+  attr(out, "model_engine") <- model_engine
   attr(out, "model_family") <- model_family
+  attr(out, "model_terms") <- model_terms
   attr(out, "stage") <- "stage_1"
   attr(out, "stage_scope") <- stage_scope
   attr(out, "result_metadata") <- result_metadata
   attr(out, "random_intercept") <- random_intercept
+  attr(out, "scenario") <- scenario_info$scenario
+  attr(out, "source_col") <- scenario_info$source_col
+  attr(out, "time_col") <- scenario_info$time_col
+  attr(out, "repeated_observation") <- scenario_info$repeated_observation
+  attr(out, "scenario_info") <- scenario_info
   attr(out, "flow_adj_summary") <- flow_adj_summary
   attr(out, "prediction_scope") <- prediction_scope
   attr(out, "runtime_seconds") <- runtime_seconds
@@ -312,6 +414,317 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   out
+}
+
+.adjust_multilevel_frequentist_dev <- function(mpd_od_df,
+                                               coverage_df,
+                                               covariates_df,
+                                               distance_df = NULL,
+                                               flow_col = "flow",
+                                               income_col = "income_norm",
+                                               pop_col = "population",
+                                               distance_col = "distance_km",
+                                               source_col = NULL,
+                                               time_col = NULL,
+                                               scenario = c("auto", "s1", "s2", "s3", "s4"),
+                                               repeated_observation = c("auto", "none", "time", "source", "source_time"),
+                                               random_intercept = c("origin", "destination", "od", "source", "time", "source_time", "none"),
+                                               custom_formula = NULL,
+                                               model_family = c("poisson", "negbin", "zip", "zinb"),
+                                               flow_adj_summary = c("mean", "median"),
+                                               prediction_scope = c("observed", "complete_grid"),
+                                               include_flow_adj_draws = FALSE,
+                                               keep_cols = character(),
+                                               start_time = Sys.time()) {
+  scenario <- match.arg(scenario)
+  repeated_observation <- match.arg(repeated_observation)
+  random_intercept <- match.arg(random_intercept)
+  model_family <- match.arg(model_family)
+  flow_adj_summary <- match.arg(flow_adj_summary)
+  prediction_scope <- match.arg(prediction_scope)
+
+  if (model_family %in% c("zip", "zinb")) {
+    stop("The internal frequentist development engine supports only Poisson and negative-binomial families.")
+  }
+
+  scenario_info <- .resolve_multilevel_scenario(
+    mpd_od_df = mpd_od_df,
+    coverage_df = coverage_df,
+    source_col = source_col,
+    time_col = time_col,
+    scenario = scenario,
+    repeated_observation = repeated_observation
+  )
+
+  od_audit <- NULL
+  if (prediction_scope == "complete_grid") {
+    od_audit <- .audit_multilevel_complete_grid(
+      mpd_od_df,
+      flow_col = flow_col,
+      scenario_cols = scenario_info$audit_cols
+    )
+    if (!isTRUE(od_audit$strict_square_support[[1]])) {
+      stop(
+        "`prediction_scope = 'complete_grid'` requires a strict square OD grid: ",
+        "same origin and destination area set, expected OD row count, no duplicate OD/source/time keys, ",
+        "and finite non-negative flows."
+      )
+    }
+  }
+
+  prep <- .prepare_multilevel_bayes_data(
+    mpd_od_df = mpd_od_df,
+    coverage_df = coverage_df,
+    covariates_df = covariates_df,
+    distance_df = distance_df,
+    flow_col = flow_col,
+    income_col = income_col,
+    pop_col = pop_col,
+    distance_col = distance_col,
+    source_col = source_col,
+    time_col = time_col,
+    scenario_info = scenario_info
+  )
+
+  prediction_df <- prep$model_df
+  fit_df <- prediction_df
+  if (prediction_scope == "complete_grid" && "mpd_observed" %in% names(fit_df)) {
+    fit_df <- fit_df |>
+      dplyr::filter(.data$mpd_observed)
+  }
+
+  if (nrow(fit_df) < 2L) {
+    stop("Insufficient rows for fitting after preprocessing. Need at least 2 complete rows.")
+  }
+  .validate_multilevel_random_intercept(fit_df, random_intercept)
+
+  scenario_terms <- .resolve_multilevel_formula_terms(
+    data = fit_df,
+    repeated_observation = scenario_info$repeated_observation,
+    random_intercept = random_intercept
+  )
+
+  fit_formula <- .build_multilevel_formula(
+    random_intercept = random_intercept,
+    custom_formula = custom_formula,
+    include_pop_terms = prep$has_pop_terms,
+    scenario_terms = scenario_terms
+  )
+
+  fit <- .fit_multilevel_frequentist(
+    model_family = model_family,
+    formula = fit_formula,
+    data = fit_df,
+    random_intercept = random_intercept
+  )
+
+  lin_fix <- .predict_linpred_fixef_frequentist(fit, prediction_df)
+  omega <- .extract_omega_frequentist(fit)
+  flow_adj <- exp(as.numeric(lin_fix) - omega * as.numeric(prediction_df$bias_e_origin))
+
+  modeled_out <- prediction_df |>
+    dplyr::mutate(flow_adj = as.numeric(flow_adj))
+
+  base_out <- prep$base_df |>
+    dplyr::mutate(
+      prediction_scope = prediction_scope,
+      model_fit_status = dplyr::if_else(
+        .data$row_id %in% fit_df$row_id,
+        "fit",
+        dplyr::if_else(.data$row_id %in% prediction_df$row_id, "predicted", "excluded")
+      )
+    ) |>
+    dplyr::left_join(
+      dplyr::select(modeled_out, dplyr::all_of(c("row_id", "flow_adj"))),
+      by = "row_id"
+    )
+
+  keep_cols <- keep_cols[keep_cols %in% names(base_out)]
+  select_cols <- c(
+    "origin", "destination",
+    if ("mpd_source" %in% names(base_out)) "mpd_source",
+    if ("mpd_time" %in% names(base_out)) "mpd_time",
+    keep_cols,
+    "mpd_observed",
+    "mpd_zero_filled",
+    "mpd_row_status",
+    "prediction_scope",
+    "model_fit_status",
+    "flow",
+    "flow_adj",
+    "distance_km",
+    "log_distance",
+    "bias_e_origin",
+    "log_dist_synth"
+  )
+
+  out <- dplyr::select(base_out, dplyr::any_of(select_cols)) |>
+    tibble::as_tibble()
+
+  coef_tbl <- .coef_summary_frequentist(fit)
+  model_terms <- .summarize_multilevel_model_terms(
+    formula = fit_formula,
+    custom_formula = custom_formula,
+    include_pop_terms = prep$has_pop_terms,
+    scenario_terms = scenario_terms,
+    random_intercept = random_intercept
+  )
+  runtime_seconds <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+  stage_scope <- if (prediction_scope == "complete_grid") {
+    "complete_grid_prediction"
+  } else {
+    "observed_od_only"
+  }
+  result_metadata <- list(
+    backend = "frequentist_dev",
+    model_engine = "frequentist",
+    model_family = model_family,
+    stage = "frequentist_dev",
+    stage_scope = stage_scope,
+    prediction_scope = prediction_scope,
+    scenario = scenario_info$scenario,
+    source_col = scenario_info$source_col,
+    time_col = scenario_info$time_col,
+    repeated_observation = scenario_info$repeated_observation,
+    scenario_cols = scenario_info$scenario_cols,
+    n_sources = scenario_info$n_sources,
+    n_time_periods = scenario_info$n_time_periods,
+    model_terms = model_terms,
+    random_intercept = random_intercept,
+    flow_adj_summary = flow_adj_summary,
+    distance_source = prep$distance_source,
+    runtime_seconds = runtime_seconds,
+    n_input_rows = nrow(prep$base_df),
+    n_fit_rows = nrow(fit_df),
+    n_prediction_rows = nrow(prediction_df),
+    n_zero_filled_prediction_rows = sum(prediction_df$mpd_zero_filled %in% TRUE),
+    od_audit = od_audit
+  )
+
+  attr(out, "model") <- fit
+  attr(out, "formula") <- deparse(fit_formula)
+  attr(out, "coefficients") <- coef_tbl
+  attr(out, "backend") <- "frequentist_dev"
+  attr(out, "model_engine") <- "frequentist"
+  attr(out, "model_family") <- model_family
+  attr(out, "model_terms") <- model_terms
+  attr(out, "stage") <- "frequentist_dev"
+  attr(out, "stage_scope") <- stage_scope
+  attr(out, "result_metadata") <- result_metadata
+  attr(out, "random_intercept") <- random_intercept
+  attr(out, "scenario") <- scenario_info$scenario
+  attr(out, "source_col") <- scenario_info$source_col
+  attr(out, "time_col") <- scenario_info$time_col
+  attr(out, "repeated_observation") <- scenario_info$repeated_observation
+  attr(out, "scenario_info") <- scenario_info
+  attr(out, "flow_adj_summary") <- flow_adj_summary
+  attr(out, "prediction_scope") <- prediction_scope
+  attr(out, "runtime_seconds") <- runtime_seconds
+  attr(out, "od_audit") <- od_audit
+  attr(out, "distance_source") <- prep$distance_source
+  attr(out, "diagnostics") <- .collect_frequentist_diagnostics(fit, coef_tbl)
+  attr(out, "prototype_notes") <- paste(
+    "Internal frequentist development scaffold for multilevel scenario testing.",
+    "The intended user-facing inferential method remains Bayesian."
+  )
+  if (isTRUE(include_flow_adj_draws)) {
+    attr(out, "flow_adj_draws") <- matrix(flow_adj, nrow = 1L)
+  }
+
+  out
+}
+
+.fit_multilevel_frequentist <- function(model_family,
+                                        formula,
+                                        data,
+                                        random_intercept) {
+  if (model_family == "poisson" && random_intercept == "none") {
+    return(stats::glm(
+      formula = formula,
+      data = data,
+      family = stats::poisson(link = "log")
+    ))
+  }
+
+  if (model_family == "negbin" && random_intercept == "none") {
+    if (!requireNamespace("MASS", quietly = TRUE)) {
+      stop("The internal negative-binomial frequentist engine requires the optional 'MASS' package.")
+    }
+    return(MASS::glm.nb(
+      formula = formula,
+      data = data
+    ))
+  }
+
+  if (!requireNamespace("lme4", quietly = TRUE)) {
+    stop("Frequentist random-intercept development fits require the optional 'lme4' package.")
+  }
+
+  if (model_family == "poisson") {
+    return(lme4::glmer(
+      formula = formula,
+      data = data,
+      family = stats::poisson(link = "log")
+    ))
+  }
+
+  if (model_family == "negbin") {
+    return(lme4::glmer.nb(
+      formula = formula,
+      data = data
+    ))
+  }
+
+  stop("Unsupported frequentist model family: ", model_family)
+}
+
+.predict_linpred_fixef_frequentist <- function(fit, newdata) {
+  if (inherits(fit, "merMod")) {
+    return(as.numeric(stats::predict(
+      fit,
+      newdata = newdata,
+      type = "link",
+      re.form = NA,
+      allow.new.levels = TRUE
+    )))
+  }
+
+  as.numeric(stats::predict(fit, newdata = newdata, type = "link"))
+}
+
+.extract_omega_frequentist <- function(fit) {
+  coefs <- if (inherits(fit, "merMod")) {
+    lme4::fixef(fit)
+  } else {
+    stats::coef(fit)
+  }
+
+  if ("bias_e_origin" %in% names(coefs)) {
+    return(as.numeric(coefs[["bias_e_origin"]]))
+  }
+
+  warning("Could not find coefficient for bias_e_origin; using zero.")
+  0
+}
+
+.coef_summary_frequentist <- function(fit) {
+  fit_summary <- summary(fit)
+  coef_obj <- fit_summary$coefficients
+  out <- as.data.frame(coef_obj)
+  out$term <- rownames(out)
+  rownames(out) <- NULL
+  if ("Estimate" %in% names(out)) names(out)[names(out) == "Estimate"] <- "mean"
+  if ("Std. Error" %in% names(out)) names(out)[names(out) == "Std. Error"] <- "sd"
+  out
+}
+
+.collect_frequentist_diagnostics <- function(fit, coefficients) {
+  list(
+    backend = "frequentist_dev",
+    has_bias_term = "bias_e_origin" %in% coefficients$term,
+    convergence = list(status = "not_applicable"),
+    aic = suppressWarnings(stats::AIC(fit))
+  )
 }
 
 .collect_multilevel_diagnostics <- function(fit, backend, coefficients) {
@@ -429,8 +842,261 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   out
 }
 
-.audit_multilevel_complete_grid <- function(mpd_od_df, flow_col) {
-  req <- c("origin", "destination", flow_col)
+.validate_multilevel_engine_scope <- function(model_engine, scenario_info) {
+  if (model_engine == "bayesian" && !identical(scenario_info$scenario, "s1")) {
+    stop(
+      "`model_engine = 'bayesian'` currently supports the existing Stage-1 S1 path only. ",
+      "Resolved `scenario = '", scenario_info$scenario, "'`; use ",
+      "`model_engine = 'frequentist'` for S1-S4 scenario development until the Bayesian transfer is implemented."
+    )
+  }
+
+  invisible(TRUE)
+}
+
+.resolve_multilevel_scenario <- function(mpd_od_df,
+                                         coverage_df = NULL,
+                                         source_col = NULL,
+                                         time_col = NULL,
+                                         scenario = c("auto", "s1", "s2", "s3", "s4"),
+                                         repeated_observation = c("auto", "none", "time", "source", "source_time")) {
+  scenario <- match.arg(scenario)
+  repeated_observation <- match.arg(repeated_observation)
+
+  source_col <- .resolve_multilevel_optional_col(
+    df = mpd_od_df,
+    requested_col = source_col,
+    default_col = "mpd_source",
+    arg_name = "source_col"
+  )
+  time_col <- .resolve_multilevel_optional_col(
+    df = mpd_od_df,
+    requested_col = time_col,
+    default_col = "mpd_time",
+    arg_name = "time_col"
+  )
+
+  source_values <- .multilevel_distinct_values(mpd_od_df, source_col)
+  time_values <- .multilevel_distinct_values(mpd_od_df, time_col)
+  has_source_variation <- length(source_values) > 1L
+  has_time_variation <- length(time_values) > 1L
+
+  inferred <- if (has_source_variation && has_time_variation) {
+    "s4"
+  } else if (has_time_variation) {
+    "s2"
+  } else if (has_source_variation) {
+    "s3"
+  } else {
+    "s1"
+  }
+  scenario_resolved <- if (scenario == "auto") inferred else scenario
+
+  .validate_multilevel_scenario(
+    scenario = scenario_resolved,
+    source_col = source_col,
+    time_col = time_col,
+    has_source_variation = has_source_variation,
+    has_time_variation = has_time_variation
+  )
+
+  repeated_resolved <- if (repeated_observation == "auto") {
+    switch(
+      scenario_resolved,
+      s1 = "none",
+      s2 = "time",
+      s3 = "source",
+      s4 = "source_time"
+    )
+  } else {
+    repeated_observation
+  }
+
+  .validate_multilevel_repeated_observation(
+    repeated_observation = repeated_resolved,
+    source_col = source_col,
+    time_col = time_col,
+    has_source_variation = has_source_variation,
+    has_time_variation = has_time_variation
+  )
+
+  scenario_cols <- c(
+    if (!is.null(source_col)) "mpd_source",
+    if (!is.null(time_col)) "mpd_time"
+  )
+  audit_cols <- c(
+    if (!is.null(source_col)) source_col,
+    if (!is.null(time_col)) time_col
+  )
+
+  list(
+    scenario = scenario_resolved,
+    source_col = source_col,
+    time_col = time_col,
+    repeated_observation = repeated_resolved,
+    n_sources = length(source_values),
+    n_time_periods = length(time_values),
+    scenario_cols = scenario_cols,
+    audit_cols = audit_cols,
+    source_levels = source_values,
+    time_levels = time_values
+  )
+}
+
+.resolve_multilevel_optional_col <- function(df, requested_col, default_col, arg_name) {
+  if (!is.null(requested_col)) {
+    if (!requested_col %in% names(df)) {
+      stop("`", arg_name, "` must name a column in `mpd_od_df`.")
+    }
+    return(requested_col)
+  }
+
+  if (default_col %in% names(df)) {
+    return(default_col)
+  }
+
+  NULL
+}
+
+.multilevel_distinct_values <- function(df, col) {
+  if (is.null(col) || !col %in% names(df)) {
+    return(character())
+  }
+
+  out <- unique(as.character(df[[col]]))
+  sort(out[!is.na(out) & nzchar(out)])
+}
+
+.validate_multilevel_scenario <- function(scenario,
+                                          source_col,
+                                          time_col,
+                                          has_source_variation,
+                                          has_time_variation) {
+  if (scenario == "s1" && (has_source_variation || has_time_variation)) {
+    stop("`scenario = 's1'` requires at most one source and one time period.")
+  }
+  if (scenario == "s2" && (!has_time_variation || has_source_variation)) {
+    stop("`scenario = 's2'` requires one source and at least two time periods.")
+  }
+  if (scenario == "s3" && (!has_source_variation || has_time_variation)) {
+    stop("`scenario = 's3'` requires at least two sources and one time period.")
+  }
+  if (scenario == "s4" && (!has_source_variation || !has_time_variation)) {
+    stop("`scenario = 's4'` requires at least two sources and at least two time periods.")
+  }
+  if (scenario %in% c("s2", "s4") && is.null(time_col)) {
+    stop("`time_col` is required for scenario ", scenario, ".")
+  }
+  if (scenario %in% c("s3", "s4") && is.null(source_col)) {
+    stop("`source_col` is required for scenario ", scenario, ".")
+  }
+
+  invisible(TRUE)
+}
+
+.validate_multilevel_repeated_observation <- function(repeated_observation,
+                                                      source_col,
+                                                      time_col,
+                                                      has_source_variation,
+                                                      has_time_variation) {
+  if (repeated_observation %in% c("source", "source_time") &&
+      (is.null(source_col) || !has_source_variation)) {
+    stop("`repeated_observation = '", repeated_observation, "'` requires at least two sources.")
+  }
+  if (repeated_observation %in% c("time", "source_time") &&
+      (is.null(time_col) || !has_time_variation)) {
+    stop("`repeated_observation = '", repeated_observation, "'` requires at least two time periods.")
+  }
+
+  invisible(TRUE)
+}
+
+.resolve_multilevel_formula_terms <- function(data,
+                                              repeated_observation,
+                                              random_intercept = "none") {
+  terms <- character()
+  if (repeated_observation %in% c("source", "source_time") &&
+      random_intercept != "source" &&
+      "mpd_source" %in% names(data) &&
+      length(.multilevel_distinct_values(data, "mpd_source")) > 1L) {
+    terms <- c(terms, "mpd_source")
+  }
+  if (repeated_observation %in% c("time", "source_time") &&
+      random_intercept != "time" &&
+      "mpd_time" %in% names(data) &&
+      length(.multilevel_distinct_values(data, "mpd_time")) > 1L) {
+    terms <- c(terms, "mpd_time")
+  }
+
+  unique(terms)
+}
+
+.validate_multilevel_random_intercept <- function(fit_df, random_intercept) {
+  if (random_intercept == "origin" && length(unique(fit_df$origin)) < 2L) {
+    stop("`random_intercept = 'origin'` requires at least 2 distinct origins.")
+  }
+  if (random_intercept == "destination" && length(unique(fit_df$destination)) < 2L) {
+    stop("`random_intercept = 'destination'` requires at least 2 distinct destinations.")
+  }
+  if (random_intercept == "source" &&
+      (!"mpd_source" %in% names(fit_df) || length(.multilevel_distinct_values(fit_df, "mpd_source")) < 2L)) {
+    stop("`random_intercept = 'source'` requires at least 2 distinct sources.")
+  }
+  if (random_intercept == "time" &&
+      (!"mpd_time" %in% names(fit_df) || length(.multilevel_distinct_values(fit_df, "mpd_time")) < 2L)) {
+    stop("`random_intercept = 'time'` requires at least 2 distinct time periods.")
+  }
+  if (random_intercept == "source_time" &&
+      (!"mpd_source_time" %in% names(fit_df) ||
+        length(.multilevel_distinct_values(fit_df, "mpd_source_time")) < 2L)) {
+    stop("`random_intercept = 'source_time'` requires at least 2 source-time combinations.")
+  }
+
+  invisible(TRUE)
+}
+
+.summarize_multilevel_model_terms <- function(formula,
+                                              custom_formula,
+                                              include_pop_terms,
+                                              scenario_terms,
+                                              random_intercept) {
+  custom_formula_supplied <- !is.null(custom_formula)
+  default_fixed_effects <- if (custom_formula_supplied) {
+    character()
+  } else {
+    out <- c("income_o", "income_d", "log_distance", "bias_e_origin")
+    if (isTRUE(include_pop_terms)) {
+      out <- c(out, "log_pop_o", "log_pop_d")
+    }
+    out
+  }
+
+  random_effect_term <- switch(
+    random_intercept,
+    origin = "(1 | origin)",
+    destination = "(1 | destination)",
+    od = "(1 | od_id)",
+    source = "(1 | mpd_source)",
+    time = "(1 | mpd_time)",
+    source_time = "(1 | mpd_source_time)",
+    none = NA_character_
+  )
+
+  list(
+    formula = paste(deparse(formula), collapse = " "),
+    custom_formula = custom_formula_supplied,
+    default_fixed_effects = default_fixed_effects,
+    scenario_fixed_effects = if (custom_formula_supplied) character() else scenario_terms,
+    requested_random_intercept = random_intercept,
+    random_effect_term = random_effect_term
+  )
+}
+
+.audit_multilevel_complete_grid <- function(mpd_od_df,
+                                            flow_col,
+                                            scenario_cols = character()) {
+  scenario_cols <- scenario_cols[scenario_cols %in% names(mpd_od_df)]
+  req <- c("origin", "destination", flow_col, scenario_cols)
   if (!all(req %in% names(mpd_od_df))) {
     stop("`mpd_od_df` must contain: ", paste(req, collapse = ", "))
   }
@@ -443,13 +1109,19 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   if (!has_self_flows) {
     expected_od_rows <- length(area_set) * max(length(area_set) - 1L, 0L)
   }
+  n_scenarios <- if (length(scenario_cols) == 0L) {
+    1L
+  } else {
+    nrow(dplyr::distinct(mpd_od_df, dplyr::across(dplyr::all_of(scenario_cols))))
+  }
+  expected_od_rows_total <- expected_od_rows * n_scenarios
 
-  duplicate_pairs <- sum(duplicated(mpd_od_df[c("origin", "destination")]))
+  duplicate_pairs <- sum(duplicated(mpd_od_df[c("origin", "destination", scenario_cols)]))
   flow <- suppressWarnings(as.numeric(mpd_od_df[[flow_col]]))
   total_flow <- sum(flow, na.rm = TRUE)
 
   strict_square_support <- identical(origins, destinations) &&
-    nrow(mpd_od_df) == expected_od_rows &&
+    nrow(mpd_od_df) == expected_od_rows_total &&
     duplicate_pairs == 0L &&
     all(is.finite(flow) & flow >= 0)
 
@@ -458,7 +1130,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     same_origin_destination_area_set = identical(origins, destinations),
     include_self_flows = has_self_flows,
     n_areas = length(area_set),
-    expected_od_rows = expected_od_rows,
+    n_scenarios = n_scenarios,
+    scenario_cols = paste(scenario_cols, collapse = ","),
+    expected_od_rows = expected_od_rows_total,
     n_od_rows = nrow(mpd_od_df),
     n_duplicate_pairs = duplicate_pairs,
     n_zero_filled = if ("mpd_zero_filled" %in% names(mpd_od_df)) {
@@ -485,7 +1159,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
 .build_multilevel_formula <- function(random_intercept,
                                       custom_formula,
-                                      include_pop_terms) {
+                                      include_pop_terms,
+                                      scenario_terms = character()) {
   if (!is.null(custom_formula)) {
     return(stats::as.formula(custom_formula))
   }
@@ -494,12 +1169,16 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   if (isTRUE(include_pop_terms)) {
     rhs_terms <- c(rhs_terms, "log_pop_o", "log_pop_d")
   }
+  rhs_terms <- c(rhs_terms, scenario_terms)
 
   re_term <- switch(
     random_intercept,
     origin = "(1 | origin)",
     destination = "(1 | destination)",
     od = "(1 | od_id)",
+    source = "(1 | mpd_source)",
+    time = "(1 | mpd_time)",
+    source_time = "(1 | mpd_source_time)",
     none = NULL
   )
 
@@ -653,7 +1332,10 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                            flow_col,
                                            income_col,
                                            pop_col,
-                                           distance_col) {
+                                           distance_col,
+                                           source_col = NULL,
+                                           time_col = NULL,
+                                           scenario_info = NULL) {
   req_mpd <- c("origin", "destination", flow_col)
   if (!all(req_mpd %in% names(mpd_od_df))) {
     stop("`mpd_od_df` must contain: ", paste(req_mpd, collapse = ", "))
@@ -669,7 +1351,18 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     stop("`covariates_df` must contain: ", paste(req_covar, collapse = ", "))
   }
 
-  has_source <- "mpd_source" %in% names(mpd_od_df) && "mpd_source" %in% names(coverage_df)
+  if (is.null(scenario_info)) {
+    scenario_info <- .resolve_multilevel_scenario(
+      mpd_od_df = mpd_od_df,
+      coverage_df = coverage_df,
+      source_col = source_col,
+      time_col = time_col,
+      scenario = "auto",
+      repeated_observation = "auto"
+    )
+  }
+  source_col <- scenario_info$source_col
+  time_col <- scenario_info$time_col
 
   base_df <- mpd_od_df |>
     dplyr::mutate(
@@ -679,6 +1372,20 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       flow = as.numeric(.data[[flow_col]]),
       od_id = paste(.data$origin, .data$destination, sep = "___")
     )
+
+  if (!is.null(source_col)) {
+    base_df$mpd_source <- as.character(mpd_od_df[[source_col]])
+  } else if ("mpd_source" %in% names(base_df)) {
+    base_df$mpd_source <- as.character(base_df$mpd_source)
+  }
+  if (!is.null(time_col)) {
+    base_df$mpd_time <- as.character(mpd_od_df[[time_col]])
+  } else if ("mpd_time" %in% names(base_df)) {
+    base_df$mpd_time <- as.character(base_df$mpd_time)
+  }
+  if ("mpd_source" %in% names(base_df) && "mpd_time" %in% names(base_df)) {
+    base_df$mpd_source_time <- paste(base_df$mpd_source, base_df$mpd_time, sep = "___")
+  }
 
   if (!"mpd_observed" %in% names(base_df)) {
     base_df$mpd_observed <- TRUE
@@ -748,38 +1455,34 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       log_dist_synth = .data$log_distance
     )
 
-  if (has_source) {
-    cov_origin <- coverage_df |>
-      dplyr::transmute(
-        origin = as.character(.data$origin),
-        mpd_source = .data$mpd_source,
-        population = as.numeric(.data$population),
-        user_count = as.numeric(.data$user_count)
-      ) |>
-      dplyr::group_by(.data$origin, .data$mpd_source) |>
-      dplyr::summarise(
-        population = dplyr::first(.data$population),
-        user_count = dplyr::first(.data$user_count),
-        .groups = "drop"
-      )
-
-    base_df <- dplyr::left_join(base_df, cov_origin, by = c("origin", "mpd_source"))
-  } else {
-    cov_origin <- coverage_df |>
-      dplyr::transmute(
-        origin = as.character(.data$origin),
-        population = as.numeric(.data$population),
-        user_count = as.numeric(.data$user_count)
-      ) |>
-      dplyr::group_by(.data$origin) |>
-      dplyr::summarise(
-        population = dplyr::first(.data$population),
-        user_count = dplyr::first(.data$user_count),
-        .groups = "drop"
-      )
-
-    base_df <- dplyr::left_join(base_df, cov_origin, by = "origin")
+  cov_origin <- coverage_df |>
+    dplyr::transmute(
+      origin = as.character(.data$origin),
+      population = as.numeric(.data$population),
+      user_count = as.numeric(.data$user_count)
+    )
+  if (!is.null(source_col) && source_col %in% names(coverage_df)) {
+    cov_origin$mpd_source <- as.character(coverage_df[[source_col]])
+  } else if ("mpd_source" %in% names(base_df) && "mpd_source" %in% names(coverage_df)) {
+    cov_origin$mpd_source <- as.character(coverage_df$mpd_source)
   }
+  if (!is.null(time_col) && time_col %in% names(coverage_df)) {
+    cov_origin$mpd_time <- as.character(coverage_df[[time_col]])
+  } else if ("mpd_time" %in% names(base_df) && "mpd_time" %in% names(coverage_df)) {
+    cov_origin$mpd_time <- as.character(coverage_df$mpd_time)
+  }
+
+  join_keys <- intersect(c("origin", "mpd_source", "mpd_time"), names(cov_origin))
+  join_keys <- join_keys[join_keys %in% names(base_df)]
+  cov_origin <- cov_origin |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(join_keys))) |>
+    dplyr::summarise(
+      population = dplyr::first(.data$population),
+      user_count = dplyr::first(.data$user_count),
+      .groups = "drop"
+    )
+
+  base_df <- dplyr::left_join(base_df, cov_origin, by = join_keys)
 
   pop_area_map <- coverage_df |>
     dplyr::transmute(
@@ -840,6 +1543,16 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       .data$flow >= 0,
       dplyr::if_all(dplyr::all_of(req_fit), is.finite)
     )
+  if (scenario_info$repeated_observation %in% c("source", "source_time") &&
+      "mpd_source" %in% names(model_df)) {
+    model_df <- model_df |>
+      dplyr::filter(!is.na(.data$mpd_source), nzchar(.data$mpd_source))
+  }
+  if (scenario_info$repeated_observation %in% c("time", "source_time") &&
+      "mpd_time" %in% names(model_df)) {
+    model_df <- model_df |>
+      dplyr::filter(!is.na(.data$mpd_time), nzchar(.data$mpd_time))
+  }
 
   has_pop_terms <- all(is.finite(model_df$log_pop_o)) && all(is.finite(model_df$log_pop_d))
   if (!has_pop_terms) {
@@ -856,6 +1569,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     base_df = base_df,
     model_df = model_df,
     has_pop_terms = has_pop_terms,
-    distance_source = distance_source
+    distance_source = distance_source,
+    scenario_info = scenario_info
   )
 }

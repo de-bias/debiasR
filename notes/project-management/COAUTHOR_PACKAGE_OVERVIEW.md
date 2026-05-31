@@ -1,6 +1,6 @@
 # Coauthor Package Overview
 
-Last updated: 2026-05-05
+Last updated: 2026-05-18
 
 ## Purpose
 
@@ -23,7 +23,7 @@ Main functions:
 Current status:
 
 - implemented
-- Stage 3 diagnostics are ready for maintainer review
+- Stage 3 diagnostics are maintainer-reviewed and stable
 
 ### 2. Adjust Bias
 
@@ -46,8 +46,9 @@ Bayesian method:
 Current status:
 
 - deterministic methods are the main stable path
-- Bayesian method is still a stage-1 prototype for observed OD pairs only
-- stage-2 missing-OD imputation is not implemented
+- Bayesian method is still experimental but now supports observed-flow and
+  complete-grid prediction scopes
+- empirical Bayesian use remains dependency- and runtime-sensitive
 
 ### 3. Validate Adjusted Flows
 
@@ -82,8 +83,12 @@ Packaged in the main package:
 Empirical data:
 
 - the Zenodo-based empirical data are not bundled in the main package
-- the leading option is a separate optional data package, for example `debiasRdata`
-- `msoa_OD_travel2work.csv.gz` is the preferred empirical candidate if that route is taken
+- the separate optional companion package `debiasRdata` is now available at
+  <https://github.com/de-bias/debiasRdata>
+- `debiasRdata` supplies MSOA and LAD travel-to-work assets
+- `debiasR` now defaults to the LAD route:
+  `lad_OD_travel2work`, `census_lad_OD_travel2work`, and selected-area
+  distances derived from `lad_centroids`
 
 ## What Is Stable Now
 
@@ -92,14 +97,13 @@ Empirical data:
 - OD-level residual diagnostics
 - distributional validation
 - measure-bias residual diagnostics
+- empirical OD-flow loading when `debiasRdata` is installed
 
 ## What Is Still In Progress
 
-- maintainer review of Stage 2 validation outputs
-- maintainer review of Stage 3 measure-bias outputs
-- decision on whether empirical data should live in a separate `debiasRdata` package
 - Stage 4 origin-destination random-effects extension
-- Bayesian path hardening and possible stage-2 imputation design
+- Bayesian path hardening and complete-grid empirical validation
+- empirical Bayesian runtime guidance for feasible LAD grid sizes
 
 ## Suggested Reading Order
 

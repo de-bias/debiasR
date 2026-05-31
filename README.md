@@ -3,7 +3,7 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-<img src="assets/debias-logo-white.JPEG" alt="debiasR Logo" width="300"/>
+<img src="man/figures/debias-logo-white.JPEG" alt="debiasR Logo" width="300"/>
 
 # debiasR R Package Repository
 
@@ -38,7 +38,10 @@ raking ratio adjustment, coefficient calibration, and a Bayesian multilevel
 adjustment path for OD flows. The Bayesian path is the main methodological
 innovation and now supports an explicit complete-grid prediction scope for
 square OD matrices, while still requiring careful runtime and dependency
-validation.
+validation. The multilevel path now carries an explicit S1-S4 scenario contract
+for single/multiple source and single/multiple time inputs; new S1-S4
+development should use the faster frequentist engine first and defer Bayesian
+sampling until the complete model contract is stable.
 
 ## Package At A Glance
 
@@ -50,8 +53,10 @@ validation.
   in bias residuals
 
 2. `Adjust bias`
-- use `adjust_multilevel_bayes()` as the central multilevel adjustment model
-- compare against deterministic OD-flow correction baselines
+- choose from a menu of OD-flow adjustment methods with different input
+  requirements, assumptions, and modelling goals
+- use `adjust_multilevel_bayes()` when an uncertainty-aware multilevel model is
+  needed
 
 3. `Validate adjusted flows`
 - compare adjusted flows against benchmark OD flows
@@ -59,17 +64,20 @@ validation.
 
 Current progress:
 
-- deterministic adjustment methods are transparent baselines and comparators
+- adjustment methods are documented as a menu of coverage-based,
+  margin-constrained, benchmark-calibrated, and multilevel modelling options
 - Stage 2 validation diagnostics are maintainer-reviewed and stable
 - Stage 3 measure-bias diagnostics are maintainer-reviewed and stable,
   including a population-only linear residual diagnostic
 - the Bayesian method now has observed and complete-grid prediction scopes, but
-  full empirical Bayesian vignette rendering still depends on Bayesian
-  dependencies and real OD distance inputs
-- Stage 4 origin-destination random-effects extension is still planned
-- empirical examples now use the optional separate `debiasRdata` package
+  full empirical Bayesian validation remains dependency- and runtime-sensitive
+- Stage 4 scenario support for source/time repeated OD observations is in
+  frequentist-first development around `adjust_multilevel_bayes()`, with
+  MSOA-scale software checks and LAD-scale teaching material
+- empirical examples can now use the optional companion
+  [`debiasRdata`](https://github.com/de-bias/debiasRdata) package
 
-![debiasR package overview and status](assets/package-overview-status.svg)
+![debiasR package overview and status](man/figures/package-overview-status.svg)
 
 For a slightly fuller coauthor-oriented summary, see [notes/project-management/COAUTHOR_PACKAGE_OVERVIEW.md](notes/project-management/COAUTHOR_PACKAGE_OVERVIEW.md).
 
@@ -88,14 +96,24 @@ If you’re interested in collaborating or contributing, please join our growing
 
 1. Install and load the package from this checkout.
 2. Explore the documentation in `R/` and `man/`.
-3. Try the empirical MSOA travel-to-work examples through `debiasRdata` and the
+3. Install the optional empirical data companion when you need the LAD
+   travel-to-work examples:
+
+```r
+remotes::install_github("de-bias/debiasRdata")
+```
+
+4. Try the empirical LAD travel-to-work examples through `debiasRdata` and the
    walkthroughs in `vignettes/`.
 
 Default example data:
 
-- MPD travel-to-work OD flows: `msoa_OD_travel2work` from `debiasRdata`
-- Census benchmark OD flows: `census_msoa_OD_travel2work`, the matching
-  Census 2021 `ODWP01EW` MSOA workplace-flow extract in `debiasRdata`
+- MPD travel-to-work OD flows: `lad_OD_travel2work` from `debiasRdata`
+- Census benchmark OD flows: `census_lad_OD_travel2work`, the matching
+  Census 2021 `ODWP01EW` LAD/LTLA workplace-flow extract in `debiasRdata`
+- LAD distance inputs are derived at example-load time from real
+  `lad_centroids` supplied by `debiasRdata`; full OD distance matrices are not
+  packaged
 - Package helper: `debiasR_example_data()`, which normalises both sources to
   `origin`, `destination`, and `flow`, can return strict square complete-grid OD
   support, and derives the example coverage table from matched origin totals
@@ -103,9 +121,10 @@ Default example data:
 ```r
 if (requireNamespace("debiasRdata", quietly = TRUE)) {
   ex <- debiasR_example_data(n_areas = Inf, complete_grid = TRUE)
-  msoa_OD_travel2work <- ex$msoa_OD_travel2work
-  census_msoa_OD_travel2work <- ex$census_msoa_OD_travel2work
+  lad_OD_travel2work <- ex$lad_OD_travel2work
+  census_lad_OD_travel2work <- ex$census_lad_OD_travel2work
   coverage <- ex$coverage
+  distance <- ex$distance
 }
 ```
 
@@ -149,8 +168,8 @@ See the [LICENSE](LICENSE) file for full details.
 - `data-raw/` - scripts for rebuilding simulated data and extracting empirical benchmarks
 - `man/` - generated documentation for exported objects
 - `tests/` - `testthat` tests
-- `vignettes/` - empirical `debiasRdata` walkthroughs and comparison notebooks
-- `notes/` - project briefs, migration notes, and status tracking
+- `vignettes/` - package-facing Quarto vignettes built into the documentation site
+- `notes/` - project briefs, migration notes, workshop material, and status tracking
 - `style/` - plotting and Quarto styling helpers
 - `.github/` - issue and pull request templates
 - `assets/` - logos and other static assets
@@ -161,9 +180,16 @@ See the [LICENSE](LICENSE) file for full details.
 
 ### Stable vs Prototype
 
-Most deterministic helpers are intended for regular use. `adjust_multilevel_bayes()` is the main methodological innovation and now includes an explicit complete-grid prediction scope, but the Bayesian path remains dependency- and runtime-sensitive and should be validated carefully before production use. For the current stability summary, see [notes/project-management/STATUS.md](notes/project-management/STATUS.md).
+Most non-Bayesian adjustment helpers are intended for regular use when their
+input requirements and assumptions fit the application. `adjust_multilevel_bayes()`
+is the main methodological innovation and now includes an explicit complete-grid
+prediction scope, but the Bayesian path remains dependency- and runtime-sensitive
+and should be validated carefully before production use. For the current
+stability summary, see [notes/project-management/STATUS.md](notes/project-management/STATUS.md).
 
-The repository now separates the main deterministic workflow from the Bayesian prototype so that contributors can focus on the stable API first and treat the Bayesian path as experimental until it is fully hardened.
+The repository separates stable adjustment and validation helpers from the
+Bayesian prototype so contributors can use the established API while treating
+the multilevel Bayesian path as experimental until it is fully hardened.
 
 ## 🎉 Acknowledging Contributors
 

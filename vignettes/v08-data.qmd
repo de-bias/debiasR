@@ -1,0 +1,371 @@
+---
+title: "Data"
+vignette: >
+  %\VignetteIndexEntry{Data}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+format:
+  html:
+    html-math-method: mathml
+    toc: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+## Aim
+
+This vignette describes the empirical data inputs used in the package examples.
+The data are supplied by the companion `debiasRdata` package and cover two
+geographical scales:
+
+- Local Authority District / Lower Tier Local Authority style areas (`lad`)
+- Middle Layer Super Output Areas (`msoa`)
+
+Both scales contain mobile-phone-derived travel-to-work origin-destination (OD)
+flows, Census 2021 benchmark OD flows, and Census area-level covariates. The LAD
+scale also includes centroid coordinates used to derive selected-area OD
+distances for examples.
+
+The aim of this vignette is to help users decide whether the data are suitable
+for their analysis: what each table represents, how large it is, what columns it
+contains, what checks have been applied, and how the tables should be joined.
+
+```{r setup}
+input_dir <- dirname(knitr::current_input(dir = TRUE))
+debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
+common_path <- file.path(input_dir, "_common.R")
+if (!file.exists(common_path)) {
+  common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+}
+source(common_path)
+load_debiasr_workshop()
+
+if (!requireNamespace("debiasRdata", quietly = TRUE)) {
+  cat(
+    "Install `debiasRdata` to inspect the empirical datasets. ",
+    "Use `remotes::install_github(\"de-bias/debiasRdata\")`.\n",
+    sep = ""
+  )
+  knitr::knit_exit()
+}
+
+data_objects <- c(
+  "lad_OD_travel2work",
+  "census_lad_OD_travel2work",
+  "lad_covariates",
+  "lad_centroids",
+  "msoa_OD_travel2work",
+  "census_msoa_OD_travel2work",
+  "msoa_covariates"
+)
+
+debiasrdata_tables <- setNames(vector("list", length(data_objects)), data_objects)
+for (object in data_objects) {
+  data(list = object, package = "debiasRdata", envir = environment())
+  debiasrdata_tables[[object]] <- get(object)
+}
+```
+
+## Dataset Families
+
+The package is organised around matched datasets by geographical scale.
+
+At the LAD scale:
+
+- `lad_OD_travel2work`: observed MPD travel-to-work OD flows.
+- `census_lad_OD_travel2work`: Census 2021 benchmark travel-to-work OD flows.
+- `lad_covariates`: Census 2021 area-level covariates.
+- `lad_centroids`: LAD centroid coordinates for distance construction.
+
+At the MSOA scale:
+
+- `msoa_OD_travel2work`: observed MPD travel-to-work OD flows.
+- `census_msoa_OD_travel2work`: Census 2021 benchmark travel-to-work OD flows.
+- `msoa_covariates`: Census 2021 area-level covariates.
+
+The OD tables use the same minimal schema at both scales:
+
+- `origin`: residential origin area code.
+- `destination`: workplace destination area code.
+- `flow`: nonnegative flow count for the OD pair.
+
+The covariate tables use `area` as the join key. This key corresponds to
+`origin` or `destination` in the OD tables, depending on whether the covariate
+is being used as an origin-side or destination-side predictor.
+
+## Inventory
+
+```{r inventory}
+od_summary <- function(x) {
+  if (!all(c("origin", "destination", "flow") %in% names(x))) {
+    return(tibble::tibble(
+      origin_areas = NA_integer_,
+      destination_areas = NA_integer_,
+      total_flow = NA_real_,
+      min_flow = NA_real_,
+      max_flow = NA_real_,
+      duplicated_od_pairs = NA_integer_
+    ))
+  }
+
+  tibble::tibble(
+    origin_areas = dplyr::n_distinct(x$origin),
+    destination_areas = dplyr::n_distinct(x$destination),
+    total_flow = sum(x$flow, na.rm = TRUE),
+    min_flow = min(x$flow, na.rm = TRUE),
+    max_flow = max(x$flow, na.rm = TRUE),
+    duplicated_od_pairs = sum(duplicated(x[c("origin", "destination")]))
+  )
+}
+
+dataset_inventory <- dplyr::bind_rows(lapply(names(debiasrdata_tables), function(object) {
+  x <- debiasrdata_tables[[object]]
+  scale <- if (grepl("^msoa|_msoa_", object)) "msoa" else "lad"
+  family <- dplyr::case_when(
+    grepl("^census_.*OD", object) ~ "benchmark_od",
+    grepl("OD_travel2work$", object) ~ "mpd_od",
+    grepl("covariates$", object) ~ "covariates",
+    grepl("centroids$", object) ~ "centroids",
+    TRUE ~ "other"
+  )
+
+  dplyr::bind_cols(
+    tibble::tibble(
+      scale = scale,
+      object = object,
+      family = family,
+      rows = nrow(x),
+      columns = ncol(x)
+    ),
+    od_summary(x)
+  )
+}))
+
+dataset_inventory
+```
+
+The row counts differ sharply by scale. MSOA data are much more spatially
+detailed and therefore much larger. They are useful when local spatial
+heterogeneity matters, but they are heavier to render, validate, and model.
+LAD data are coarser and smaller, which makes them the default scale for
+workshop examples and fast vignette rendering.
+
+## Structure
+
+The following output shows the R structure of every packaged table.
+
+```{r structure}
+for (object in names(debiasrdata_tables)) {
+  cat("\n\n", object, "\n", strrep("-", nchar(object)), "\n", sep = "")
+  str(debiasrdata_tables[[object]], give.attr = FALSE)
+}
+```
+
+## Columns
+
+```{r columns}
+column_roles <- tibble::tribble(
+  ~column, ~role,
+  "origin", "Origin area code in an OD flow table.",
+  "destination", "Destination or workplace area code in an OD flow table.",
+  "flow", "Nonnegative OD flow count.",
+  "area", "Area identifier used to join covariates or centroids to OD origins/destinations.",
+  "name", "Human-readable area name.",
+  "year", "Reference year for Census covariates.",
+  "per_ukborn", "Percentage of residents born in the UK.",
+  "per_age_20.29", "Percentage of residents aged 20 to 29.",
+  "per_age_70plus", "Percentage of residents aged 70 or over.",
+  "per_level4", "Percentage with level 4 qualifications.",
+  "per_hh_no_centralheat", "Percentage of households without central heating.",
+  "per_NS_SeC_L13_routine", "Percentage in NS-SeC L13 routine occupations.",
+  "rural_pct", "Percentage rural.",
+  "easting", "British National Grid easting for LAD centroid.",
+  "northing", "British National Grid northing for LAD centroid.",
+  "longitude", "Longitude of LAD centroid in decimal degrees.",
+  "latitude", "Latitude of LAD centroid in decimal degrees."
+)
+
+column_inventory <- dplyr::bind_rows(lapply(names(debiasrdata_tables), function(object) {
+  x <- debiasrdata_tables[[object]]
+  tibble::tibble(
+    object = object,
+    column = names(x),
+    type = vapply(x, function(col) paste(class(col), collapse = ", "), character(1))
+  )
+})) |>
+  dplyr::left_join(column_roles, by = "column")
+
+column_inventory
+```
+
+## Example Rows
+
+```{r example-rows}
+for (object in names(debiasrdata_tables)) {
+  cat("\n\n", object, "\n", strrep("-", nchar(object)), "\n", sep = "")
+  print(utils::head(debiasrdata_tables[[object]], 6))
+}
+```
+
+## Sources And Processing
+
+The MPD OD flow tables are derived from the Zenodo record
+`doi:10.5281/zenodo.13327082`. The MSOA MPD table keeps the source MSOA home and
+workplace identifiers, normalised to `origin`, `destination`, and `flow`. The
+LAD MPD table is aggregated from the MSOA MPD source using the ONS MSOA-to-LAD
+lookup, then summed by LAD origin-destination pair.
+
+The Census benchmark OD tables are derived from ONS Census 2021 origin-destination
+workplace-flow table `ODWP01EW`. They retain people working in the UK but not
+working at or from home, keep area-code-to-area-code OD pairs, normalise
+identifiers to `origin` and `destination`, and aggregate duplicated OD pairs if
+present.
+
+The covariate tables are selected Census 2021 topic-summary percentages. They
+are intended to explain spatial variation in MPD coverage and OD-flow bias. All
+covariate percentage columns are numeric and use a 0 to 100 scale. The vignette
+examples use `rural_pct` as a general area-level covariate because it is present
+in both the LAD and MSOA covariate tables, but adjustment functions that accept
+`covariate_col` can use any relevant numeric covariate supplied by the user.
+
+The LAD centroid table is derived from ONS LAD representative coordinate data.
+It is not a full distance matrix. `debiasR_example_data(geography = "lad")`
+uses these centroids to compute distances for the selected LAD areas.
+
+## Quality Checks
+
+For OD analysis, the minimum checks are:
+
+- identifiers are present for `origin` and `destination`
+- flows are finite and nonnegative
+- each OD pair appears at most once
+- the MPD and benchmark tables use compatible area identifiers
+- the selected example support can be expanded to a square OD grid when
+  adjustment or validation requires equal origin and destination sets
+
+```{r quality-checks}
+quality_checks <- dplyr::bind_rows(lapply(names(debiasrdata_tables), function(object) {
+  x <- debiasrdata_tables[[object]]
+  if (all(c("origin", "destination", "flow") %in% names(x))) {
+    tibble::tibble(
+      object = object,
+      missing_origin = sum(is.na(x$origin) | x$origin == ""),
+      missing_destination = sum(is.na(x$destination) | x$destination == ""),
+      missing_flow = sum(is.na(x$flow)),
+      nonfinite_flow = sum(!is.finite(x$flow)),
+      negative_flow = sum(x$flow < 0, na.rm = TRUE),
+      duplicated_od_pairs = sum(duplicated(x[c("origin", "destination")]))
+    )
+  } else if ("area" %in% names(x)) {
+    tibble::tibble(
+      object = object,
+      missing_origin = NA_integer_,
+      missing_destination = NA_integer_,
+      missing_flow = NA_integer_,
+      nonfinite_flow = NA_integer_,
+      negative_flow = NA_integer_,
+      duplicated_od_pairs = sum(duplicated(x$area))
+    )
+  }
+}))
+
+quality_checks
+```
+
+These checks do not prove that the MPD data are unbiased. They establish that
+the tables are structurally suitable for bias measurement, adjustment, and
+validation. Substantive quality is assessed by comparing MPD flows with the
+Census benchmark and by modelling how residuals vary across geography and
+covariates.
+
+## Using The Data In `debiasR`
+
+`debiasR_example_data()` loads a matched MPD/benchmark/covariate bundle and
+normalises it to the package interface. When `debiasRdata` is available, the
+`covariates` element contains selected rows from the packaged LAD or MSOA
+covariate table. If a packaged covariate table is not available, the helper falls
+back to a small derived covariate table and records that fallback in
+`metadata$covariate_source`. The default scale is LAD because it is small enough
+for fast examples.
+
+```{r lad-example}
+lad_example <- load_workshop_example(
+  n_areas = 25,
+  complete_grid = TRUE,
+  geography = "lad"
+)
+
+names(lad_example)
+lad_example$metadata
+lad_example$od_audit
+```
+
+The covariate table returned by the example helper has the same `area` join key
+as the packaged `debiasRdata` covariates. The adjustment vignettes use
+`rural_pct`, but users can replace this with another relevant numeric column by
+changing the function argument `covariate_col`.
+
+```{r lad-example-covariates}
+lad_example$metadata |>
+  dplyr::select(geography, covariate_source, distance_source)
+
+names(lad_example$covariates)
+
+lad_example$covariates |>
+  dplyr::select(area, name, rural_pct, per_level4) |>
+  dplyr::slice_head(n = 5)
+```
+
+Use MSOA when the analysis needs finer geography and the runtime cost is
+acceptable. The same covariate interface applies: `msoa_example$covariates`
+uses `area` as the join key and records its source in
+`metadata$covariate_source`.
+
+```{r msoa-example}
+msoa_example <- load_workshop_example(
+  n_areas = 25,
+  complete_grid = TRUE,
+  geography = "msoa"
+)
+
+msoa_example$metadata
+msoa_example$od_audit
+```
+
+When `complete_grid = TRUE`, absent OD pairs in the selected support are
+zero-filled and marked with row-status indicators. These indicators distinguish
+observed source rows from rows created to complete the square OD matrix.
+
+```{r complete-grid-status}
+names(lad_example$mpd_od)
+names(lad_example$benchmark_od)
+
+lad_example$mpd_od |>
+  dplyr::count(mpd_row_status)
+
+lad_example$benchmark_od |>
+  dplyr::count(benchmark_row_status)
+```
+
+## Choosing LAD Or MSOA
+
+Use LAD data when:
+
+- examples need to render quickly
+- the analysis is exploratory or national in scope
+- the model requires repeated fitting or Bayesian sampling
+- coarser geographic interpretation is acceptable
+
+Use MSOA data when:
+
+- local heterogeneity is central to the research question
+- the finer Census benchmark is needed
+- computational cost is manageable
+- there is a clear plan for validating sparse OD cells and zero-filled support
+
+In both cases, MPD flows should be treated as observed, potentially biased
+mobility signals. The Census OD tables provide the benchmark used to measure
+coverage and representativeness problems, assess adjustment performance, and
+decide whether the adjusted matrix is fit for purpose.

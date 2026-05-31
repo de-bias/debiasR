@@ -1,0 +1,175 @@
+---
+title: "Frequentist Placeholder for Bayesian Multilevel Adjustment"
+format: html
+editor: visual
+---
+
+# Purpose
+
+This walkthrough uses `adjust_multilevel_bayes()` with
+`model_engine = "frequentist"` as a fast placeholder while the full S1-S4
+Bayesian implementation is completed. The fitted example is S1: one
+mobile-phone data source observed during one time unit.
+
+# Package and data
+
+```{r}
+candidate_roots <- c(".", "..", "../..")
+pkg_root <- candidate_roots[file.exists(file.path(candidate_roots, "DESCRIPTION"))][1]
+if (is.na(pkg_root)) {
+  stop("Could not locate the debiasR package root.")
+}
+
+if (!requireNamespace("debiasR", quietly = TRUE)) {
+  if (!requireNamespace("devtools", quietly = TRUE)) {
+    stop("Install either `debiasR` or `devtools` to load the local package.")
+  }
+  devtools::load_all(pkg_root, quiet = TRUE)
+}
+
+library(debiasR)
+library(dplyr)
+
+data(simulated_mpd.od, package = "debiasR")
+data(simulated_benchmark.od, package = "debiasR")
+data(simulated_coverage, package = "debiasR")
+data(simulated_covariates, package = "debiasR")
+data(simulated_distance, package = "debiasR")
+```
+
+# Build an S1 source/time structure
+
+S1 means one source and one time unit. The source and time columns can be absent
+for S1, but adding constant columns makes the scenario contract visible and
+keeps the example close to the S2-S4 data structure.
+
+```{r}
+example_mpd_od <- simulated_mpd.od |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
+  )
+
+example_coverage <- simulated_coverage |>
+  mutate(
+    mpd_source = "operator_a",
+    mpd_time = "2021_q1"
+  )
+
+example_mpd_od |>
+  select(origin, destination, mpd_source, mpd_time, flow) |>
+  head(5)
+```
+
+# Fit the frequentist placeholder
+
+```{r}
+adj <- adjust_multilevel_bayes(
+  mpd_od_df = example_mpd_od,
+  coverage_df = example_coverage,
+  covariates_df = simulated_covariates,
+  distance_df = simulated_distance,
+  model_engine = "frequentist",
+  scenario = "s1",
+  source_col = "mpd_source",
+  time_col = "mpd_time",
+  repeated_observation = "none",
+  random_intercept = "none",
+  model_family = "poisson",
+  flow_adj_summary = "median"
+)
+
+attr(adj, "result_metadata")[c(
+  "model_engine",
+  "scenario",
+  "repeated_observation",
+  "n_sources",
+  "n_time_periods"
+)]
+```
+
+The placeholder uses a fast GLM/GLMM engine to check the formula and output
+contract. It is not a substitute for final Bayesian inference.
+
+```{r}
+attr(adj, "model_terms")
+attr(adj, "coefficients") |>
+  select(any_of(c("term", "mean", "sd", "z value", "Pr(>|z|)"))) |>
+  head(10)
+```
+
+# Compare raw vs adjusted against the benchmark
+
+```{r}
+raw_as_adj <- example_mpd_od |>
+  transmute(origin, destination, flow_adj = flow)
+
+val_raw <- validate_flow_overall(
+  adj_df = raw_as_adj,
+  benchmark_od_df = simulated_benchmark.od,
+  method_name = "raw_mpd",
+  return_joined = FALSE
+)
+
+val_adj <- validate_flow_overall(
+  adj_df = adj,
+  benchmark_od_df = simulated_benchmark.od,
+  method_name = "adjust_multilevel_bayes_frequentist_placeholder",
+  return_joined = FALSE
+)
+
+tibble(
+  method = c(val_raw$method, val_adj$method),
+  pearson_r = c(val_raw$pearson_r, val_adj$pearson_r),
+  rmse = c(val_raw$rmse, val_adj$rmse),
+  mae = c(val_raw$mae, val_adj$mae),
+  r_squared = c(val_raw$r_squared, val_adj$r_squared)
+)
+```
+
+# Understand row-level changes
+
+```{r}
+adj |>
+  mutate(
+    delta = .data$flow_adj - .data$flow,
+    pct_change = 100 * (.data$flow_adj - .data$flow) / pmax(.data$flow, 1e-8)
+  ) |>
+  select(
+    origin,
+    destination,
+    mpd_source,
+    mpd_time,
+    flow,
+    flow_adj,
+    bias_e_origin,
+    log_distance,
+    delta,
+    pct_change
+  ) |>
+  arrange(desc(abs(.data$delta))) |>
+  head(15)
+```
+
+Large positive `delta` means the placeholder model increases the MPD flow for
+that OD pair. Large negative `delta` means it decreases the MPD flow. The
+`bias_e_origin` column shows the origin-side coverage-bias term used by the
+model.
+
+# Parameters for alternative data structures
+
+The same function handles the four source/time scenarios by changing the
+scenario metadata and the repeated-observation structure.
+
+```{r}
+tibble::tribble(
+  ~Scenario, ~Data_structure, ~Required_columns, ~Key_parameters,
+  "S1", "one source, one time", "source/time columns optional or constant", "scenario = 's1', repeated_observation = 'none'",
+  "S2", "one source, multiple times", "time column", "scenario = 's2', time_col = '<time>', repeated_observation = 'time'",
+  "S3", "multiple sources, one time", "source column", "scenario = 's3', source_col = '<source>', repeated_observation = 'source'",
+  "S4", "multiple sources, multiple times", "source and time columns", "scenario = 's4', source_col = '<source>', time_col = '<time>', repeated_observation = 'source_time'"
+)
+```
+
+Use `model_engine = "frequentist"` for these S1-S4 examples until the complete
+Bayesian scenario implementation is transferred and validated.
