@@ -114,6 +114,55 @@
 #'     \item \code{"diagnostics"}: lightweight fit/convergence metadata when available
 #'     \item \code{"prototype_notes"}: stage notes
 #'   }
+#'
+#' @examples
+#' if (requireNamespace("lme4", quietly = TRUE)) {
+#'   areas <- c("A", "B", "C", "D")
+#'   mpd <- expand.grid(
+#'     origin = areas,
+#'     destination = areas,
+#'     KEEP.OUT.ATTRS = FALSE
+#'   )
+#'   mpd$flow <- c(12, 7, 4, 5, 6, 14, 8, 4, 5, 7, 11, 6, 4, 5, 7, 13)
+#'
+#'   coverage <- data.frame(
+#'     origin = areas,
+#'     population = c(100, 120, 90, 110),
+#'     user_count = c(20, 30, 18, 22)
+#'   )
+#'
+#'   covariates <- data.frame(
+#'     area = areas,
+#'     rural_pct = c(0.15, 0.35, 0.60, 0.80),
+#'     population = c(100, 120, 90, 110)
+#'   )
+#'
+#'   distance <- expand.grid(
+#'     origin = areas,
+#'     destination = areas,
+#'     KEEP.OUT.ATTRS = FALSE
+#'   )
+#'   distance$distance_km <- abs(
+#'     match(distance$origin, areas) - match(distance$destination, areas)
+#'   ) + 1
+#'
+#'   adj <- suppressMessages(
+#'     suppressWarnings(
+#'       adjust_multilevel_bayes(
+#'         mpd_od_df = mpd,
+#'         coverage_df = coverage,
+#'         covariates_df = covariates,
+#'         distance_df = distance,
+#'         formula = flow ~ rural_pct_o + rural_pct_d + log_distance +
+#'           bias_e_origin + (1 | origin),
+#'         model_engine = "frequentist",
+#'         model_family = "poisson"
+#'       )
+#'     )
+#'   )
+#'
+#'   head(adj)
+#' }
 #' @export
 adjust_multilevel_bayes <- function(mpd_od_df,
                                     coverage_df,

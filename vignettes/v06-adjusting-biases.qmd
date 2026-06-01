@@ -478,7 +478,7 @@ In the Bayesian implementation, this is done draw-by-draw from the posterior
 and summarised by mean or median. More generally, the implementation computes
 a formula-aware fixed-effect counterfactual prediction with `bias_e_origin` set
 to zero, which keeps the correction valid when the formula includes interactions
-or random slopes. The frequentist form is used here only to test the shared data
+or random slopes. The frequentist engine is used here only to test the shared data
 contract, formula and output shape quickly.
 
 ### Implementation
@@ -487,7 +487,9 @@ To use `adjust_multilevel_bayes()`, input the observed MPD flows to `mpd_od_df`,
 the population coverage table to `coverage_df`, area-level covariates to
 `covariates_df` and OD distances to `distance_df`. The `scenario`, `source_col`,
 `time_col` and `repeated_observation` arguments describe the source/time data
-structure. The `prediction_scope` argument controls whether the method adjusts
+structure.
+Specifically, four scenarios can be accommodated through `scenario` for different source/time structures in the MPD data: one source and one time (s1), one source across times (s2), multiple sources at one time (s3), multiple sources across times (s4), or auto to infer this from the data.
+The `prediction_scope` argument controls whether the method adjusts
 only observed MPD pairs or predicts over a complete OD grid. The
 `formula`, `model_family`, `model_engine` and `flow_adj_summary` arguments
 control the model structure, likelihood, fitting engine and how adjusted flows
@@ -526,7 +528,34 @@ adj_multilevel <- adjust_multilevel_bayes(
 )
 
 adj_multilevel |>
-  dplyr::select(origin, destination, mpd_source, mpd_time, flow, flow_adj) |>
+  dplyr::select(origin, destination, flow, flow_adj) |>
+  dplyr::slice_head(n = 5)
+```
+
+To include an origin random intercept, add the random-effect term directly to
+the formula. This tells the model to partially pool flows by origin while
+keeping the same fixed-effect covariates.
+
+```{r eval=FALSE}
+adj_multilevel_origin_re <- adjust_multilevel_bayes(
+  mpd_od_df = mpd_s1,
+  coverage_df = coverage_s1,
+  covariates_df = example_data$covariates,
+  distance_df = example_data$distance,
+  formula = flow ~ rural_pct_o + rural_pct_d + log_distance +
+    bias_e_origin + (1 | origin),
+  model_engine = "frequentist",
+  scenario = "s1",
+  source_col = "mpd_source",
+  time_col = "mpd_time",
+  repeated_observation = "none",
+  prediction_scope = "complete_grid",
+  model_family = "poisson",
+  flow_adj_summary = "median"
+)
+
+adj_multilevel_origin_re |>
+  dplyr::select(origin, destination, flow, flow_adj) |>
   dplyr::slice_head(n = 5)
 ```
 
@@ -727,11 +756,11 @@ method_summary <- tibble::tribble(
 
   "Bayesian multilevel modelling",
   "Model-based corridor correction",
-  "Predicts OD-specific adjusted flows from origin, destination, distance, bias, and optional random effects.",
-  "Fits a multilevel count model with coverage bias, covariates, distance, and optional hierarchical structure.",
+  "Predicts OD-specific adjusted flows from a user-specified formula with origin, destination, distance, bias, and optional random effects.",
+  "Fits a multilevel count model using an R-style formula; area covariates enter as origin and destination suffixes such as <code>rural_pct_o</code> and <code>rural_pct_d</code>.",
   eq_stack(
-    "log(&mu;<sup>obs</sup><sub>ij</sub>) = &alpha; + &beta;<sub>o</sub>X<sub>i</sub> + &beta;<sub>d</sub>X<sub>j</sub> + &gamma; log(<i>d</i><sub>ij</sub>) + &omega;e<sub>i</sub> + <i>u</i>",
-    "<i>F</i><sup>adj</sup><sub>ij</sub> = summary(exp(&eta;<sup>fix</sup><sub>ij</sub> - &omega;e<sub>i</sub>))"
+    "formula: flow ~ X<sub>i</sub> + X<sub>j</sub> + log(<i>d</i><sub>ij</sub>) + e<sub>i</sub> + ( ... | group )",
+    "<i>F</i><sup>adj</sup><sub>ij</sub> = summary(exp(&eta;<sup>fix</sup><sub>ij</sub>(e<sub>i</sub> = 0)))"
   ),
   "Yes", "Yes", "No", "Yes",
   "Richer structure, no benchmark OD needed for fitting, and a path to uncertainty-aware partial pooling.",
