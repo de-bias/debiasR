@@ -111,8 +111,8 @@ The tutorial sequence follows three stages.
 1.  Measure coverage and representativeness bias in the
     mobile-phone-derived OD source.
 2.  Adjust bias, with `adjust_multilevel_bayes()` as the main
-    methodological innovation and deterministic methods as transparent
-    baselines.
+    formula-based multilevel innovation and deterministic methods as
+    transparent baselines.
 3.  Validate adjusted OD flows against benchmark OD data using
     complementary fit, residual, structure and allocation metrics.
 

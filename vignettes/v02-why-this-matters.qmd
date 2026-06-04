@@ -71,7 +71,8 @@ and validated against external evidence.
 The package's main innovation is `adjust_multilevel_bayes()`. It treats observed
 OD flows as biased counts and estimates adjusted flows through a multilevel count
 model that can include origin and destination attributes, distance, coverage
-residuals, and hierarchical structure. Deterministic methods remain important
+residuals, and formula-specified hierarchical structure. Deterministic methods
+remain important
 because they are transparent comparators: they help users understand what the
 Bayesian model improves, where it agrees with simpler corrections, and where it
 does not.

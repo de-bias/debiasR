@@ -5,7 +5,7 @@ template:
 
 navbar:
   structure:
-    left: [home, news, reference, foundations, measure, adjust, validate, data]
+    left: [home, reference, foundations, measure, adjust, validate, data]
     right: [github]
   components:
     foundations:
