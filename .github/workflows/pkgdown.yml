@@ -56,7 +56,7 @@ jobs:
           mv NEWS.md /tmp/debiasR-NEWS.md
           Rscript -e 'pkgdown::build_site(
             pkg = ".",
-            dest_dir = "site",
+            override = list(destination = "site"),
             new_process = FALSE,
             install = TRUE
           )'
