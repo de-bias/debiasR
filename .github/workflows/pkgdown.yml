@@ -51,19 +51,15 @@ jobs:
             github::de-bias/debiasRdata
 
       - name: Build pkgdown site
-        shell: Rscript {0}
+        shell: bash
         run: |
-          pkgdown_ns <- asNamespace("pkgdown")
-          unlockBinding("has_news", pkgdown_ns)
-          assign("has_news", function(src_path) FALSE, envir = pkgdown_ns)
-          lockBinding("has_news", pkgdown_ns)
-
-          pkgdown::build_site(
+          mv NEWS.md /tmp/debiasR-NEWS.md
+          Rscript -e 'pkgdown::build_site(
             pkg = ".",
             dest_dir = "site",
             new_process = FALSE,
             install = TRUE
-          )
+          )'
 
       - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'

@@ -50,7 +50,7 @@ Documentation:
 - When asked to preview vignettes, default to a pkgdown-style preview rather than
   standalone `quarto preview` output. Build the site to a temporary directory
   such as `/private/tmp/debiasr-pkgdown-preview` with
-  `RSTUDIO_PANDOC=/Applications/quarto/bin/tools/aarch64 Rscript -e "pkgdown_ns <- asNamespace('pkgdown'); unlockBinding('has_news', pkgdown_ns); assign('has_news', function(src_path) FALSE, envir = pkgdown_ns); lockBinding('has_news', pkgdown_ns); pkgdown::build_site(pkg = '.', override = list(destination = '/private/tmp/debiasr-pkgdown-preview'), new_process = FALSE, install = TRUE)"`,
+  `trap 'mv /private/tmp/debiasr-NEWS-hidden.md NEWS.md 2>/dev/null || true' EXIT; mv NEWS.md /private/tmp/debiasr-NEWS-hidden.md; RSTUDIO_PANDOC=/Applications/quarto/bin/tools/aarch64 Rscript -e "pkgdown::build_site(pkg = '.', override = list(destination = '/private/tmp/debiasr-pkgdown-preview'), new_process = FALSE, install = TRUE)"`,
   serve that directory locally, and open the relevant `articles/*.html` page
   (for example `/articles/v06-adjusting-biases.html`). Use standalone Quarto
   preview only if explicitly requested.
