@@ -1,5 +1,14 @@
 # debiasR 0.0.0.9000
 
+### Public documentation and governance
+
+- Added GitHub Pages pkgdown deployment support for the public vignette site.
+- Added repository code ownership for Francisco Rowe and Carmen Cabrera.
+- Updated contribution guidance so all changes to `main` go through pull
+  requests with code-owner review.
+- Documented public GitHub installation commands for `debiasR` and the
+  empirical companion package `debiasRdata`.
+
 ### Multilevel scenario development
 
 - Added an S1-S4 scenario contract for `adjust_multilevel_bayes()` covering single/multiple mobile-phone-derived data sources crossed with single/multiple observation periods.

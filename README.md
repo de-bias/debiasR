@@ -94,17 +94,33 @@ If you’re interested in collaborating or contributing, please join our growing
 
 ## 🚀 Getting Started
 
-1. Install and load the package from this checkout.
-2. Explore the documentation in `R/` and `man/`.
-3. Install the optional empirical data companion when you need the LAD
-   travel-to-work examples:
+Install the development version of `debiasR` from GitHub:
+
+```r
+pak::pak("de-bias/debiasR")
+```
+
+If you do not use `pak`, install with `remotes` instead:
+
+```r
+remotes::install_github("de-bias/debiasR")
+```
+
+Install the empirical data companion when you need to reproduce the LAD
+travel-to-work examples in the vignettes:
+
+```r
+pak::pak("de-bias/debiasRdata")
+```
+
+The same installation is available with `remotes`:
 
 ```r
 remotes::install_github("de-bias/debiasRdata")
 ```
 
-4. Try the empirical LAD travel-to-work examples through `debiasRdata` and the
-   walkthroughs in `vignettes/`.
+Then load the package and follow the walkthroughs in the pkgdown articles or
+the source files in `vignettes/`.
 
 Default example data:
 
@@ -146,7 +162,9 @@ The `data-raw/` folder contains the scripts used to build those datasets.
 ## 🛠️ Contributing
 
 We welcome contributions of all kinds: code, documentation, issues, examples, and methodological ideas.
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming guidance, and pull request templates.
+All changes to `main` are made through pull requests. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming
+guidance, and pull request templates.
 
 ---
 

@@ -14,6 +14,9 @@
 - [ ] My code follows the style guidelines of this project
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have added labels to the PR
+- [ ] This change is proposed through a branch and PR, not a direct push to `main`
+- [ ] I have run `Rscript scripts/run_fast_tests.R` or explained why it is not relevant
+- [ ] Documentation or pkgdown-impacting changes have been checked with a local site build or CI
 
 ## Related Issues
 
