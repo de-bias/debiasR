@@ -434,35 +434,67 @@ flows would look like after removing the estimated coverage-bias contribution.
 The method uses information about origins, destinations, covariates, distance
 and coverage bias in one modelling framework. The multilevel structure is
 designed to allow partial pooling across areas, sources or time periods when
-those data structures are available. The full Bayesian scenario
-implementation is still in progress, so this vignette uses
-`model_engine = "frequentist"` as a fast placeholder for the same data and
-output contract. Here, we use a simple example based on one mobile-phone data source and one
-observation period. The intended inferential target remains the Bayesian engine
-for supported scenarios. The simplified model can be written as:
+those data structures are available. The Bayesian implementation can take time,
+so this vignette uses `model_engine = "frequentist"` as a fast option. Here, we
+use a simple example based on one mobile-phone data source and one observation
+period. In reduced form, the model can be written as:
 
-Observation model:
+*_Level 1: MPD observation model_*
 
 $$
-F^{mpd}_{ij} \sim \text{Poisson}(\mu^{obs}_{ij})
+F^{mpd}_{ij} \sim \text{Poisson}(\mu^{mpd}_{ij})
 $$
 
-Observed-flow model:
-
 $$
-\log \mu^{obs}_{ij}
-= \alpha + \beta_o X_i + \beta_d X_j +
-\gamma \log d_{ij} + \omega e_i + u_i
+\log \mu^{mpd}_{ij}
+= \log F^{true}_{ij} + B^{mpd}_{ij} + \varepsilon^{mpd}_{ij}
 $$
 
-Coverage-bias term:
+where $B^{mpd}_{ij}$ captures the MPD observation-bias component.
+
+*_Level 2: true mobility-flow model_*
+
+$$
+\log F^{true}_{ij}
+= \alpha + \beta_o X_i + \beta_d X_j + \gamma \log d_{ij}
++ u_i + v_j + w_{ij} + \xi_{ij}
+$$
+
+where $X_i$ and $X_j$ are origin and destination covariates, $d_{ij}$ is the
+origin-destination distance, and $u_i$, $v_j$ and $w_{ij}$ capture origin,
+destination and origin-destination structure.
+
+Intuitively, Level 1 recognises that we observe MPD flows, not the true mobility
+flows themselves. The observed MPD flow $F^{mpd}_{ij}$ is treated as an
+imperfect measurement of an underlying true flow $F^{true}_{ij}$. The term
+$B^{mpd}_{ij}$ represents the part of the MPD observation process that may push
+the recorded flow above or below the true flow.
+
+Level 2 describes the underlying mobility pattern learned from covariates,
+distance and origin/destination/corridor structure. It assumes that the true flow
+$F^{true}_{ij}$ depends on origin and destination characteristics, distance, and
+persistent origin, destination and corridor structure. This gives the model a
+way to borrow information across related places instead of treating every OD
+corridor as a completely separate unit.
+
+The model is estimated using the MPD flows as observed, including the observed
+coverage gaps across areas. The model learns whether areas with different
+coverage levels tend to have MPD flows that are systematically smaller or larger
+than expected, while also learning the broader mobility pattern.
+
+The model adjusts the observed MPD flows after estimation is complete. Once the
+relationships have been learned, `adjust_multilevel_bayes()` keeps the fitted
+model fixed and asks a counterfactual question: for this same OD pair, what flow
+would the model predict if the MPD observation-bias component were switched off?
+In the simple example below, that bias component is represented with the origin
+coverage-bias term:
 
 $$
 e_i = 1 - \frac{U_i}{P_i}
 $$
 
-For the simple formula with a linear coverage-bias term, the adjusted
-fixed-effect predictor is:
+For a linear bias term, $B^{mpd}_{ij} = \omega e_i$, so subtracting
+$\omega e_i$ removes the learned coverage-bias contribution from the predictor:
 
 $$
 \eta^{adj}_{ij} = \eta^{fix}_{ij} - \omega e_i
@@ -474,12 +506,8 @@ $$
 F^{adj}_{ij} = \exp(\eta^{adj}_{ij})
 $$
 
-In the Bayesian implementation, this is done draw-by-draw from the posterior
-and summarised by mean or median. More generally, the implementation computes
-a formula-aware fixed-effect counterfactual prediction with `bias_e_origin` set
-to zero, which keeps the correction valid when the formula includes interactions
-or random slopes. The frequentist engine is used here only to test the shared data
-contract, formula and output shape quickly.
+In a Bayesian framework, this post-estimation prediction is computed
+draw-by-draw from the posterior and summarised by mean or median.
 
 ### Implementation
 
@@ -493,9 +521,30 @@ The `prediction_scope` argument controls whether the method adjusts
 only observed MPD pairs or predicts over a complete OD grid. The
 `formula`, `model_family`, `model_engine` and `flow_adj_summary` arguments
 control the model structure, likelihood, fitting engine and how adjusted flows
-are summarised. Area-level covariates are available in the formula with origin
-and destination suffixes. This example uses `rural_pct_o` and `rural_pct_d` so
-the model uses the real Census rural-share covariate.
+are summarised.
+
+The equations above translate directly into the R formula. The fixed terms
+`rural_pct_o`, `rural_pct_d` and `log_distance` represent the true-flow model
+terms $X_i$, $X_j$ and $d_{ij}$. The term `bias_e_origin` represents the MPD
+observation-bias component $B^{mpd}_{ij}$ through the coverage-bias measure
+$e_i$. Random-effect terms represent the origin, destination and corridor
+structure: `(1 | origin)` for $u_i$, `(1 | destination)` for $v_j$, and
+`(1 | od_id)` for $w_{ij}$. The package creates `od_id` internally before
+fitting.
+
+A full formula matching the reduced two-level description is:
+
+```{r eval=FALSE}
+formula_multilevel_full <- flow ~ rural_pct_o + rural_pct_d + log_distance +
+  bias_e_origin + (1 | origin) + (1 | destination) + (1 | od_id)
+```
+
+This is the formula to use when the data support origin, destination and
+corridor partial pooling. In the small S1 example below, each OD corridor appears
+once, so the corridor random effect is weakly identified. To keep the rendered
+vignette stable and fast, we fit a reduced version that preserves the fixed
+true-flow terms and the MPD bias term, and then show the full formula as the
+target specification for richer data.
 
 ```{r}
 mpd_s1 <- example_data$mpd_od |>
@@ -532,18 +581,16 @@ adj_multilevel |>
   dplyr::slice_head(n = 5)
 ```
 
-To include an origin random intercept, add the random-effect term directly to
-the formula. This tells the model to partially pool flows by origin while
-keeping the same fixed-effect covariates.
+For a richer dataset, use the full multilevel formula in the function call:
 
 ```{r eval=FALSE}
-adj_multilevel_origin_re <- adjust_multilevel_bayes(
+adj_multilevel_full <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s1,
   coverage_df = coverage_s1,
   covariates_df = example_data$covariates,
   distance_df = example_data$distance,
   formula = flow ~ rural_pct_o + rural_pct_d + log_distance +
-    bias_e_origin + (1 | origin),
+    bias_e_origin + (1 | origin) + (1 | destination) + (1 | od_id),
   model_engine = "frequentist",
   scenario = "s1",
   source_col = "mpd_source",
@@ -554,7 +601,7 @@ adj_multilevel_origin_re <- adjust_multilevel_bayes(
   flow_adj_summary = "median"
 )
 
-adj_multilevel_origin_re |>
+adj_multilevel_full |>
   dplyr::select(origin, destination, flow, flow_adj) |>
   dplyr::slice_head(n = 5)
 ```

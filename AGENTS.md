@@ -39,6 +39,9 @@ Testing:
 
 Documentation:
 - Keep README, NEWS, status notes, and task board synchronized when user-facing scope changes.
+- Keep adding release/development notes to `NEWS.md`, but do not display the
+  changelog in pkgdown previews or deployed vignette sites unless Francisco
+  explicitly asks for it.
 - Do not treat older migration notes as the current source of truth when `STATUS.md` or `TASK_BOARD.md` disagree.
 - When asked to preview vignettes, default to a pkgdown-style preview rather than
   standalone `quarto preview` output. Build the site to a temporary directory
