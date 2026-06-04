@@ -1,5 +1,10 @@
 # data-raw/build_simulated_data.R
-# Regenerate simulated datasets for Stage-1 v0.2
+# Regenerate simulated datasets for Stage-1 v0.2.
+#
+# The historical raw calibration CSVs used by this script are intentionally not
+# distributed in the public repository. Public empirical examples should use the
+# audited debiasRdata package; debiasR ships the generated simulated fixtures in
+# data/ for tests and lightweight examples.
 
 suppressPackageStartupMessages({
   library(readr)
@@ -47,12 +52,23 @@ pop_bench_path <- "data-raw/benchmark-population_data.csv"
 mpd_od_path <- "data-raw/od_df_mar2020_feb2021.csv"
 bench_od_path <- "data-raw/internal-migration-benchmark_data.csv"
 
-stopifnot(
-  file.exists(active_users_path),
-  file.exists(pop_bench_path),
-  file.exists(mpd_od_path),
-  file.exists(bench_od_path)
+required_raw_inputs <- c(
+  active_users_path,
+  pop_bench_path,
+  mpd_od_path,
+  bench_od_path
 )
+
+if (!all(file.exists(required_raw_inputs))) {
+  missing_inputs <- required_raw_inputs[!file.exists(required_raw_inputs)]
+  stop(
+    "Historical raw calibration inputs are not distributed with debiasR. ",
+    "Use the prebuilt simulated_* datasets for package examples and tests, ",
+    "or use debiasRdata for audited public empirical examples. Missing files: ",
+    paste(missing_inputs, collapse = ", "),
+    call. = FALSE
+  )
+}
 
 aup_raw <- readr::read_csv(active_users_path, show_col_types = FALSE)
 pop_raw <- readr::read_csv(pop_bench_path, show_col_types = FALSE)

@@ -66,6 +66,10 @@ Last updated: 2026-05-21
 - The Zenodo data gate is documented in `DATA_REDISTRIBUTION_DECISION.md`: do not bundle the full record in `debiasR`; use the separate optional `debiasRdata` package for empirical travel-to-work examples and keep simulated data as lightweight test fixtures.
 - `debiasRdata` now exists locally and remotely at <https://github.com/de-bias/debiasRdata>. It supplies MSOA and LAD OD-flow assets, with the LAD route (`lad_OD_travel2work`, `census_lad_OD_travel2work`) now the default for `debiasR`, plus `lad_centroids` for selected-area distance derivation.
 - Cleanup pass removed tracked rendered notebook HTML/assets from project-management notes while keeping the Quarto sources, and declared `debiasRdata` in `Suggests` for conditional examples.
+- Public-release cleanup removed legacy raw calibration CSVs from `debiasR`.
+  Public empirical examples now route through the audited `debiasRdata`
+  package; `debiasR` keeps the prebuilt `simulated_*` fixtures for tests and
+  lightweight examples.
 
 ## Verification
 

@@ -94,17 +94,33 @@ If you’re interested in collaborating or contributing, please join our growing
 
 ## 🚀 Getting Started
 
-1. Install and load the package from this checkout.
-2. Explore the documentation in `R/` and `man/`.
-3. Install the optional empirical data companion when you need the LAD
-   travel-to-work examples:
+Install the development version of `debiasR` from GitHub:
+
+```r
+pak::pak("de-bias/debiasR")
+```
+
+If you do not use `pak`, install with `remotes` instead:
+
+```r
+remotes::install_github("de-bias/debiasR")
+```
+
+Install the empirical data companion when you need to reproduce the LAD
+travel-to-work examples in the vignettes:
+
+```r
+pak::pak("de-bias/debiasRdata")
+```
+
+The same installation is available with `remotes`:
 
 ```r
 remotes::install_github("de-bias/debiasRdata")
 ```
 
-4. Try the empirical LAD travel-to-work examples through `debiasRdata` and the
-   walkthroughs in `vignettes/`.
+Then load the package and follow the walkthroughs in the pkgdown articles or
+the source files in `vignettes/`.
 
 Default example data:
 
@@ -139,14 +155,18 @@ compatibility:
 - `simulated_active.users`
 - `simulated_pop`
 
-The `data-raw/` folder contains the scripts used to build those datasets.
+The lightweight simulated datasets are shipped prebuilt in `data/`. Historical
+raw calibration CSVs are not distributed in this repository; public empirical
+examples should use the audited `debiasRdata` package instead.
 
 ---
 
 ## 🛠️ Contributing
 
 We welcome contributions of all kinds: code, documentation, issues, examples, and methodological ideas.
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming guidance, and pull request templates.
+All changes to `main` are made through pull requests. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming
+guidance, and pull request templates.
 
 ---
 
@@ -165,7 +185,7 @@ See the [LICENSE](LICENSE) file for full details.
 
 - `R/` - package functions and internal helpers
 - `data/` - lightweight simulated datasets retained for tests and compatibility
-- `data-raw/` - scripts for rebuilding simulated data and extracting empirical benchmarks
+- `data-raw/` - development scripts; historical raw calibration CSVs are not distributed
 - `man/` - generated documentation for exported objects
 - `tests/` - `testthat` tests
 - `vignettes/` - package-facing Quarto vignettes built into the documentation site
