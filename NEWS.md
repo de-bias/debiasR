@@ -27,6 +27,9 @@
 - Added Census 2021 `ODWP01EW` workplace-flow extraction scripts for the benchmark travel-to-work OD matrices.
 - Updated examples to use the optional companion package `de-bias/debiasRdata`, with `lad_OD_travel2work` as the default observed OD matrix and `census_lad_OD_travel2work` as the Census benchmark, while retaining MSOA access through `geography = "msoa"` and `simulated_*` datasets as lightweight test fixtures.
 - Added selected-area LAD distance derivation from real `debiasRdata::lad_centroids`, avoiding a packaged full OD distance matrix.
+- Removed legacy raw calibration CSVs from the main repository so public data
+  assets are served through the audited `debiasRdata` package and lightweight
+  simulated fixtures remain prebuilt in `debiasR`.
 
 ### Bayesian complete-grid prediction
 

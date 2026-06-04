@@ -155,7 +155,9 @@ compatibility:
 - `simulated_active.users`
 - `simulated_pop`
 
-The `data-raw/` folder contains the scripts used to build those datasets.
+The lightweight simulated datasets are shipped prebuilt in `data/`. Historical
+raw calibration CSVs are not distributed in this repository; public empirical
+examples should use the audited `debiasRdata` package instead.
 
 ---
 
@@ -183,7 +185,7 @@ See the [LICENSE](LICENSE) file for full details.
 
 - `R/` - package functions and internal helpers
 - `data/` - lightweight simulated datasets retained for tests and compatibility
-- `data-raw/` - scripts for rebuilding simulated data and extracting empirical benchmarks
+- `data-raw/` - development scripts; historical raw calibration CSVs are not distributed
 - `man/` - generated documentation for exported objects
 - `tests/` - `testthat` tests
 - `vignettes/` - package-facing Quarto vignettes built into the documentation site
