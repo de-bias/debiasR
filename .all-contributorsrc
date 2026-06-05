@@ -38,9 +38,19 @@
       "contributions": [
         "doc",
         "code",
+        "bug",
         "content",
+        "design",
+        "example",
         "ideas",
-        "research"
+        "infra",
+        "maintenance",
+        "platform",
+        "projectManagement",
+        "research",
+        "review",
+        "tool",
+        "test"
       ]
     }
   ],
