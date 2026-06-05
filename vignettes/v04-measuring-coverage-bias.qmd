@@ -38,7 +38,9 @@ So, if an area has $p_i = 0.04$, the digital trace data cover about 4 people per
 
 ## Load data
 
-We use the LAD coverage table from `debiasRdata`. The table contains benchmark Census population counts and Locomizer-derived digital trace population counts for each LAD.
+We use the LAD travel-to-work example route from `debiasRdata`. The helper
+derives a coverage table by matching Census benchmark origin totals with
+Locomizer-derived observed origin totals for the selected LADs.
 
 ```{r setup}
 input_file <- knitr::current_input(dir = TRUE)
@@ -71,7 +73,10 @@ coverage <- example_data$coverage |>
 head(coverage)
 ```
 
-`debiasR::measure_bias()` expects the benchmark population column to be called `population` and the digital trace population column to be called `user_count`. These names are already used in the workshop coverage table; we also keep a standard `area` identifier for the later residual diagnostic.
+`debiasR::measure_bias()` expects the benchmark population column to be called
+`population` and the digital trace population column to be called `user_count`.
+These names are already used in the helper-derived coverage table; we also keep
+a standard `area` identifier for the later residual diagnostic.
 
 ```{r}
 head(coverage)

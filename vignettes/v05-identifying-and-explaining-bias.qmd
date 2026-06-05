@@ -32,7 +32,12 @@ for package users.
 
 ## Load bias and covariates
 
-In this vignette, we illustrate how `debiasR` can be used with example UK data at the local authority district (LAD) level. We start with two tables from debiasRdata: a coverage table and a covariates table. The coverage table contains the benchmark Census population and the observed digital trace user count for each LAD. The covariate table contains selected area-level characteristics from the 2021 Census.
+In this vignette, we illustrate how `debiasR` can be used with example UK data
+at the local authority district (LAD) level. We start with the LAD
+travel-to-work route from `debiasRdata`. `debiasR_example_data()` derives a
+coverage table by matching Census benchmark origin totals with observed digital
+trace origin totals for the selected LADs, and `debiasRdata::lad_covariates`
+provides selected area-level characteristics from the 2021 Census.
 
 ```{r setup}
 input_dir <- dirname(knitr::current_input(dir = TRUE))
@@ -46,9 +51,9 @@ example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 library(ggplot2)
 ```
 
-The coverage table stores the LAD identifier in a column called `code`.
-We rename it to `area` so that it uses the same identifier name as the
-covariate table and the rest of the `debiasR` workflow.
+The helper-derived coverage table stores the LAD identifier in a column called
+`origin`. We rename it to `area` so that it uses the same identifier name as
+the covariate table and the rest of the `debiasR` workflow.
 
 ```{r}
 coverage <- example_data$coverage |>

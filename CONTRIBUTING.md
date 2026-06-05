@@ -5,9 +5,10 @@ Thank you for your interest in contributing to this project! We welcome all kind
 
 ## 🚀 How to Contribute
 
-Only Francisco Rowe (`fcorowe`) may push directly to `main`. Everyone else,
-including automation agents, must make changes on a branch and open a pull
-request into `main`.
+All changes to `main` must come through pull requests. Direct pushes to `main`
+are not part of the project workflow, including for maintainers and automation
+agents. Francisco Rowe (`fcorowe`) and Carmen Cabrera (`carmen-cabrera`) can
+review and merge accepted pull requests.
 
 1. **Clone the repository**  
    ```bash
@@ -46,6 +47,7 @@ request into `main`.
 
 7. **Open a Pull Request (PR)**  
    Use the PR template in `.github/pull_request_template.md` and link any related issues.
+   A code-owner review is required before changes can be merged into `main`.
 
 ---
 

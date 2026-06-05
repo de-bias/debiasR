@@ -16,10 +16,14 @@ Before substantial work:
 - If the task touches validation, also check relevant notes in `notes/project-management/`.
 
 Git and GitHub controls:
-- Only Francisco Rowe (`fcorowe`) may push directly to `main`.
-- All other contributors and automation agents must work on a branch and open a pull request into `main`.
-- Do not push to `main` from another account, bot, or shared token, even for small fixes.
-- If a direct push to `main` by a non-`fcorowe` actor appears necessary, stop and ask Francisco to approve a PR-based route instead.
+- All contributors and automation agents must work on a branch and open a pull
+  request into `main`.
+- Direct pushes to `main` are not part of the project workflow, including for
+  maintainers and automation agents.
+- Francisco Rowe (`fcorowe`) and Carmen Cabrera (`carmen-cabrera`) can review
+  and merge accepted pull requests.
+- If a direct push to `main` appears necessary, stop and ask Francisco to
+  approve a PR-based route instead.
 
 Coding defaults:
 - Prefer existing package patterns in `R/`, `tests/testthat/`, and roxygen documentation.
@@ -46,7 +50,7 @@ Documentation:
 - When asked to preview vignettes, default to a pkgdown-style preview rather than
   standalone `quarto preview` output. Build the site to a temporary directory
   such as `/private/tmp/debiasr-pkgdown-preview` with
-  `RSTUDIO_PANDOC=/Applications/quarto/bin/tools/aarch64 Rscript -e "pkgdown::build_site(pkg = '.', override = list(destination = '/private/tmp/debiasr-pkgdown-preview'), new_process = FALSE, install = TRUE)"`,
+  `trap 'mv /private/tmp/debiasr-NEWS-hidden.md NEWS.md 2>/dev/null || true' EXIT; mv NEWS.md /private/tmp/debiasr-NEWS-hidden.md; RSTUDIO_PANDOC=/Applications/quarto/bin/tools/aarch64 Rscript -e "pkgdown::build_site(pkg = '.', override = list(destination = '/private/tmp/debiasr-pkgdown-preview'), new_process = FALSE, install = TRUE)"`,
   serve that directory locally, and open the relevant `articles/*.html` page
   (for example `/articles/v06-adjusting-biases.html`). Use standalone Quarto
   preview only if explicitly requested.

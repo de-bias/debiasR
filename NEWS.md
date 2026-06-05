@@ -1,5 +1,14 @@
 # debiasR 0.0.0.9000
 
+### Public documentation and governance
+
+- Added GitHub Pages pkgdown deployment support for the public vignette site.
+- Added repository code ownership for Francisco Rowe and Carmen Cabrera.
+- Updated contribution guidance so all changes to `main` go through pull
+  requests with code-owner review.
+- Documented public GitHub installation commands for `debiasR` and the
+  empirical companion package `debiasRdata`.
+
 ### Multilevel scenario development
 
 - Added an S1-S4 scenario contract for `adjust_multilevel_bayes()` covering single/multiple mobile-phone-derived data sources crossed with single/multiple observation periods.
@@ -18,6 +27,9 @@
 - Added Census 2021 `ODWP01EW` workplace-flow extraction scripts for the benchmark travel-to-work OD matrices.
 - Updated examples to use the optional companion package `de-bias/debiasRdata`, with `lad_OD_travel2work` as the default observed OD matrix and `census_lad_OD_travel2work` as the Census benchmark, while retaining MSOA access through `geography = "msoa"` and `simulated_*` datasets as lightweight test fixtures.
 - Added selected-area LAD distance derivation from real `debiasRdata::lad_centroids`, avoiding a packaged full OD distance matrix.
+- Removed legacy raw calibration CSVs from the main repository so public data
+  assets are served through the audited `debiasRdata` package and lightweight
+  simulated fixtures remain prebuilt in `debiasR`.
 
 ### Bayesian complete-grid prediction
 

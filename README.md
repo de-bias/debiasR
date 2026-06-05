@@ -1,9 +1,9 @@
-[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-<img src="man/figures/debias-logo-white.JPEG" alt="debiasR Logo" width="300"/>
+<img src="man/figures/debias-hex.png" alt="debiasR hex logo" width="260"/>
 
 # debiasR R Package Repository
 
@@ -94,17 +94,33 @@ If you’re interested in collaborating or contributing, please join our growing
 
 ## 🚀 Getting Started
 
-1. Install and load the package from this checkout.
-2. Explore the documentation in `R/` and `man/`.
-3. Install the optional empirical data companion when you need the LAD
-   travel-to-work examples:
+Install the development version of `debiasR` from GitHub:
+
+```r
+pak::pak("de-bias/debiasR")
+```
+
+If you do not use `pak`, install with `remotes` instead:
+
+```r
+remotes::install_github("de-bias/debiasR")
+```
+
+Install the empirical data companion when you need to reproduce the LAD
+travel-to-work examples in the vignettes:
+
+```r
+pak::pak("de-bias/debiasRdata")
+```
+
+The same installation is available with `remotes`:
 
 ```r
 remotes::install_github("de-bias/debiasRdata")
 ```
 
-4. Try the empirical LAD travel-to-work examples through `debiasRdata` and the
-   walkthroughs in `vignettes/`.
+Then load the package and follow the walkthroughs in the pkgdown articles or
+the source files in `vignettes/`.
 
 Default example data:
 
@@ -139,14 +155,18 @@ compatibility:
 - `simulated_active.users`
 - `simulated_pop`
 
-The `data-raw/` folder contains the scripts used to build those datasets.
+The lightweight simulated datasets are shipped prebuilt in `data/`. Historical
+raw calibration CSVs are not distributed in this repository; public empirical
+examples should use the audited `debiasRdata` package instead.
 
 ---
 
 ## 🛠️ Contributing
 
 We welcome contributions of all kinds: code, documentation, issues, examples, and methodological ideas.
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming guidance, and pull request templates.
+All changes to `main` are made through pull requests. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming
+guidance, and pull request templates.
 
 ---
 
@@ -165,7 +185,7 @@ See the [LICENSE](LICENSE) file for full details.
 
 - `R/` - package functions and internal helpers
 - `data/` - lightweight simulated datasets retained for tests and compatibility
-- `data-raw/` - scripts for rebuilding simulated data and extracting empirical benchmarks
+- `data-raw/` - development scripts; historical raw calibration CSVs are not distributed
 - `man/` - generated documentation for exported objects
 - `tests/` - `testthat` tests
 - `vignettes/` - package-facing Quarto vignettes built into the documentation site
@@ -211,6 +231,7 @@ Thank you for helping us build open, collaborative and impactful projects with D
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://franciscorowe.com"><img src="https://avatars.githubusercontent.com/u/28450210?v=4?s=100" width="100px;" alt="Francisco Rowe"/><br /><sub><b>Francisco Rowe</b></sub></a><br /><a href="https://github.com/de-bias/debiasR/commits?author=fcorowe" title="Documentation">📖</a> <a href="https://github.com/de-bias/debiasR/commits?author=fcorowe" title="Code">💻</a> <a href="https://github.com/de-bias/debiasR/issues?q=author%3Afcorowe" title="Bug reports">🐛</a> <a href="#content-fcorowe" title="Content">🖋</a> <a href="#design-fcorowe" title="Design">🎨</a> <a href="#example-fcorowe" title="Examples">💡</a> <a href="#ideas-fcorowe" title="Ideas, Planning, & Feedback">🤔</a> <a href="#infra-fcorowe" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="#maintenance-fcorowe" title="Maintenance">🚧</a> <a href="#platform-fcorowe" title="Packaging/porting to new platform">📦</a> <a href="#projectManagement-fcorowe" title="Project Management">📆</a> <a href="#research-fcorowe" title="Research">🔬</a> <a href="https://github.com/de-bias/debiasR/pulls?q=is%3Apr+reviewed-by%3Afcorowe" title="Reviewed Pull Requests">👀</a> <a href="#tool-fcorowe" title="Tools">🔧</a> <a href="https://github.com/de-bias/debiasR/commits?author=fcorowe" title="Tests">⚠️</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/carmen-cabrera"><img src="https://avatars.githubusercontent.com/u/33100192?v=4?s=100" width="100px;" alt="Carmen Cabrera"/><br /><sub><b>Carmen Cabrera</b></sub></a><br /><a href="https://github.com/de-bias/debiasR/commits?author=carmen-cabrera" title="Documentation">📖</a> <a href="https://github.com/de-bias/debiasR/commits?author=carmen-cabrera" title="Code">💻</a> <a href="#content-carmen-cabrera" title="Content">🖋</a> <a href="#ideas-carmen-cabrera" title="Ideas, Planning, & Feedback">🤔</a> <a href="#research-carmen-cabrera" title="Research">🔬</a></td>
     </tr>
   </tbody>
 </table>
