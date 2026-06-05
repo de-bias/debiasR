@@ -1,7 +1,7 @@
 ---
-title: "Getting started with debiasR"
+title: "Getting started"
 vignette: >
-  %\VignetteIndexEntry{Getting started with debiasR}
+  %\VignetteIndexEntry{Getting started}
   %\VignetteEngine{quarto::html}
   %\VignetteEncoding{UTF-8}
 format:
@@ -15,7 +15,7 @@ execute:
 
 ## Aim
 
-This vignette introduces the example data used throughout the `debiasR`
+This vignette introduces the notation and example data used throughout the `debiasR`
 vignettes and shows the first checks needed before measuring bias, adjusting OD flows and validating results.
 
 A typical `debiasR` workflow starts by:
@@ -26,12 +26,30 @@ A typical `debiasR` workflow starts by:
 
 ## Loading the package
 
-The previous vignette showed how to install `debiasR` and the optional `debiasRdata` package. Here we load the packages and prepare the shared setup used by the remaining vignettes.
+We start by loading the packages:
 
 ```{r setup}
 library(debiasR)
 library(debiasRdata)
 ```
+
+## Notation
+
+We use the same notation throughout:
+
+-   $i$: origin or area identifier
+-   $j$: destination identifier
+-   $P_i$: benchmark population for area $i$
+-   $U_i$: observed digital trace population for area $i$
+-   $p_i = U_i / P_i$: coverage score
+-   $b_i = 1 - p_i$: coverage bias
+-   $\bar{p} = \sum_i U_i / \sum_i P_i$: global coverage score
+-   $e_i = p_i - \bar{p}$: coverage-score residual
+-   $F^{trace}_{ij}$: observed digital-trace-derived OD flow
+-   $F^{mpd}_{ij}$: observed mobile-phone-derived OD flow in the running
+    example
+-   $F^{bench}_{ij}$: benchmark OD flow
+-   $F^{adj}_{ij}$: adjusted OD flow
 
 ## Example data: Locomizer travel-to-work flows
 
@@ -52,7 +70,7 @@ covariates <- debiasRdata::lad_covariates
 distance <- debiasRdata::lad_centroids
 ```
 
-In summary, the main input datasets are:
+In summary, the main input datasets are as follows:
 
 | Object | Role |
 |---|---|
@@ -62,6 +80,7 @@ In summary, the main input datasets are:
 | `covariates` | area-level characteristics used to explain bias |
 | `distance` | OD distance used in adjustment models |
 
+The datasets are also available at the Middle-layer Super-Output Area (MSOA) level via `debiasRdata`.
 
 ## Inspect inputs
 
