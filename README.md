@@ -3,7 +3,7 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-<img src="man/figures/debias-logo-white.JPEG" alt="debiasR Logo" width="300"/>
+<img src="man/figures/debias-hex.png" alt="debiasR hex logo" width="260"/>
 
 # debiasR R Package Repository
 
