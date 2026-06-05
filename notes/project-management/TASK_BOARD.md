@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-05-21
+Last updated: 2026-06-05
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -8,7 +8,26 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Now
 
-1. Validate optional Bayesian CI workflow - `1-2h`
+1. Post-public repository hygiene pass - `1-2h`
+- The `debiasR` repository is public on GitHub as of 2026-06-04.
+- Treat tracked files, documentation, vignettes, GitHub workflows, issues, and
+  pull requests as public-facing.
+- Review public-facing docs, pkgdown output, repository metadata, and tracked
+  assets for release hygiene.
+- Keep `NEWS.md` updated, but keep the changelog hidden from pkgdown previews
+  and deployed vignette sites unless Francisco explicitly asks for it.
+- Keep all changes to `main` flowing through pull requests with code-owner
+  review.
+
+2. Scope latent two-level Bayesian enhancement - `1-2h`
+- Enhancement issue #18 is open for implementing a genuinely latent two-level
+  Bayesian model in `adjust_multilevel_bayes()`.
+- The current intermediate implementation separates `mobility_formula` and
+  `bias_formula`, but still fits one reduced-form observed-flow model.
+- Before implementing the latent model, write a design note covering priors,
+  identifiability, required data structures, S1-S4 scope, and diagnostics.
+
+3. Validate optional Bayesian CI workflow - `1-2h`
 - Fast core GitHub Actions validation passed on merged PR #11.
 - Current branch fast core tests pass locally.
 - Local optional Bayesian test-file run passes with `rstanarm`; the remaining workflow check is the manual/optional GitHub Actions lane.
@@ -21,27 +40,34 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Recently Completed
 
-1. Review Stage 2 validation deliverables - `complete`
+1. Make repository public on GitHub - `complete`
+- Completed on 2026-06-04.
+- Public-release governance, contribution guidance, and pkgdown deployment
+  scaffolding are now part of the active project context.
+- Legacy raw calibration CSVs are not distributed from `debiasR`; public
+  empirical examples use the audited `debiasRdata` companion package.
+
+2. Review Stage 2 validation deliverables - `complete`
 - Maintainer review completed on 2026-05-08.
 - `validate_flow_residual_structure()` is stable public API.
 - Optional validation plots remain inside helpers for now.
 - `debiasRdata` is the implemented empirical data route:
   <https://github.com/de-bias/debiasRdata>.
 
-2. Close remaining package-readiness warnings - `complete`
+3. Close remaining package-readiness warnings - `complete`
 - Long generated notebook paths were removed from tracking; non-standard project folders remain excluded from package builds through `.Rbuildignore`.
 - Bayesian NSE warnings were removed by tightening tidyselect/tidy-evaluation expressions.
 - The Bayesian draw-summary names mismatch in the optional test file was fixed.
 - `debiasRdata` is declared in `Suggests`, closing the conditional-example unstated-dependency warning.
 - Package-readiness check with tests/vignettes/manual skipped now has 0 errors and 0 warnings.
 
-3. Keep Bayesian scope aligned - `complete`
+4. Keep Bayesian scope aligned - `complete`
 - `adjust_multilevel_bayes()` is documented as the main methodological innovation.
 - Observed-flow mode remains backward compatible.
 - Complete-grid prediction mode is available for strict square OD matrices and preserves row-status metadata.
 - Full empirical Bayesian rendering remains gated by Bayesian dependencies, runtime, and empirical runtime validation.
 
-4. Create `debiasRdata` companion package - `complete`
+5. Create `debiasRdata` companion package - `complete`
 - Repository: <https://github.com/de-bias/debiasRdata>.
 - Included data objects: `msoa_OD_travel2work`,
   `census_msoa_OD_travel2work`, `lad_OD_travel2work`,

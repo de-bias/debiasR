@@ -10,9 +10,15 @@
 #' where \eqn{e_i} is origin bias from coverage and \eqn{u} is an optional
 #' random-effect structure supplied through a model formula.
 #'
+#' Users can either supply a single reduced-form \code{formula}, or separate
+#' \code{mobility_formula} and \code{bias_formula} terms. The split interface
+#' keeps the conceptual Level-2 true-flow predictors separate from the Level-1
+#' MPD observation-bias predictors, while the current implementation still fits
+#' one reduced-form model to observed MPD flows.
+#'
 #' The adjusted flow is computed from a formula-aware fixed-effect
-#' counterfactual prediction with \code{bias_e_origin} set to zero, then
-#' summarizes draw-level adjusted flows by mean or median.
+#' counterfactual prediction with the numeric variables in \code{bias_formula}
+#' set to zero, then summarizes draw-level adjusted flows by mean or median.
 #'
 #' @param mpd_od_df Data frame with at least \code{origin}, \code{destination},
 #'   and \code{flow_col}. Optional \code{mpd_source} is carried through.
@@ -61,6 +67,16 @@
 #'   scenario columns such as \code{mpd_source} and \code{mpd_time}, and
 #'   random-effect terms supported by the chosen engine.
 #' @param custom_formula Deprecated alias for \code{formula}.
+#' @param mobility_formula Optional one-sided formula for the conceptual
+#'   true-flow component, for example
+#'   \code{~ rural_pct_o + rural_pct_d + log_distance + (1 | origin)}.
+#'   Supply together with \code{bias_formula}; do not combine with
+#'   \code{formula} or \code{custom_formula}.
+#' @param bias_formula Optional one-sided formula for the conceptual MPD
+#'   observation-bias component, for example \code{~ bias_e_origin}. Supply
+#'   together with \code{mobility_formula}. Fixed-effect variables in this
+#'   formula must be numeric, integer, or logical because the adjusted
+#'   counterfactual sets them to zero.
 #' @param model_family Count family: \code{"poisson"}, \code{"negbin"},
 #'   \code{"zip"}, or \code{"zinb"}.
 #' @param model_engine Development engine: \code{"bayesian"} uses the existing
@@ -153,8 +169,9 @@
 #'         coverage_df = coverage,
 #'         covariates_df = covariates,
 #'         distance_df = distance,
-#'         formula = flow ~ rural_pct_o + rural_pct_d + log_distance +
-#'           bias_e_origin + (1 | origin),
+#'         mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
+#'           (1 | origin),
+#'         bias_formula = ~ bias_e_origin,
 #'         model_engine = "frequentist",
 #'         model_family = "poisson"
 #'       )
@@ -179,6 +196,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                     random_intercept = c("origin", "destination", "od", "source", "time", "source_time", "none"),
                                     formula = NULL,
                                     custom_formula = NULL,
+                                    mobility_formula = NULL,
+                                    bias_formula = NULL,
                                     model_family = c("poisson", "negbin", "zip", "zinb"),
                                     model_engine = c("bayesian", "frequentist"),
                                     backend = c("auto", "rstanarm", "brms"),
@@ -201,7 +220,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   prediction_scope <- match.arg(prediction_scope)
   formula_info <- .resolve_multilevel_user_formula(
     formula = formula,
-    custom_formula = custom_formula
+    custom_formula = custom_formula,
+    mobility_formula = mobility_formula,
+    bias_formula = bias_formula
   )
   if (!is.null(formula_info$formula) && !random_intercept_supplied) {
     random_intercept <- "none"
@@ -330,6 +351,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     }
   }
   .validate_multilevel_formula_random_effects(fit_df, fit_formula)
+  bias_terms <- .resolve_multilevel_bias_terms(formula_info, fit_formula)
+  .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
 
   fit <- .fit_multilevel_bayes(
     backend = backend,
@@ -342,7 +365,10 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     refresh = refresh
   )
 
-  bias_zero_df <- .counterfactual_multilevel_bias_data(prediction_df)
+  bias_zero_df <- .counterfactual_multilevel_bias_data(
+    prediction_df,
+    bias_terms = bias_terms
+  )
   lin_true <- .posterior_linpred_fixef(
     fit = fit,
     backend = backend,
@@ -408,7 +434,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     default_covariate_col = prep$default_covariate_col,
     include_pop_terms = prep$has_pop_terms,
     scenario_terms = scenario_terms,
-    random_intercept = random_intercept
+    random_intercept = random_intercept,
+    bias_terms = bias_terms
   )
 
   runtime_seconds <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
@@ -433,6 +460,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     n_sources = scenario_info$n_sources,
     n_time_periods = scenario_info$n_time_periods,
     model_terms = model_terms,
+    bias_terms = bias_terms,
     random_intercept = random_intercept,
     flow_adj_summary = flow_adj_summary,
     distance_source = prep$distance_source,
@@ -457,6 +485,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "model_engine") <- model_engine
   attr(out, "model_family") <- model_family
   attr(out, "model_terms") <- model_terms
+  attr(out, "bias_terms") <- bias_terms
   attr(out, "stage") <- "stage_1"
   attr(out, "stage_scope") <- stage_scope
   attr(out, "result_metadata") <- result_metadata
@@ -476,13 +505,13 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     attr(out, "prototype_notes") <- paste(
       "Stage-1 complete-grid prediction: fit to originally observed MPD rows when mpd_observed is available.",
       "Rows marked mpd_zero_filled are zero-filled source-missing OD cells predicted on the supplied square grid.",
-      "flow_adj removes the estimated coverage-bias contribution from posterior fixed-effect linear predictor draws and is summarized by", flow_adj_summary
+      "flow_adj removes the fixed-effect contribution from the resolved bias terms and is summarized by", flow_adj_summary
     )
   } else {
     attr(out, "prototype_notes") <- paste(
       "Stage-1 observed mode: bias-adjusted observed OD flows.",
       "No missing OD pairs are created unless prediction_scope = 'complete_grid' is used with a supplied square grid.",
-      "flow_adj removes the estimated coverage-bias contribution from posterior fixed-effect linear predictor draws and is summarized by", flow_adj_summary
+      "flow_adj removes the fixed-effect contribution from the resolved bias terms and is summarized by", flow_adj_summary
     )
   }
 
@@ -609,6 +638,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     .validate_multilevel_random_intercept(fit_df, random_intercept)
   }
   .validate_multilevel_formula_random_effects(fit_df, fit_formula)
+  bias_terms <- .resolve_multilevel_bias_terms(formula_info, fit_formula)
+  .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
 
   fit <- .fit_multilevel_frequentist(
     model_family = model_family,
@@ -616,7 +647,10 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     data = fit_df
   )
 
-  bias_zero_df <- .counterfactual_multilevel_bias_data(prediction_df)
+  bias_zero_df <- .counterfactual_multilevel_bias_data(
+    prediction_df,
+    bias_terms = bias_terms
+  )
   lin_true <- .predict_linpred_fixef_frequentist(fit, bias_zero_df)
   flow_adj <- exp(as.numeric(lin_true))
 
@@ -666,7 +700,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     default_covariate_col = prep$default_covariate_col,
     include_pop_terms = prep$has_pop_terms,
     scenario_terms = scenario_terms,
-    random_intercept = random_intercept
+    random_intercept = random_intercept,
+    bias_terms = bias_terms
   )
   runtime_seconds <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
   stage_scope <- if (prediction_scope == "complete_grid") {
@@ -689,6 +724,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     n_sources = scenario_info$n_sources,
     n_time_periods = scenario_info$n_time_periods,
     model_terms = model_terms,
+    bias_terms = bias_terms,
     random_intercept = random_intercept,
     flow_adj_summary = flow_adj_summary,
     distance_source = prep$distance_source,
@@ -707,6 +743,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "model_engine") <- "frequentist"
   attr(out, "model_family") <- model_family
   attr(out, "model_terms") <- model_terms
+  attr(out, "bias_terms") <- bias_terms
   attr(out, "stage") <- "frequentist_dev"
   attr(out, "stage_scope") <- stage_scope
   attr(out, "result_metadata") <- result_metadata
@@ -1156,9 +1193,49 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 }
 
 .resolve_multilevel_user_formula <- function(formula = NULL,
-                                             custom_formula = NULL) {
+                                             custom_formula = NULL,
+                                             mobility_formula = NULL,
+                                             bias_formula = NULL) {
+  split_supplied <- !is.null(mobility_formula) || !is.null(bias_formula)
+  combined_supplied <- !is.null(formula) || !is.null(custom_formula)
+
+  if (split_supplied && combined_supplied) {
+    stop(
+      "Use either `formula`/`custom_formula` or the split ",
+      "`mobility_formula` + `bias_formula` interface, not both."
+    )
+  }
+  if (split_supplied && (is.null(mobility_formula) || is.null(bias_formula))) {
+    stop("Supply both `mobility_formula` and `bias_formula` when using the split formula interface.")
+  }
   if (!is.null(formula) && !is.null(custom_formula)) {
     stop("Use only one of `formula` or deprecated `custom_formula`.")
+  }
+
+  if (split_supplied) {
+    mobility_formula <- .validate_multilevel_one_sided_formula(
+      mobility_formula,
+      arg_name = "mobility_formula"
+    )
+    bias_formula <- .validate_multilevel_one_sided_formula(
+      bias_formula,
+      arg_name = "bias_formula"
+    )
+
+    combined_formula <- .combine_multilevel_split_formula(
+      mobility_formula = mobility_formula,
+      bias_formula = bias_formula
+    )
+
+    return(list(
+      formula = combined_formula,
+      source = "split_formula",
+      interface = "split",
+      mobility_formula = mobility_formula,
+      bias_formula = bias_formula,
+      mobility_variables = .formula_fixed_effect_vars(mobility_formula),
+      bias_variables = .formula_fixed_effect_vars(bias_formula)
+    ))
   }
 
   if (!is.null(custom_formula)) {
@@ -1172,7 +1249,15 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   if (is.null(formula)) {
-    return(list(formula = NULL, source = source))
+    return(list(
+      formula = NULL,
+      source = source,
+      interface = "default",
+      mobility_formula = NULL,
+      bias_formula = NULL,
+      mobility_variables = character(),
+      bias_variables = character()
+    ))
   }
 
   formula <- stats::as.formula(formula)
@@ -1184,7 +1269,15 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     stop("`formula` response must be `flow`; `flow_col` is standardised to `flow` before fitting.")
   }
 
-  list(formula = formula, source = source)
+  list(
+    formula = formula,
+    source = source,
+    interface = "combined",
+    mobility_formula = NULL,
+    bias_formula = NULL,
+    mobility_variables = character(),
+    bias_variables = if ("bias_e_origin" %in% all.vars(formula)) "bias_e_origin" else character()
+  )
 }
 
 .formula_response_var <- function(formula) {
@@ -1194,6 +1287,21 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   vars[1]
+}
+
+.validate_multilevel_one_sided_formula <- function(formula, arg_name) {
+  formula <- stats::as.formula(formula)
+  if (length(formula) != 2L) {
+    stop("`", arg_name, "` must be a one-sided formula such as `~ bias_e_origin`.")
+  }
+
+  formula
+}
+
+.combine_multilevel_split_formula <- function(mobility_formula, bias_formula) {
+  mobility_rhs <- paste(deparse(mobility_formula[[2]]), collapse = " ")
+  bias_rhs <- paste(deparse(bias_formula[[2]]), collapse = " ")
+  stats::as.formula(paste("flow ~", mobility_rhs, "+", bias_rhs))
 }
 
 .formula_random_effect_calls <- function(formula) {
@@ -1228,6 +1336,30 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
 .formula_has_random_effects <- function(formula) {
   length(.formula_random_effect_calls(formula)) > 0L
+}
+
+.strip_formula_random_effect_calls <- function(expr) {
+  if (!is.call(expr)) {
+    return(expr)
+  }
+  if (identical(expr[[1]], as.name("|")) || identical(expr[[1]], as.name("||"))) {
+    return(0)
+  }
+  if (identical(expr[[1]], as.name("+"))) {
+    lhs <- .strip_formula_random_effect_calls(expr[[2]])
+    rhs <- .strip_formula_random_effect_calls(expr[[3]])
+    if (identical(lhs, 0)) return(rhs)
+    if (identical(rhs, 0)) return(lhs)
+    return(call("+", lhs, rhs))
+  }
+
+  as.call(c(expr[[1]], lapply(as.list(expr[-1]), .strip_formula_random_effect_calls)))
+}
+
+.formula_fixed_effect_vars <- function(formula) {
+  rhs <- formula[[length(formula)]]
+  rhs <- .strip_formula_random_effect_calls(rhs)
+  unique(all.vars(rhs))
 }
 
 .validate_multilevel_formula_random_effects <- function(fit_df, formula) {
@@ -1332,9 +1464,70 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   data
 }
 
-.counterfactual_multilevel_bias_data <- function(data) {
-  if ("bias_e_origin" %in% names(data)) {
-    data$bias_e_origin <- 0
+.resolve_multilevel_bias_terms <- function(formula_info, formula) {
+  bias_variables <- formula_info$bias_variables
+  if (is.null(bias_variables)) {
+    bias_variables <- character()
+  }
+
+  if (identical(formula_info$interface, "split")) {
+    return(bias_variables)
+  }
+
+  if (!is.null(formula_info$formula)) {
+    return(bias_variables)
+  }
+
+  if ("bias_e_origin" %in% all.vars(formula)) {
+    return("bias_e_origin")
+  }
+
+  character()
+}
+
+.validate_multilevel_bias_terms_for_counterfactual <- function(data, bias_terms) {
+  bias_terms <- unique(bias_terms)
+  if (length(bias_terms) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  missing_terms <- setdiff(bias_terms, names(data))
+  if (length(missing_terms) > 0L) {
+    stop(
+      "`bias_formula` references variable(s) not found in prepared model data: ",
+      paste(missing_terms, collapse = ", ")
+    )
+  }
+
+  invalid_terms <- bias_terms[!vapply(
+    bias_terms,
+    function(term) {
+      is.numeric(data[[term]]) || is.integer(data[[term]]) || is.logical(data[[term]])
+    },
+    logical(1)
+  )]
+  if (length(invalid_terms) > 0L) {
+    stop(
+      "`bias_formula` fixed-effect variable(s) must be numeric, integer, or logical ",
+      "so the zero-bias counterfactual can set them to zero: ",
+      paste(invalid_terms, collapse = ", ")
+    )
+  }
+
+  invisible(TRUE)
+}
+
+.counterfactual_multilevel_bias_data <- function(data, bias_terms = "bias_e_origin") {
+  bias_terms <- unique(bias_terms)
+  for (term in bias_terms) {
+    if (!term %in% names(data)) {
+      next
+    }
+    if (is.logical(data[[term]])) {
+      data[[term]] <- FALSE
+    } else {
+      data[[term]] <- 0
+    }
   }
 
   data
@@ -1345,8 +1538,17 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                               default_covariate_col,
                                               include_pop_terms,
                                               scenario_terms,
-                                              random_intercept) {
+                                              random_intercept,
+                                              bias_terms = character()) {
   user_formula_supplied <- !is.null(formula_info$formula)
+  formula_interface <- formula_info$interface
+  if (is.null(formula_interface)) {
+    formula_interface <- formula_info$source
+  }
+  mobility_variables <- formula_info$mobility_variables
+  if (is.null(mobility_variables)) {
+    mobility_variables <- character()
+  }
   default_fixed_effects <- if (user_formula_supplied) {
     character()
   } else {
@@ -1381,6 +1583,19 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   list(
     formula = paste(deparse(formula), collapse = " "),
     formula_source = formula_info$source,
+    formula_interface = formula_interface,
+    mobility_formula = if (!is.null(formula_info$mobility_formula)) {
+      paste(deparse(formula_info$mobility_formula), collapse = " ")
+    } else {
+      NA_character_
+    },
+    bias_formula = if (!is.null(formula_info$bias_formula)) {
+      paste(deparse(formula_info$bias_formula), collapse = " ")
+    } else {
+      NA_character_
+    },
+    mobility_variables = mobility_variables,
+    bias_variables = bias_terms,
     user_formula = user_formula_supplied,
     custom_formula = identical(formula_info$source, "custom_formula"),
     default_area_covariate = default_covariate_col,
@@ -1894,14 +2109,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
   origin_covariates <- join_covariates |>
     dplyr::rename_with(
-      .fn = function(x) paste0(x, "_o"),
+      .fn = function(x) if (length(x) == 0L) character() else paste0(x, "_o"),
       .cols = -dplyr::all_of("area")
     )
   names(origin_covariates)[names(origin_covariates) == "area"] <- "origin"
 
   destination_covariates <- join_covariates |>
     dplyr::rename_with(
-      .fn = function(x) paste0(x, "_d"),
+      .fn = function(x) if (length(x) == 0L) character() else paste0(x, "_d"),
       .cols = -dplyr::all_of("area")
     )
   names(destination_covariates)[names(destination_covariates) == "area"] <- "destination"

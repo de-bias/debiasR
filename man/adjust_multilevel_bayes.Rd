@@ -21,6 +21,8 @@ adjust_multilevel_bayes(
     "none"),
   formula = NULL,
   custom_formula = NULL,
+  mobility_formula = NULL,
+  bias_formula = NULL,
   model_family = c("poisson", "negbin", "zip", "zinb"),
   model_engine = c("bayesian", "frequentist"),
   backend = c("auto", "rstanarm", "brms"),
@@ -96,6 +98,18 @@ scenario columns such as \code{mpd_source} and \code{mpd_time}, and
 random-effect terms supported by the chosen engine.}
 
 \item{custom_formula}{Deprecated alias for \code{formula}.}
+
+\item{mobility_formula}{Optional one-sided formula for the conceptual
+true-flow component, for example
+\code{~ rural_pct_o + rural_pct_d + log_distance + (1 | origin)}.
+Supply together with \code{bias_formula}; do not combine with
+\code{formula} or \code{custom_formula}.}
+
+\item{bias_formula}{Optional one-sided formula for the conceptual MPD
+observation-bias component, for example \code{~ bias_e_origin}. Supply
+together with \code{mobility_formula}. Fixed-effect variables in this
+formula must be numeric, integer, or logical because the adjusted
+counterfactual sets them to zero.}
 
 \item{model_family}{Count family: \code{"poisson"}, \code{"negbin"},
 \code{"zip"}, or \code{"zinb"}.}
@@ -174,9 +188,15 @@ Core idea:
 where \eqn{e_i} is origin bias from coverage and \eqn{u} is an optional
 random-effect structure supplied through a model formula.
 
+Users can either supply a single reduced-form \code{formula}, or separate
+\code{mobility_formula} and \code{bias_formula} terms. The split interface
+keeps the conceptual Level-2 true-flow predictors separate from the Level-1
+MPD observation-bias predictors, while the current implementation still fits
+one reduced-form model to observed MPD flows.
+
 The adjusted flow is computed from a formula-aware fixed-effect
-counterfactual prediction with \code{bias_e_origin} set to zero, then
-summarizes draw-level adjusted flows by mean or median.
+counterfactual prediction with the numeric variables in \code{bias_formula}
+set to zero, then summarizes draw-level adjusted flows by mean or median.
 }
 \examples{
 if (requireNamespace("lme4", quietly = TRUE)) {
@@ -216,8 +236,9 @@ if (requireNamespace("lme4", quietly = TRUE)) {
         coverage_df = coverage,
         covariates_df = covariates,
         distance_df = distance,
-        formula = flow ~ rural_pct_o + rural_pct_d + log_distance +
-          bias_e_origin + (1 | origin),
+        mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
+          (1 | origin),
+        bias_formula = ~ bias_e_origin,
         model_engine = "frequentist",
         model_family = "poisson"
       )

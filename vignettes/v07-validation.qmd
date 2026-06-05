@@ -16,29 +16,40 @@ execute:
 
 ## Aim
 
-Validation asks whether adjusted mobile-phone-derived flows are closer to
-benchmark OD flows and where residual problems remain. The primary comparison
-is adjusted versus benchmark flows. Two secondary comparisons help interpret
-that result:
+This vignette describes the range of validation methods included in `debiasR`, to assess the extent of difference between our adjusted mobile-phone-derived flow estimates and target benchmark flows.
 
-- raw mobile-phone-derived flows versus benchmark flows, which describes the
-  baseline bias before adjustment
-- raw versus adjusted flows, which describes how much each method changes the
-  source data
+The methods assess differences between:
 
-This vignette validates adjustment outputs at three levels: overall flow-table
-fit, origin and destination marginals, and individual OD flows. At each level we
-combine error metrics, correlation metrics, and visual checks because no single
-diagnostic is sufficient.
+- adjusted *versus* benchmark flows, to evaluate the final adjustment.
+- raw mobile-phone-derived *versus* benchmark flows, to evaluate the
+  extent of bias before adjustment.
+- raw *versus* adjusted flows, to evaluate the extent of adjustment made to the raw data.
+
+The validation methods included in `debiasR` allows the assessment of adjustment outputs at three levels: overall, OD marginal and individual OD-pair adjustment. Tree type of assessment tools are included:
+ error metrics, correlation coefficients and visual tools. These diagnostics provide flexibility to assess particular dimensions of the data which may vary depending on the target use of the adjusted flows.
+
+
+# Validation measures
+
+
 
 ```{r setup}
-input_dir <- dirname(knitr::current_input(dir = TRUE))
-debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
-common_path <- file.path(input_dir, "_common.R")
-if (!file.exists(common_path)) {
-  common_path <- if (file.exists("_common.R")) "_common.R" else "vignettes/_common.R"
+input_file <- knitr::current_input(dir = TRUE)
+input_dir <- if (is.null(input_file)) {
+  candidates <- c(".", "vignettes", "../vignettes", "../../vignettes")
+  candidates[file.exists(file.path(candidates, "_common.R"))][1]
+} else {
+  dirname(input_file)
 }
-source(common_path)
+if (is.na(input_dir)) {
+  stop(
+    "Could not find vignettes/_common.R. ",
+    "Set the working directory to the debiasR package root or vignettes folder."
+  )
+}
+input_dir <- normalizePath(input_dir, mustWork = TRUE)
+debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
+source(file.path(input_dir, "_common.R"))
 example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 library(ggplot2)
 ```
