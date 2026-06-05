@@ -267,7 +267,8 @@ test_that("internal frequentist scaffold returns adjusted observed flows", {
     model_engine = "frequentist",
     scenario = "s1",
     random_intercept = "none",
-    formula = flow ~ rural_pct_o + rural_pct_d + bias_e_origin + log_distance,
+    mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
+    bias_formula = ~ bias_e_origin,
     include_flow_adj_draws = TRUE
   )
 
@@ -280,7 +281,10 @@ test_that("internal frequentist scaffold returns adjusted observed flows", {
   expect_true(all(res$flow_adj >= 0))
   expect_equal(dim(attr(res, "flow_adj_draws")), c(1L, nrow(res)))
   expect_true("bias_e_origin" %in% attr(res, "coefficients")$term)
-  expect_equal(attr(res, "model_terms")$formula_source, "formula")
+  expect_equal(attr(res, "model_terms")$formula_source, "split_formula")
+  expect_equal(attr(res, "model_terms")$formula_interface, "split")
+  expect_equal(attr(res, "bias_terms"), "bias_e_origin")
+  expect_equal(attr(res, "model_terms")$bias_variables, "bias_e_origin")
   expect_true(all(c("rural_pct_o", "rural_pct_d") %in% attr(res, "model_terms")$formula_variables))
 })
 
@@ -329,7 +333,8 @@ test_that("internal frequentist scaffold can use lme4 for a mixed model when ava
       model_engine = "frequentist",
       scenario = "s2",
       random_intercept = "origin",
-      formula = flow ~ bias_e_origin + log_distance + mpd_time + (1 + log_distance | origin)
+      mobility_formula = ~ log_distance + mpd_time + (1 + log_distance | origin),
+      bias_formula = ~ bias_e_origin
     )
   )
 
@@ -352,10 +357,52 @@ test_that("formula validation reports missing prepared covariates", {
       model_engine = "frequentist",
       scenario = "s1",
       random_intercept = "none",
-      formula = flow ~ missing_covariate_o + bias_e_origin
+      mobility_formula = ~ missing_covariate_o,
+      bias_formula = ~ bias_e_origin
     ),
     "missing_covariate_o"
   )
+})
+
+test_that("split bias formula validates zero-bias counterfactual variables", {
+  toy <- make_multilevel_scenario_toy(sources = c("src1", "src2"))
+
+  expect_error(
+    adjust_multilevel_bayes(
+      mpd_od_df = toy$mpd_od,
+      coverage_df = toy$coverage,
+      covariates_df = toy$covariates,
+      distance_df = toy$distance,
+      model_engine = "frequentist",
+      scenario = "s3",
+      random_intercept = "none",
+      mobility_formula = ~ log_distance,
+      bias_formula = ~ mpd_source
+    ),
+    "zero-bias counterfactual"
+  )
+})
+
+test_that("split formula works when no area covariates are required", {
+  data(simulated_mpd.od)
+  data(simulated_coverage)
+
+  res <- suppressWarnings(
+    adjust_multilevel_bayes(
+      mpd_od_df = simulated_mpd.od,
+      coverage_df = simulated_coverage,
+      covariates_df = NULL,
+      model_engine = "frequentist",
+      random_intercept = "none",
+      mobility_formula = ~ log_distance,
+      bias_formula = ~ bias_e_origin
+    )
+  )
+
+  expect_s3_class(res, "tbl_df")
+  expect_equal(attr(res, "model_terms")$formula_source, "split_formula")
+  expect_equal(attr(res, "bias_terms"), "bias_e_origin")
+  expect_true(all(is.finite(res$flow_adj)))
 })
 
 test_that("Bayesian engine explicitly defers repeated source/time scenarios", {

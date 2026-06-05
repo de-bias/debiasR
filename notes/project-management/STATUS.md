@@ -1,10 +1,11 @@
 # Project Status
 
-Last updated: 2026-05-21
+Last updated: 2026-06-05
 
 ## Snapshot
 
 - Project stage: active development (`0.0.0.9000`)
+- Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
 - Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; empirical use remains dependency- and runtime-sensitive
@@ -43,6 +44,9 @@ Last updated: 2026-05-21
 
 ## What Changed Recently
 
+- The `debiasR` repository was made public on GitHub on 2026-06-04. Treat
+  repository docs, vignettes, workflows, issues, pull requests, and tracked
+  assets as public-facing by default.
 - Function naming migrated from `method*` to `adjust_*`
 - Validation API migrated from `validate_flows()` to `validate_flow_overall()` and `validate_flow_pairs()`, with legacy aliases retained temporarily for compatibility
 - Data assets migrated from toy datasets to simulated test fixtures, while user-facing examples now default to the optional companion package `debiasRdata` (<https://github.com/de-bias/debiasRdata>) for the empirical LAD travel-to-work workflow.
@@ -57,6 +61,13 @@ Last updated: 2026-05-21
 - `adjust_multilevel_bayes()` now supports `prediction_scope = "complete_grid"` for supplied square OD matrices; it fits on originally observed source rows when `mpd_observed` is available and predicts across the grid.
 - `adjust_multilevel_bayes()` now has explicit scenario/source/time parameters for the planned S1-S4 multilevel path, plus `model_engine = "frequentist"` for fast design and test iteration while the Bayesian method remains the goal.
 - `adjust_multilevel_bayes()` now accepts a primary R formula interface. Area covariates are prepared with origin/destination suffixes, formula random-effect terms drive model dispatch, and `income_col` remains only as a legacy default-formula helper.
+- `adjust_multilevel_bayes()` now also accepts split `mobility_formula` and
+  `bias_formula` inputs. The package combines them internally for the current
+  reduced-form fit, while metadata records the conceptual true-flow and
+  observation-bias components separately.
+- Enhancement issue #18 records the planned genuinely latent two-level
+  Bayesian model, where `F_true_ij` is estimated explicitly rather than
+  recovered only through a zero-bias counterfactual prediction.
 - The default frequentist S1-S4 formula contract is documented: S1 uses the base OD/covariate/bias terms, S2 adds `mpd_time`, S3 adds `mpd_source`, and S4 adds `mpd_source + mpd_time`; S4 source-time interaction remains deferred.
 - The adjustment and testing vignettes now include an S1 `model_engine = "frequentist"` placeholder example with constant source/time columns, plus parameter guidance for S2-S4 source/time structures while Bayesian transfer is incomplete.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
@@ -113,17 +124,21 @@ Last updated: 2026-05-21
 
 ## Current Risks / Blockers
 
-1. Documentation mismatch risk now mainly sits in archival migration materials and older review notebook sources that intentionally use fixed test fixtures.
-2. Test suite reliability still depends on using the curated runner rather than raw `test_dir()` calls.
-3. Bayesian tests are slower and environment-sensitive due to optional dependencies; run them manually when Bayesian-lane validation is needed.
-4. CI has been scaffolded and the fast core workflow passed on merged PR #11; the current branch head still needs live validation on the next PR or push.
-5. Full cartographic residual maps remain user-supplied because the package deliberately avoids adding an `sf` dependency at this stage.
-6. The default LAD empirical route now has selected-area distance support through `lad_centroids`; MSOA distance-aware examples still require a future `msoa_OD_distance` or `msoa_centroids` asset if `geography = "msoa"` is needed.
+1. Public repository visibility raises the bar for repository hygiene: avoid committing confidential material, credentials, restricted raw data, or development-only artifacts that are not intended for public release.
+2. Documentation mismatch risk now mainly sits in archival migration materials and older review notebook sources that intentionally use fixed test fixtures.
+3. Test suite reliability still depends on using the curated runner rather than raw `test_dir()` calls.
+4. Bayesian tests are slower and environment-sensitive due to optional dependencies; run them manually when Bayesian-lane validation is needed.
+5. CI has been scaffolded and the fast core workflow passed on merged PR #11; the current branch head still needs live validation on the next PR or push.
+6. Full cartographic residual maps remain user-supplied because the package deliberately avoids adding an `sf` dependency at this stage.
+7. The default LAD empirical route now has selected-area distance support through `lad_centroids`; MSOA distance-aware examples still require a future `msoa_OD_distance` or `msoa_centroids` asset if `geography = "msoa"` is needed.
 
 ## Immediate Priorities
 
-1. Validate the current branch head with local tests and the next GitHub Actions run.
-2. Validate the optional/manual Bayesian workflow behavior on GitHub Actions when Bayesian-lane validation is needed; the local optional Bayesian test file now passes.
-3. Keep top-level docs synchronized with exported API (`NAMESPACE`).
-4. Record feasible LAD empirical grid sizes and runtime expectations before promoting Bayesian examples beyond prototype guidance.
-5. Use MSOA-scale inputs for software/runtime stress tests and LAD-scale inputs for vignettes and teaching material as the S1-S4 scenario work develops.
+1. Review public-facing docs, pkgdown pages, repository metadata, and tracked assets after the 2026-06-04 visibility change.
+2. Validate the current branch head with local tests and the next GitHub Actions run.
+3. Validate the optional/manual Bayesian workflow behavior on GitHub Actions when Bayesian-lane validation is needed; the local optional Bayesian test file now passes.
+4. Keep top-level docs synchronized with exported API (`NAMESPACE`).
+5. Record feasible LAD empirical grid sizes and runtime expectations before promoting Bayesian examples beyond prototype guidance.
+6. Scope enhancement issue #18 into a latent-model design note before changing
+   the Bayesian fitting engine.
+7. Use MSOA-scale inputs for software/runtime stress tests and LAD-scale inputs for vignettes and teaching material as the S1-S4 scenario work develops.
