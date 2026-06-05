@@ -1,7 +1,6 @@
 [![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
+
 
 <img src="man/figures/debias-hex.png" alt="debiasR hex logo" width="260"/>
 
@@ -14,29 +13,15 @@ wider [DEBIAS GitHub organisation](https://github.com/de-bias). It is
 designed to work with spatio-temporally aggregated data that provide
 population counts by location and flows between locations.
 
-The package workflow supports measurement of coverage and
+The package workflow supports assessment of coverage and
 representativeness bias in population counts, adjustment of biased
-origin-destination (OD) flows using deterministic and Bayesian methods,
-and validation of adjusted flows against benchmark data.
+origin-destination (OD) flows and validation of adjusted flows against benchmark data.
 Mobile-phone-derived mobility data are used to illustrate the package
 functions in these vignettes, but the same logic can apply to other
 digital trace sources with comparable spatial and temporal aggregation
 and a validation target. Examples include trade of goods, Internet
 traffic, supply chains and other location-to-location flows.
 
-The central aim is to estimate bias-adjusted OD flows:
-
-$$
-F^{trace}_{ij} \rightarrow F^{adj}_{ij}
-$$
-
-where $F^{trace}_{ij}$ is the observed digital-trace-derived flow from
-origin $i$ to destination $j$, and $F^{adj}_{ij}$ is the adjusted flow.
-In the mobile-phone-derived running example, this observed flow is
-written as $F^{mpd}_{ij}$. When benchmark flow data are available,
-$F^{bench}_{ij}$ provides an external validation target.
-
----
 
 ## Installation
 
@@ -67,7 +52,6 @@ remotes::install_github("de-bias/debiasRdata")
 Then load the package and follow the walkthroughs in the package documentation or
 the source files in `vignettes/`.
 
----
 
 ## Workflow
 
@@ -83,7 +67,6 @@ the source files in `vignettes/`.
 3.  Validate adjusted OD flows against benchmark OD data using
     complementary fit, residual, structure and allocation metrics.
 
----
 
 ## Repository structure
 
@@ -103,8 +86,6 @@ the source files in `vignettes/`.
 - `README.md` - package overview and usage instructions
 
 
----
-
 ## License
 
 This repository uses a dual-licensing approach:
@@ -114,8 +95,6 @@ This repository uses a dual-licensing approach:
 
 See the [LICENSE](LICENSE) file for full details.
 
----
-
 
 ## Core development team
 
@@ -124,7 +103,6 @@ We actively maintain and develop the package and warmly invite contributions fro
 
 If you’re interested in collaborating or contributing, please join our growing open-source community.
 
----
 
 ## Contributing
 
@@ -133,7 +111,6 @@ All changes to `main` are made through pull requests. Please read
 [CONTRIBUTING.md](CONTRIBUTING.md) for the current workflow, branch naming
 guidance and pull request templates.
 
----
 
 ## Acknowledging contributors
 
@@ -169,7 +146,7 @@ Thank you for helping us build open, collaborative and impactful projects with D
 
 ## Contributors 
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+Thanks goes to these wonderful people:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
