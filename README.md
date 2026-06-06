@@ -55,7 +55,7 @@ the source files in `vignettes/`.
 
 ## Workflow
 
-![Three-stage debiasR OD workflow](figures/debias-workflow.svg)
+![Three-stage debiasR OD workflow](man/figures/debias-workflow-readme.png)
 
 `debiasR` has three main components:
 

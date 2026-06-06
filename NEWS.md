@@ -13,6 +13,9 @@
 - Refreshed the README and introductory vignettes `v02` through `v05` to
   clarify package setup, empirical LAD inputs, coverage-bias measurement, and
   explanatory bias diagnostics.
+- Replaced the README workflow schematic with the current DEBIAS workflow image.
+- Removed the redundant package-overview vignette from the pkgdown article set
+  and routed the top-left site brand link back to the README-backed home page.
 - Made vignette setup chunks robust to interactive execution from RStudio by
   falling back to the package root or `vignettes/` folder when the current
   knitted input file is unavailable.
