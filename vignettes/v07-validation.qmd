@@ -28,10 +28,47 @@ The methods assess differences between:
 The validation methods included in `debiasR` allows the assessment of adjustment outputs at three levels: overall, OD marginal and individual OD-pair adjustment. Tree type of assessment tools are included:
  error metrics, correlation coefficients and visual tools. These diagnostics provide flexibility to assess particular dimensions of the data which may vary depending on the target use of the adjusted flows.
 
+## Intuition
 
-# Validation measures
+A practical way to think of assessing the output of the various adjustment methods is to adopt a overall system-wide perspective of the flow system, move to an intermediate and then more granular origin-destination pair level. We use three levels.
 
+The **Level 1** summarises the performance of flow adjustment methods across the whole origin-destination system.
 
+The **Level 2** assesses the performance of flow adjustment methods by origin and destination totals.
+
+The **Level 3** provides the performance of flow adjustment methods between individual origin-destination pairs.
+
+Correlation coefficients offer a measure of correspondence between, for example, adjusted and benchmark flows, and they are better interpreted as a general measure. Error measures provide a measure of the level of difference between these sets of flows. They provide a general measure to assess the precision of the flow adjustment across the whole network of flows, but they also offer a way to measure and assess the precision of the flow adjustment for individual origin-destination pairs.
+
+## Validation measures
+
+Let $F^{adj}_{ij}$ be the adjusted flow from origin $i$ to destination
+$j$, and let $F^{bench}_{ij}$ be the benchmark flow for the same OD pair.
+Define the error as
+$e_{ij} = F^{adj}_{ij} - F^{bench}_{ij}$. Positive errors mean the adjusted
+flow is larger than the benchmark. Negative errors mean it is smaller. The
+table uses adjusted-versus-benchmark notation.[^validation-measure-reuse]
+
+| Metric | Description | Equation |
+|:--|:--|:--|
+| Mean error | Average signed error; shows whether flows are overestimated or underestimated on average. | $\frac{1}{n}\sum_{ij} e_{ij}$ |
+| Mean absolute error | Average absolute error; shows the typical size of the error, ignoring sign. | $\frac{1}{n}\sum_{ij} \lvert e_{ij} \rvert$ |
+| Root mean squared error | Error metric that gives more weight to large errors. | $\sqrt{\frac{1}{n}\sum_{ij} e_{ij}^{2}}$ |
+| Median absolute error | Middle absolute error; less affected by a small number of very large errors. | $\mathrm{median}(\lvert e_{ij} \rvert)$ |
+| Mean absolute percentage error | Average absolute error as a percentage of the benchmark flow. | $\frac{100}{n}\sum_{ij}\lvert \frac{e_{ij}}{F^{bench}_{ij}} \rvert$ |
+| Pearson's r | Linear correlation; shows whether large benchmark flows also tend to be large adjusted flows. | $\mathrm{cor}(F^{adj}_{ij}, F^{bench}_{ij})$ |
+| Spearman's rho | Rank correlation; shows whether the ordering of flows is similar. | $\mathrm{cor}(\mathrm{rank}(F^{adj}_{ij}), \mathrm{rank}(F^{bench}_{ij}))$ |
+
+[^validation-measure-reuse]: The equations are written for
+    adjusted-versus-benchmark flows. The same formulas can be reused for
+    raw-versus-benchmark or raw-versus-adjusted comparisons by replacing
+    $F^{adj}_{ij}$ and $F^{bench}_{ij}$ with the two flow columns being
+    compared.
+
+## Getting ready
+
+We now get ready reading helper files, data and visualisation
+tools.
 
 ```{r setup}
 input_file <- knitr::current_input(dir = TRUE)
@@ -50,492 +87,140 @@ if (is.na(input_dir)) {
 input_dir <- normalizePath(input_dir, mustWork = TRUE)
 debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
 source(file.path(input_dir, "_common.R"))
+source(file.path(input_dir, "_validation_helpers.R"))
 example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 library(ggplot2)
 ```
 
+In this vignette, we will illustrate the validation methods in `debiasR` comparing the two adjustment methods. We compare the inverse penetration and selection rate II methods. First,
+we separately organise the raw mobile-phone-derived data and benchmark data. We then apply inverse penetration and selection rate II, and
+join the raw, adjusted and benchmark flows into one data frame for comparison.
+
 ```{r}
-method_results <- fit_adjustment_methods(
-  example_data,
-  include_multilevel = TRUE,
-  multilevel_engine = "frequentist"
-)
 mpd_od <- example_data$mpd_od
 benchmark_od <- example_data$benchmark_od
 
-primary_method <- if ("raking_ratio" %in% names(method_results)) {
-  "raking_ratio"
-} else {
-  names(method_results)[1]
-}
-```
-
-The examples below use all methods that can be rendered quickly in the vignette.
-The multilevel method is included with `model_engine = "frequentist"` so the
-validation workflow reflects the formula-aware S1 contract used in the
-adjustment vignette, without requiring a slow Bayesian fit during routine
-rendering. For detailed scatterplots and row-level diagnostics, the vignette
-uses `r primary_method` as a compact example. The same helper calls can be
-repeated for any method in `method_results`.
-
-```{r}
-safe_cor <- function(x, y, method = "pearson") {
-  keep <- is.finite(x) & is.finite(y)
-  if (sum(keep) < 2L) {
-    return(NA_real_)
-  }
-  x <- x[keep]
-  y <- y[keep]
-  if (stats::sd(x) <= 0 || stats::sd(y) <= 0) {
-    return(NA_real_)
-  }
-  suppressWarnings(stats::cor(x, y, method = method))
-}
-
-flow_metric_row <- function(data,
-                            level,
-                            method_name,
-                            comparison,
-                            estimate_col,
-                            reference_col) {
-  x <- data[[estimate_col]]
-  y <- data[[reference_col]]
-  keep <- is.finite(x) & is.finite(y)
-  x <- x[keep]
-  y <- y[keep]
-
-  if (length(x) == 0L) {
-    return(tibble::tibble(
-      level = level,
-      method = method_name,
-      comparison = comparison,
-      n = 0L,
-      estimate_total = NA_real_,
-      reference_total = NA_real_,
-      total_difference = NA_real_,
-      mean_error = NA_real_,
-      mae = NA_real_,
-      rmse = NA_real_,
-      median_absolute_error = NA_real_,
-      mape = NA_real_,
-      pearson_r = NA_real_,
-      spearman_rho = NA_real_
-    ))
-  }
-
-  error <- x - y
-  denom <- ifelse(y == 0, NA_real_, y)
-  mape <- mean(abs(error / denom), na.rm = TRUE)
-  if (is.nan(mape)) {
-    mape <- NA_real_
-  }
-
-  tibble::tibble(
-    level = level,
-    method = method_name,
-    comparison = comparison,
-    n = length(error),
-    estimate_total = sum(x, na.rm = TRUE),
-    reference_total = sum(y, na.rm = TRUE),
-    total_difference = sum(x, na.rm = TRUE) - sum(y, na.rm = TRUE),
-    mean_error = mean(error, na.rm = TRUE),
-    mae = mean(abs(error), na.rm = TRUE),
-    rmse = sqrt(mean(error^2, na.rm = TRUE)),
-    median_absolute_error = stats::median(abs(error), na.rm = TRUE),
-    mape = mape,
-    pearson_r = safe_cor(x, y, method = "pearson"),
-    spearman_rho = safe_cor(x, y, method = "spearman")
-  )
-}
-
-comparison_metric_rows <- function(data, level, method_name) {
-  dplyr::bind_rows(
-    flow_metric_row(
-      data = data,
-      level = level,
-      method_name = method_name,
-      comparison = "adjusted_vs_benchmark",
-      estimate_col = "flow_adj",
-      reference_col = "flow_bench"
-    ),
-    flow_metric_row(
-      data = data,
-      level = level,
-      method_name = method_name,
-      comparison = "raw_vs_benchmark",
-      estimate_col = "flow_mpd",
-      reference_col = "flow_bench"
-    ),
-    flow_metric_row(
-      data = data,
-      level = level,
-      method_name = method_name,
-      comparison = "raw_vs_adjusted",
-      estimate_col = "flow_adj",
-      reference_col = "flow_mpd"
-    )
-  )
-}
-
-display_metrics <- function(metrics) {
-  metrics |>
-    dplyr::mutate(
-      dplyr::across(
-        dplyr::any_of(c(
-          "estimate_total",
-          "reference_total",
-          "total_difference",
-          "mean_error",
-          "mae",
-          "rmse",
-          "median_absolute_error"
-        )),
-        ~ round(.x, 2)
-      ),
-      dplyr::across(
-        dplyr::any_of(c("mape", "pearson_r", "spearman_rho")),
-        ~ round(.x, 3)
-      )
-    )
-}
-
-comparison_palette <- c(
-  "Adjusted vs benchmark" = "#2B8CBE",
-  "Raw vs benchmark" = "#756BB1",
-  "Raw vs adjusted" = "#636363"
-)
-reference_line_colour <- "#D95F0E"
-
-flow_axis_label <- function(x) {
-  dplyr::case_when(
-    abs(x) >= 1e6 ~ paste0(round(x / 1e6, 1), "m"),
-    abs(x) >= 1e3 ~ paste0(round(x / 1e3, 1), "k"),
-    TRUE ~ format(round(x, 0), big.mark = ",", scientific = FALSE, trim = TRUE)
-  )
-}
-
-theme_validation <- function() {
-  theme_minimal(base_size = 11) +
-    theme(
-      legend.position = "bottom",
-      panel.grid.minor = element_blank(),
-      strip.text = element_text(face = "bold")
-    )
-}
-
-build_flow_comparison <- function(method_name, adj_df, mpd_df, benchmark_df) {
-  adj_df |>
-    dplyr::select(origin, destination, flow_adj) |>
-    dplyr::inner_join(
-      mpd_df |>
-        dplyr::select(origin, destination, flow_mpd = flow),
-      by = c("origin", "destination")
-    ) |>
-    dplyr::inner_join(
-      benchmark_df |>
-        dplyr::select(origin, destination, flow_bench = flow),
-      by = c("origin", "destination")
-    ) |>
-    dplyr::mutate(method = method_name, .before = 1)
-}
-
-build_pair_scatter <- function(data) {
-  if (!"level" %in% names(data)) {
-    data <- data |>
-      dplyr::mutate(level = "individual_flow")
-  }
-
-  dplyr::bind_rows(
-    data |>
-      dplyr::transmute(
-        method,
-        level,
-        comparison = "Adjusted vs benchmark",
-        reference_flow = flow_bench,
-        compared_flow = flow_adj
-      ),
-    data |>
-      dplyr::transmute(
-        method,
-        level,
-        comparison = "Raw vs benchmark",
-        reference_flow = flow_bench,
-        compared_flow = flow_mpd
-      ),
-    data |>
-      dplyr::transmute(
-        method,
-        level,
-        comparison = "Raw vs adjusted",
-        reference_flow = flow_mpd,
-        compared_flow = flow_adj
-      )
-  ) |>
-    dplyr::mutate(
-      comparison = factor(
-        comparison,
-        levels = c(
-          "Adjusted vs benchmark",
-          "Raw vs benchmark",
-          "Raw vs adjusted"
-        )
-      )
-    )
-}
-
-plot_pair_scatter <- function(data) {
-  ggplot(
-    build_pair_scatter(data),
-    aes(x = reference_flow, y = compared_flow, colour = comparison)
-  ) +
-    geom_point(alpha = 0.35, size = 1, na.rm = TRUE) +
-    geom_abline(
-      intercept = 0,
-      slope = 1,
-      linetype = "dashed",
-      colour = reference_line_colour
-    ) +
-    facet_wrap(~comparison, scales = "free") +
-    scale_colour_manual(values = comparison_palette) +
-    scale_x_continuous(labels = flow_axis_label) +
-    scale_y_continuous(labels = flow_axis_label) +
-    guides(colour = "none") +
-    labs(
-      x = "Reference flow",
-      y = "Compared flow"
-    ) +
-    theme_validation()
-}
-```
-
-```{r}
-flow_comparison <- dplyr::bind_rows(
-  lapply(
-    names(method_results),
-    function(method_name) {
-      build_flow_comparison(
-        method_name = method_name,
-        adj_df = method_results[[method_name]],
-        mpd_df = mpd_od,
-        benchmark_df = benchmark_od
-      )
-    }
+method_results <- list(
+  inverse_penetration = debiasR::adjust_inverse_penetration(
+    mpd_od_df = mpd_od,
+    coverage_df = example_data$coverage,
+    weight_by = "both"
+  ),
+  selection_rate2 = debiasR::adjust_selection_rate2(
+    mpd_od_df = mpd_od,
+    coverage_df = example_data$coverage,
+    weight_by = "origin",
+    benchmark_od_df = benchmark_od,
+    calibration_aggregate = "origin"
   )
 )
 
-flow_comparison |>
-  dplyr::count(method, name = "od_pairs")
-```
-
-```{r}
-method_engine <- function(x) {
-  engine <- attr(x, "model_engine", exact = TRUE)
-  if (is.null(engine)) "deterministic" else engine
-}
-
-tibble::tibble(
-  method = names(method_results),
-  engine = vapply(method_results, method_engine, character(1)),
-  rows = vapply(method_results, nrow, integer(1)),
-  adjusted_total = vapply(
-    method_results,
-    function(x) sum(x$flow_adj, na.rm = TRUE),
-    numeric(1)
-  )
+flow_comparison <- validation_build_flow_comparison(
+  method_results = method_results,
+  mpd_df = mpd_od,
+  benchmark_df = benchmark_od
 )
 ```
 
-## Level 1: Overall Validation Metrics
+## Level 1: Overall validation
 
-Overall metrics compress each full OD table into a method-level score. Error
-metrics answer how far the compared flows are from the reference flows.
-Correlation metrics answer whether the compared flows preserve the same
-relative pattern across OD pairs.
+This level provides a single number summary metric for the whole system of origin-destination flows. Each row in the table below summarises all
+OD pairs for one method and one comparison. The two methods are **Inverse
+penetration** and **Selection rate II**.
 
-For `adjusted_vs_benchmark` and `raw_vs_benchmark`, the error sign is compared
-against the benchmark. For `raw_vs_adjusted`, the table reports
-`adjusted - raw`; this is an adjustment-size diagnostic, not a benchmark
-accuracy score.
+The main rows are the adjusted-versus-benchmark rows. These rows tell us
+whether the adjusted outputs are close to the Census benchmark. The
+raw-versus-benchmark rows show the starting point before adjustment. The
+raw-versus-adjusted rows show how much the method moved the original data.
 
 ```{r}
-overall_metrics <- dplyr::bind_rows(
-  lapply(
-    split(flow_comparison, flow_comparison$method),
-    function(data) {
-      comparison_metric_rows(
-        data = data,
-        level = "overall",
-        method_name = unique(data$method)
-      )
-    }
-  )
+overall_metrics <- validation_metrics_by_method(
+  data = flow_comparison,
+  level = "overall"
 )
 
 overall_metrics |>
   dplyr::arrange(comparison, mae) |>
-  display_metrics()
+  validation_display_metrics()
 ```
 
-The package-level helper `validate_flow_overall()` returns the same core
-validation family for adjusted-versus-benchmark comparisons. It is the most
-direct summary when the question is which adjusted output is closest to the
-benchmark.
+Start with the error columns. Lower mean absolute error, RMSE and median
+absolute error mean the compared flows are closer in size. The sign of mean
+error tells us direction: a positive value means overestimation on average, and
+a negative value means underestimation on average.
+
+Then look at the correlation columns. A high Pearson correlation means the
+method keeps the same broad pattern of large and small flows as the benchmark.
+A high Spearman correlation means the ranking of flows is similar. A method can
+have a high correlation and still have large errors if it gets the pattern
+right but the scale wrong.
 
 ```{r}
-adjusted_benchmark_metrics <- dplyr::bind_rows(
-  lapply(
-    names(method_results),
-    function(method_name) validation_row(
-      method_name,
-      method_results[[method_name]],
-      benchmark_od
-    )
-  )
-) |>
-  dplyr::arrange(rmse)
+level1_primary <- overall_metrics |>
+  dplyr::filter(comparison == "adjusted_vs_benchmark")
 
-adjusted_benchmark_metrics
+level1_lowest_mae <- level1_primary |>
+  dplyr::slice_min(mae, n = 1, with_ties = FALSE) |>
+  dplyr::pull(method_label)
+
+level1_highest_r <- level1_primary |>
+  dplyr::slice_max(pearson_r, n = 1, with_ties = FALSE) |>
+  dplyr::pull(method_label)
 ```
 
-The figure below compares adjusted and benchmark flows for each method. Points
-on the dashed line have equal compared and reference values. Points above the
-line are larger than the benchmark; points below it are smaller.
+In this example, `r level1_lowest_mae` has the lower mean absolute error in the
+adjusted-versus-benchmark comparison. `r level1_highest_r` has the stronger
+Pearson correlation. These two statements answer different questions: one is
+about distance from the benchmark, and the other is about similarity in the
+overall pattern of flows.
+
+## Level 2: Origin and destination marginals
+
+This level compares area totals. An **origin marginal** adds together all flows
+leaving each area. It asks whether each area has the right total outflow. A
+**destination marginal** adds together all flows arriving in each area. It asks
+whether each area has the right total inflow.
+
+We again compare **Inverse penetration** and **Selection rate II**. This level
+is useful because a method can look reasonable overall while still putting too
+many flows into some areas and too few into others.
 
 ```{r}
-flow_comparison |>
-  ggplot(aes(x = flow_bench, y = flow_adj)) +
-  geom_point(alpha = 0.18, size = 0.7, colour = "#2B8CBE", na.rm = TRUE) +
-  geom_abline(
-    intercept = 0,
-    slope = 1,
-    linetype = "dashed",
-    colour = reference_line_colour
-  ) +
-  facet_wrap(~method, scales = "free") +
-  scale_x_continuous(labels = flow_axis_label) +
-  scale_y_continuous(labels = flow_axis_label) +
-  labs(
-    x = "Benchmark flow",
-    y = "Adjusted flow"
-  ) +
-  theme_validation()
-```
+marginal_comparison <- validation_build_margins(flow_comparison)
+marginal_metrics <- validation_metrics_by_method_level(marginal_comparison)
 
-This method-level view flags whether each adjustment sits close to the
-benchmark as a whole. It does not show where errors concentrate spatially:
-a method can have a high overall correlation while still leaving residuals
-clustered in particular origins, destinations, or OD pairs. The next two
-levels locate that structure.
-
-## Level 2: Origin and Destination Marginals
-
-OD validation can look good overall while still misallocating totals across
-origins or destinations. Marginal validation aggregates the OD table first, then
-compares those area totals. Origin marginals ask whether total outflows by area
-are right. Destination marginals ask whether total inflows by area are right.
-
-```{r}
-build_margins <- function(data) {
-  dplyr::bind_rows(
-    data |>
-      dplyr::group_by(method, area = origin) |>
-      dplyr::summarise(
-        flow_mpd = sum(flow_mpd, na.rm = TRUE),
-        flow_adj = sum(flow_adj, na.rm = TRUE),
-        flow_bench = sum(flow_bench, na.rm = TRUE),
-        .groups = "drop"
-      ) |>
-      dplyr::mutate(level = "origin_marginal", .after = method),
-    data |>
-      dplyr::group_by(method, area = destination) |>
-      dplyr::summarise(
-        flow_mpd = sum(flow_mpd, na.rm = TRUE),
-        flow_adj = sum(flow_adj, na.rm = TRUE),
-        flow_bench = sum(flow_bench, na.rm = TRUE),
-        .groups = "drop"
-      ) |>
-      dplyr::mutate(level = "destination_marginal", .after = method)
-  )
-}
-
-marginal_comparison <- build_margins(flow_comparison)
-
-marginal_metrics <- dplyr::bind_rows(
-  lapply(
-    split(
-      marginal_comparison,
-      interaction(marginal_comparison$method, marginal_comparison$level, drop = TRUE)
-    ),
-    function(data) {
-      comparison_metric_rows(
-        data = data,
-        level = unique(data$level),
-        method_name = unique(data$method)
-      )
-    }
-  )
-)
-```
-
-The primary marginal table compares adjusted origin and destination totals to
-the benchmark across methods.
-
-```{r}
 marginal_metrics |>
-  dplyr::filter(comparison == "adjusted_vs_benchmark") |>
-  dplyr::arrange(level, mae) |>
-  display_metrics()
+  dplyr::arrange(level, comparison, mae) |>
+  validation_display_metrics()
 ```
 
-The secondary marginal comparisons for `r primary_method` separate benchmark
-accuracy from adjustment magnitude.
+The error metrics now refer to area totals rather than individual OD pairs.
+For example, a lower origin-marginal MAE means the method is closer to the
+benchmark total outflow for the typical origin area. A lower
+destination-marginal MAE means it is closer to the benchmark total inflow for
+the typical destination area. As before, the adjusted-versus-benchmark rows are
+the main validation rows. The raw-versus-benchmark rows show the starting
+bias in area totals, and the raw-versus-adjusted rows show how much each method
+changed those totals.
+
+The scatterplots below show the same idea visually for the three comparisons.
+Each point is an area total. Points near the dashed line have similar values in
+the two flow tables being compared. Points above the line are larger in the
+compared table on the vertical axis. Points below the line are smaller in that
+compared table.
 
 ```{r}
-marginal_metrics |>
-  dplyr::filter(method == primary_method) |>
-  dplyr::arrange(level, comparison) |>
-  display_metrics()
+validation_plot_margin_scatter(marginal_comparison)
 ```
 
-The figure below applies the same three comparisons to origin and destination
-margins. This makes area-level overestimation or underestimation visible before
-drilling into individual OD cells.
-
-```{r}
-marginal_comparison |>
-  dplyr::filter(method == primary_method) |>
-  build_pair_scatter() |>
-  ggplot(aes(x = reference_flow, y = compared_flow, colour = comparison)) +
-  geom_point(alpha = 0.75, size = 2, na.rm = TRUE) +
-  geom_abline(
-    intercept = 0,
-    slope = 1,
-    linetype = "dashed",
-    colour = reference_line_colour
-  ) +
-  facet_grid(level ~ comparison, scales = "free") +
-  scale_colour_manual(values = comparison_palette) +
-  scale_x_continuous(labels = flow_axis_label) +
-  scale_y_continuous(labels = flow_axis_label) +
-  guides(colour = "none") +
-  labs(
-    x = "Reference marginal total",
-    y = "Compared marginal total"
-  ) +
-  theme_validation()
-```
-
-The table below names the largest remaining marginal residuals for the selected
-method. Positive residuals indicate overestimated area totals; negative
-residuals indicate underestimated totals. The absolute error reduction column is
-positive when adjustment reduced the raw benchmark error for that area.
+The table below lists the largest remaining marginal errors. It helps identify
+whether the remaining error is concentrated in a small number of areas.
 
 ```{r}
 area_names <- example_data$covariates |>
   dplyr::select(area, name)
 
 marginal_patterns <- marginal_comparison |>
-  dplyr::filter(method == primary_method) |>
   dplyr::left_join(area_names, by = "area") |>
   dplyr::mutate(
     raw_residual = flow_mpd - flow_bench,
@@ -545,15 +230,15 @@ marginal_patterns <- marginal_comparison |>
   )
 
 marginal_patterns |>
-  dplyr::group_by(level) |>
-  dplyr::slice_max(order_by = abs_adjusted_residual, n = 5, with_ties = FALSE) |>
+  dplyr::group_by(method_label, level) |>
+  dplyr::slice_max(order_by = abs_adjusted_residual, n = 3, with_ties = FALSE) |>
   dplyr::ungroup() |>
-  dplyr::arrange(level, dplyr::desc(abs_adjusted_residual)) |>
+  dplyr::arrange(method_label, level, dplyr::desc(abs_adjusted_residual)) |>
   dplyr::select(
+    method = method_label,
     level,
     area,
     name,
-    flow_mpd,
     flow_adj,
     flow_bench,
     adjusted_residual,
@@ -561,176 +246,129 @@ marginal_patterns |>
   )
 ```
 
-These marginal diagnostics are the main place to inspect spatial patterning
-without a map. If residuals concentrate in a few origins, the method is not
-capturing outflow structure well. If they concentrate in destinations, the
-remaining error is more about inflow allocation. When the same areas appear in
-both marginal lists, the residual pattern is area-wide rather than only an
-origin-side or destination-side issue.
+```{r}
+level2_best <- marginal_metrics |>
+  dplyr::filter(comparison == "adjusted_vs_benchmark") |>
+  dplyr::group_by(level) |>
+  dplyr::slice_min(mae, n = 1, with_ties = FALSE) |>
+  dplyr::ungroup()
 
-## Level 3: Individual Flow Comparisons
+level2_origin_best <- level2_best |>
+  dplyr::filter(level == "origin_marginal") |>
+  dplyr::pull(method_label)
 
-Individual-flow validation audits the OD cells themselves. This level is useful
-for identifying large remaining errors, finding flows that changed most during
-adjustment, and checking whether those changes moved the OD pair closer to the
-benchmark.
+level2_destination_best <- level2_best |>
+  dplyr::filter(level == "destination_marginal") |>
+  dplyr::pull(method_label)
+```
+
+In this example, `r level2_origin_best` is closer to benchmark origin totals by
+mean absolute error, while `r level2_destination_best` is closer to benchmark
+destination totals. If the same method is closer at both margins, the marginal
+evidence points in one direction. If the two margins favour different methods,
+the choice depends on whether origin outflows or destination inflows matter
+more for the analysis.
+
+## Level 3: Individual OD-flow validation
+
+This level compares each origin-destination pair directly. The methods are
+again **Inverse penetration** and **Selection rate II**. This is the most
+detailed level, and it is where large local errors become visible.
 
 ```{r}
-flow_level_metrics <- overall_metrics |>
-  dplyr::filter(method == primary_method) |>
-  dplyr::arrange(comparison)
+flow_level_metrics <- validation_metrics_by_method(
+  data = flow_comparison,
+  level = "individual_flow"
+)
 
 flow_level_metrics |>
-  display_metrics()
+  dplyr::arrange(comparison, mae) |>
+  validation_display_metrics()
 ```
 
-The scatterplot below adapts the workshop comparison logic. Adjusted versus
-benchmark shows validation accuracy, raw versus benchmark shows the starting
-bias, and raw versus adjusted shows how strongly the method moved the observed
-flows.
+The scatterplot below repeats the three comparisons for individual OD pairs.
+Each point is one origin-destination flow. Points close to the dashed line are
+similar in the two flow tables being compared. Points far from the line are OD
+flows where the compared value differs strongly from the reference value.
 
 ```{r}
-flow_comparison |>
-  dplyr::filter(method == primary_method) |>
-  plot_pair_scatter()
+validation_plot_od_scatter(flow_comparison)
 ```
 
-`validate_flow_pairs()` returns the joined OD-pair table for direct inspection.
+The next scatterplot highlights outliers by colouring each point according to
+the signed adjusted-minus-benchmark difference. Blue points are adjusted flows
+below the benchmark. Red points are adjusted flows above the benchmark. Darker
+points have larger residuals.
 
 ```{r}
-validate_flow_pairs(
-  adj_df = method_results[[primary_method]],
-  benchmark_od_df = benchmark_od
-) |>
-  dplyr::arrange(dplyr::desc(abs(diff_adj_benchmark))) |>
-  dplyr::select(
-    origin,
-    destination,
-    mpd_flow,
-    adj_flow,
-    benchmark_flow,
-    diff_mpd_benchmark,
-    diff_adj_benchmark
-  ) |>
-  dplyr::slice_head(n = 10)
+validation_plot_residual_outliers(flow_comparison)
 ```
 
-`validate_flow_residuals()` adds signed movement, absolute residual reduction,
-and residual outlier diagnostics. The signed residual movement is:
-
-$$
-(F^{bench}_{ij} - F^{mpd}_{ij}) -
-(F^{bench}_{ij} - F^{adj}_{ij})
-$$
-
-The absolute residual-reduction metric is easier for method comparison:
-positive values mean the adjusted flow is closer to the benchmark.
+The table below ranks individual OD pairs by the largest remaining
+adjusted-minus-benchmark residuals. Positive values mean the adjusted estimate
+is larger than the benchmark. Negative values mean it is smaller.
 
 ```{r}
-residuals_primary <- validate_flow_residuals(
-  adj_df = method_results[[primary_method]],
-  benchmark_od_df = benchmark_od,
-  method_name = primary_method,
-  top_n = 10
-)
-
-residuals_primary$summary
+validation_rank_largest_residuals(flow_comparison, n = 12)
 ```
+
+The compact heatmap-style table below groups OD-flow residuals by standard
+deviation bands. The residual for each adjustment method is the
+adjusted-minus-benchmark difference, $F^{adj}_{ij} - F^{bench}_{ij}$. The SD
+bands are defined from the pooled adjusted-minus-benchmark residuals across
+the two adjustment methods, so a band means the same thing in each column.
+
+Each cell is the percentage of OD pairs in that residual band, rounded to two
+decimal places. For example, a value of 0.16 means that 0.16% of OD pairs in
+that column fall in the residual-size band named on the row. Lower percentages
+in the high-SD rows indicate fewer large outliers.
 
 ```{r}
-primary_flow <- flow_comparison |>
-  dplyr::filter(method == primary_method) |>
-  dplyr::mutate(
-    raw_residual = flow_mpd - flow_bench,
-    adjusted_residual = flow_adj - flow_bench,
-    adjustment = flow_adj - flow_mpd,
-    abs_error_reduction = abs(raw_residual) - abs(adjusted_residual),
-    movement = dplyr::case_when(
-      abs_error_reduction > 0 ~ "closer_to_benchmark",
-      abs_error_reduction < 0 ~ "farther_from_benchmark",
-      TRUE ~ "unchanged"
-    )
-  )
-
-primary_flow |>
-  dplyr::arrange(dplyr::desc(abs(adjustment))) |>
-  dplyr::select(
-    origin,
-    destination,
-    flow_mpd,
-    flow_adj,
-    flow_bench,
-    adjustment,
-    raw_residual,
-    adjusted_residual,
-    abs_error_reduction,
-    movement
-  ) |>
-  dplyr::slice_head(n = 10)
+residual_heatmap <- validation_build_residual_heatmap(flow_comparison)
+validation_plot_residual_heatmap(residual_heatmap)
 ```
 
-The residual histogram below shows the distribution of adjusted-minus-benchmark
-errors for the selected method.
+The heatmap also includes the unadjusted raw MPD baseline. This baseline uses
+the raw-minus-benchmark difference, $F^{mpd}_{ij} - F^{bench}_{ij}$, but it is
+classified using the same adjusted-residual SD bands. This makes the visual
+comparison direct: if an adjustment reduces the share of flows above 2, 3 or 4
+standard deviations, it has reduced the number of large OD-flow errors in this
+example.
 
 ```{r}
-primary_flow |>
-  ggplot(aes(x = adjusted_residual)) +
-  geom_vline(xintercept = 0, colour = "grey65") +
-  geom_histogram(bins = 30, fill = "#2B8CBE", colour = "white") +
-  scale_x_continuous(labels = flow_axis_label) +
-  labs(
-    x = "Adjusted flow minus benchmark flow",
-    y = "OD-pair count"
-  ) +
-  theme_validation()
+level3_best <- flow_level_metrics |>
+  dplyr::filter(comparison == "adjusted_vs_benchmark") |>
+  dplyr::slice_min(mae, n = 1, with_ties = FALSE) |>
+  dplyr::pull(method_label)
+
+large_outlier_summary <- residual_heatmap |>
+  dplyr::filter(residual_band %in% c("Greater than 4.0 SD", "3.0 to 4.0 SD")) |>
+  dplyr::group_by(method_label) |>
+  dplyr::summarise(large_outlier_share = sum(share), .groups = "drop") |>
+  dplyr::filter(method_label != "Unadjusted") |>
+  dplyr::slice_min(large_outlier_share, n = 1, with_ties = FALSE)
+
+level3_outlier_best <- large_outlier_summary |>
+  dplyr::pull(method_label)
 ```
 
-The residual histogram shows whether remaining errors are centred near zero or
-skewed toward systematic overestimation or underestimation. The ranked table
-shows which individual flows were most changed by adjustment and whether those
-large movements improved benchmark correspondence.
+At the individual-flow level, `r level3_best` has the lower mean absolute error
+against the benchmark in this example. Looking only at the largest residual
+bands, `r level3_outlier_best` has the smaller share of OD pairs above three
+standard deviations. These results should be read together: average error tells
+us about typical performance, while the outlier table shows whether a method
+still leaves a few very large local errors.
 
-### Residual Structure and Spatial Allocation
+## Summary
 
-The previous sections compare levels of aggregation. Two existing validation
-helpers add structure to the interpretation. `validate_flow_residual_structure()`
-checks whether remaining flow residuals are associated with benchmark flow size
-or with a selected area covariate. `validate_flow_distribution()` checks whether
-each origin allocates its destinations similarly to the benchmark.
+Validation works best as a sequence. First, check the overall metrics to see
+whether adjusted flows are broadly closer to the benchmark. Then check origin
+and destination marginals to see whether area totals are plausible. Finally,
+inspect individual OD pairs to find large local errors.
 
-```{r}
-structure_primary <- validate_flow_residual_structure(
-  adj_df = method_results[[primary_method]],
-  benchmark_od_df = benchmark_od,
-  method_name = primary_method,
-  covariate_df = example_data$covariates,
-  covariate_col = "rural_pct"
-)
-
-structure_primary$summary
-```
-
-```{r}
-distribution_primary <- validate_flow_distribution(
-  adj_df = method_results[[primary_method]],
-  benchmark_od_df = benchmark_od,
-  method_name = primary_method,
-  weight_by = "benchmark_origin_total"
-)
-
-distribution_primary$summary
-```
-
-Lower KL divergence and Jensen-Shannon divergence mean the adjusted flows
-allocate each origin's total flow across destinations more like the benchmark.
-These allocation metrics complement the marginal checks: a method can match
-origin totals while still sending those totals to the wrong destinations.
-
-## Bayesian Validation
-
-When `adjust_multilevel_bayes()` is rendered with real OD distance and a
-substantive formula, validate it with the same three-level structure used above.
-Bayesian validation should report predictive performance, residual structure,
-and runtime or model diagnostics attached to the result object, because its main
-innovation is a formula-based, uncertainty-aware multilevel structure rather
-than a fixed adjustment rule.
+In this vignette, the two methods answer slightly different needs. Inverse
+penetration is simple and transparent. Selection rate II adds a calibrated
+nonlinear correction. The validation tables and figures show which method is
+closer to the benchmark for this example, but the right choice in another
+application should depend on the available data, the validation target, and the
+flows that matter most for the analysis.

@@ -13,6 +13,9 @@
 - Made vignette setup chunks robust to interactive execution from RStudio by
   falling back to the package root or `vignettes/` folder when the current
   knitted input file is unavailable.
+- Rewrote the validation workflow vignette to clarify how users can compare
+  raw, adjusted, and benchmark OD flows with the current `validate_flow_*`
+  diagnostics.
 
 ### Multilevel scenario development
 
