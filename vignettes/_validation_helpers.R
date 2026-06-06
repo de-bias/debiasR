@@ -293,7 +293,7 @@ validation_build_pair_scatter <- function(data) {
         method_label,
         level,
         comparison = "Adjusted vs benchmark",
-        comparison_axis_label = "Y: adjusted\nX: benchmark",
+        comparison_axis_label = "adjusted (Y) vs\nbenchmark (X)",
         reference_flow = flow_bench,
         compared_flow = flow_adj,
         difference = flow_adj - flow_bench
@@ -304,7 +304,7 @@ validation_build_pair_scatter <- function(data) {
         method_label,
         level,
         comparison = "Raw vs benchmark",
-        comparison_axis_label = "Y: raw\nX: benchmark",
+        comparison_axis_label = "raw (Y) vs\nbenchmark (X)",
         reference_flow = flow_bench,
         compared_flow = flow_mpd,
         difference = flow_mpd - flow_bench
@@ -315,7 +315,7 @@ validation_build_pair_scatter <- function(data) {
         method_label,
         level,
         comparison = "Raw vs adjusted",
-        comparison_axis_label = "Y: raw\nX: adjusted",
+        comparison_axis_label = "raw (Y) vs\nadjusted (X)",
         reference_flow = flow_adj,
         compared_flow = flow_mpd,
         difference = flow_mpd - flow_adj
@@ -333,9 +333,9 @@ validation_build_pair_scatter <- function(data) {
       comparison_axis_label = factor(
         comparison_axis_label,
         levels = c(
-          "Y: adjusted\nX: benchmark",
-          "Y: raw\nX: benchmark",
-          "Y: raw\nX: adjusted"
+          "adjusted (Y) vs\nbenchmark (X)",
+          "raw (Y) vs\nbenchmark (X)",
+          "raw (Y) vs\nadjusted (X)"
         )
       )
     )

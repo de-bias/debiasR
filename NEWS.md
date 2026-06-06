@@ -21,6 +21,8 @@
 - Improved validation vignette tables and scatterplots with smaller table text,
   clearer marginal labels, explicit x/y comparison labels, and centred
   difference colours.
+- Refined validation scatterplot facet labels so OD-flow and marginal-flow
+  comparisons name the vertical and horizontal datasets more compactly.
 
 ### Multilevel scenario development
 
