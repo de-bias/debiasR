@@ -18,6 +18,9 @@
   diagnostics.
 - Refined the validation vignette interpretation and recommendation text for
   the three-level validation workflow.
+- Improved validation vignette tables and scatterplots with smaller table text,
+  clearer marginal labels, explicit x/y comparison labels, and centred
+  difference colours.
 
 ### Multilevel scenario development
 
