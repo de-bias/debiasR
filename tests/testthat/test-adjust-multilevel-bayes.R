@@ -83,6 +83,52 @@ test_that("formula resolver keeps custom_formula as a deprecated alias", {
   )
 })
 
+test_that("formula resolver supports split mobility and bias formulas", {
+  info <- debiasR:::.resolve_multilevel_user_formula(
+    mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance + (1 | origin),
+    bias_formula = ~ bias_e_origin
+  )
+
+  expect_equal(info$source, "split_formula")
+  expect_equal(info$interface, "split")
+  expect_equal(info$mobility_variables, c("rural_pct_o", "rural_pct_d", "log_distance"))
+  expect_equal(info$bias_variables, "bias_e_origin")
+  expect_equal(
+    debiasR:::.formula_random_effect_terms(info$formula),
+    "(1 | origin)"
+  )
+  expect_true(all(c(
+    "flow",
+    "rural_pct_o",
+    "rural_pct_d",
+    "log_distance",
+    "bias_e_origin",
+    "origin"
+  ) %in% all.vars(info$formula)))
+
+  expect_error(
+    debiasR:::.resolve_multilevel_user_formula(
+      formula = flow ~ bias_e_origin,
+      mobility_formula = ~ log_distance,
+      bias_formula = ~ bias_e_origin
+    ),
+    "not both"
+  )
+  expect_error(
+    debiasR:::.resolve_multilevel_user_formula(
+      mobility_formula = ~ log_distance
+    ),
+    "Supply both"
+  )
+  expect_error(
+    debiasR:::.resolve_multilevel_user_formula(
+      mobility_formula = flow ~ log_distance,
+      bias_formula = ~ bias_e_origin
+    ),
+    "one-sided formula"
+  )
+})
+
 test_that("complete-grid audit detects strict square OD support", {
   complete_od <- data.frame(
     origin = c("A", "A", "B", "B"),
@@ -299,7 +345,7 @@ test_that("adjust_multilevel_bayes returns adjusted flows when rstanarm is avail
   expect_equal(attr(res, "random_intercept"), "origin")
   expect_match(attr(res, "prototype_notes"), "Stage-1 observed mode")
   expect_match(attr(res, "prototype_notes"), "prediction_scope = 'complete_grid'")
-  expect_match(attr(res, "prototype_notes"), "removes the estimated coverage-bias contribution")
+  expect_match(attr(res, "prototype_notes"), "removes the fixed-effect contribution")
 
   result_metadata <- attr(res, "result_metadata")
   expect_type(result_metadata, "list")
@@ -310,6 +356,7 @@ test_that("adjust_multilevel_bayes returns adjusted flows when rstanarm is avail
   expect_equal(result_metadata$flow_adj_summary, "mean")
   expect_equal(result_metadata$random_intercept, "origin")
   expect_equal(result_metadata$distance_source, "synthetic")
+  expect_equal(result_metadata$bias_terms, "bias_e_origin")
 
   diagnostics <- attr(res, "diagnostics")
   expect_type(diagnostics, "list")

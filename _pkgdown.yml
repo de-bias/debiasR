@@ -24,29 +24,21 @@ navbar:
         href: articles/v04-measuring-coverage-bias.html
       - text: Identifying and explaining bias
         href: articles/v05-identifying-and-explaining-bias.html
-      - text: Bias measurement reference
-        href: reference/index.html#measure-bias
     adjust:
       text: Adjust flows
       menu:
       - text: Adjusting origin-destination flows
         href: articles/v06-adjusting-biases.html
-      - text: Adjustment reference
-        href: reference/index.html#adjust-flows
     validate:
       text: Validate
       menu:
       - text: Validation workflow
         href: articles/v07-validation.html
-      - text: Validation reference
-        href: reference/index.html#validate-flows
     data:
       text: Data
       menu:
       - text: Data overview
         href: articles/v08-data.html
-      - text: Example data reference
-        href: reference/index.html#example-data
     articles:
       text: All articles
       href: articles/v01-landing-page.html

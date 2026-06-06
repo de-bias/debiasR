@@ -22,15 +22,30 @@ A typical `debiasR` workflow starts by:
 
 - loading the package and necessary data
 - identifying the population count table, OD-flow table and optional benchmark flow table
-- checking that the observed and benchmark population and OD-flow tables use compatible areas and valid poulation and flow values
+- checking that the observed and benchmark population and OD-flow tables use compatible areas and valid population and flow values
 
 ## Loading the package
 
 We start by loading the packages:
 
 ```{r setup}
-library(debiasR)
-library(debiasRdata)
+input_file <- knitr::current_input(dir = TRUE)
+input_dir <- if (is.null(input_file)) {
+  candidates <- c(".", "vignettes", "../vignettes", "../../vignettes")
+  candidates[file.exists(file.path(candidates, "_common.R"))][1]
+} else {
+  dirname(input_file)
+}
+if (is.na(input_dir)) {
+  stop(
+    "Could not find vignettes/_common.R. ",
+    "Set the working directory to the debiasR package root or vignettes folder."
+  )
+}
+input_dir <- normalizePath(input_dir, mustWork = TRUE)
+debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
+source(file.path(input_dir, "_common.R"))
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 ```
 
 ## Notation

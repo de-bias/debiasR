@@ -2,15 +2,42 @@
 
 ### Public documentation and governance
 
+- Recorded that the `debiasR` repository is public on GitHub as of 2026-06-04
+  and updated project context for public-repository hygiene.
 - Added GitHub Pages pkgdown deployment support for the public vignette site.
 - Added repository code ownership for Francisco Rowe and Carmen Cabrera.
 - Updated contribution guidance so all changes to `main` go through pull
   requests with code-owner review.
 - Documented public GitHub installation commands for `debiasR` and the
   empirical companion package `debiasRdata`.
+- Refreshed the README and introductory vignettes `v02` through `v05` to
+  clarify package setup, empirical LAD inputs, coverage-bias measurement, and
+  explanatory bias diagnostics.
+- Made vignette setup chunks robust to interactive execution from RStudio by
+  falling back to the package root or `vignettes/` folder when the current
+  knitted input file is unavailable.
+- Rewrote the validation workflow vignette to clarify how users can compare
+  raw, adjusted, and benchmark OD flows with the current `validate_flow_*`
+  diagnostics.
+- Refined the validation vignette interpretation and recommendation text for
+  the three-level validation workflow.
+- Improved validation vignette tables and scatterplots with smaller table text,
+  clearer marginal labels, explicit x/y comparison labels, and centred
+  difference colours.
+- Refined validation scatterplot facet labels so OD-flow and marginal-flow
+  comparisons name the vertical and horizontal datasets more compactly, while
+  avoiding repeated marginal-total row labels in split marginal plots.
+- Updated validation vignette diagnostic plots with larger residual-heatmap
+  text.
 
 ### Multilevel scenario development
 
+- Added split `mobility_formula` and `bias_formula` support to
+  `adjust_multilevel_bayes()` so users can distinguish conceptual Level-2
+  true-flow predictors from Level-1 MPD observation-bias terms while retaining
+  the current reduced-form fitting implementation.
+- Opened enhancement issue #18 for the planned genuinely latent two-level
+  Bayesian model where `F_true_ij` is estimated explicitly.
 - Added an S1-S4 scenario contract for `adjust_multilevel_bayes()` covering single/multiple mobile-phone-derived data sources crossed with single/multiple observation periods.
 - Added `scenario`, `source_col`, `time_col`, `repeated_observation`, and `model_engine` parameters so the multilevel path can validate and carry source/time metadata without introducing separate user-facing functions.
 - Added a primary `formula` interface for `adjust_multilevel_bayes()`, with arbitrary area covariates available as `{covariate}_o` and `{covariate}_d`, formula-specified random effects and slopes, and legacy `custom_formula` / `income_col` compatibility retained.

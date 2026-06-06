@@ -34,9 +34,23 @@ for package users.
 In this vignette, we illustrate how `debiasR` can be used with example UK data at the local authority district (LAD) level. We start with two tables from `debiasRdata`: a coverage table and a covariates table. The coverage table contains the benchmark Census population and the observed digital trace user count for each LAD. The covariate table contains selected area-level characteristics from the 2021 Census.
 
 ```{r setup}
-library(debiasR)
-library(debiasRdata)
-library(dplyr)
+input_file <- knitr::current_input(dir = TRUE)
+input_dir <- if (is.null(input_file)) {
+  candidates <- c(".", "vignettes", "../vignettes", "../../vignettes")
+  candidates[file.exists(file.path(candidates, "_common.R"))][1]
+} else {
+  dirname(input_file)
+}
+if (is.na(input_dir)) {
+  stop(
+    "Could not find vignettes/_common.R. ",
+    "Set the working directory to the debiasR package root or vignettes folder."
+  )
+}
+input_dir <- normalizePath(input_dir, mustWork = TRUE)
+debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
+source(file.path(input_dir, "_common.R"))
+example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
 library(ggplot2)
 ```
 

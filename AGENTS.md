@@ -7,6 +7,8 @@ Purpose:
 
 Project scope:
 - `debiasR` is an R package for origin-destination mobility bias correction and validation.
+- The repository is public on GitHub as of 2026-06-04. Treat tracked files,
+  docs, vignettes, workflows, issues, and pull requests as public-facing.
 - Stable deterministic helpers use the `adjust_*` and `validate_flow_*` naming pattern.
 - `adjust_multilevel_bayes()` is an experimental stage-1 prototype unless the task board says otherwise.
 
@@ -30,6 +32,9 @@ Coding defaults:
 - Keep patches narrow and traceable.
 - Add or update focused tests for new exported behavior.
 - Update `NAMESPACE` and generated `man/` docs when exports or roxygen docs change.
+- Do not commit confidential material, credentials, personal local paths beyond
+  necessary reproducibility notes, restricted raw data, or development-only
+  artifacts that are not appropriate for a public repository.
 
 Validation:
 - Use the existing `validate_flow_*` API style.

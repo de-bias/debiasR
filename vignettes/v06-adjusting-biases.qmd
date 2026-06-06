@@ -523,28 +523,32 @@ only observed MPD pairs or predicts over a complete OD grid. The
 control the model structure, likelihood, fitting engine and how adjusted flows
 are summarised.
 
-The equations above translate directly into the R formula. The fixed terms
-`rural_pct_o`, `rural_pct_d` and `log_distance` represent the true-flow model
-terms $X_i$, $X_j$ and $d_{ij}$. The term `bias_e_origin` represents the MPD
-observation-bias component $B^{mpd}_{ij}$ through the coverage-bias measure
-$e_i$. Random-effect terms represent the origin, destination and corridor
+The equations above translate into two conceptual formula components.
+`mobility_formula` defines the Level 2 true-flow model. For example, we can include `rural_pct_o`,
+`rural_pct_d` and `log_distance` to represent the terms $X_i$, $X_j$ and
+$d_{ij}$. Random-effect terms represent the origin, destination and corridor
 structure: `(1 | origin)` for $u_i$, `(1 | destination)` for $v_j$, and
 `(1 | od_id)` for $w_{ij}$. The package creates `od_id` internally before
-fitting.
+fitting. `bias_formula` defines the Level 1 MPD observation-bias component. This is
+`bias_e_origin` and represents $B^{mpd}_{ij}$ through the coverage-bias measure
+$e_i$.
 
-A full formula matching the reduced two-level description is:
+The current implementation combines these two components into one reduced-form
+count model for the observed MPD flow.
+
+A full specification matching the reduced two-level description is:
 
 ```{r eval=FALSE}
-formula_multilevel_full <- flow ~ rural_pct_o + rural_pct_d + log_distance +
-  bias_e_origin + (1 | origin) + (1 | destination) + (1 | od_id)
+mobility_formula_full <- ~ rural_pct_o + rural_pct_d + log_distance +
+  (1 | origin) + (1 | destination) + (1 | od_id)
+
+bias_formula_origin <- ~ bias_e_origin
 ```
 
-This is the formula to use when the data support origin, destination and
-corridor partial pooling. In the small S1 example below, each OD corridor appears
-once, so the corridor random effect is weakly identified. To keep the rendered
-vignette stable and fast, we fit a reduced version that preserves the fixed
-true-flow terms and the MPD bias term, and then show the full formula as the
-target specification for richer data.
+Use this model specification when the data support origin, destination and
+corridor partial pooling. In an S1 scenario, like the example below, each OD
+corridor appears once, so the corridor random effect is weakly identified. We
+recommend not using it in such scenarios. We use it below for illustration purposes only.
 
 ```{r}
 mpd_s1 <- example_data$mpd_od |>
@@ -564,7 +568,8 @@ adj_multilevel <- adjust_multilevel_bayes(
   coverage_df = coverage_s1,
   covariates_df = example_data$covariates,
   distance_df = example_data$distance,
-  formula = flow ~ rural_pct_o + rural_pct_d + log_distance + bias_e_origin,
+  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
+  bias_formula = ~ bias_e_origin,
   model_engine = "frequentist",
   scenario = "s1",
   source_col = "mpd_source",
@@ -589,8 +594,9 @@ adj_multilevel_full <- adjust_multilevel_bayes(
   coverage_df = coverage_s1,
   covariates_df = example_data$covariates,
   distance_df = example_data$distance,
-  formula = flow ~ rural_pct_o + rural_pct_d + log_distance +
-    bias_e_origin + (1 | origin) + (1 | destination) + (1 | od_id),
+  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
+    (1 | origin) + (1 | destination) + (1 | od_id),
+  bias_formula = ~ bias_e_origin,
   model_engine = "frequentist",
   scenario = "s1",
   source_col = "mpd_source",
@@ -606,7 +612,9 @@ adj_multilevel_full |>
   dplyr::slice_head(n = 5)
 ```
 
-Inspect the metadata to confirm the scenario and formula contract.
+*Additional outputs*
+
+You can inspect the metadata to confirm the scenario and formula fitted.
 
 ```{r}
 if (!is.null(adj_multilevel)) {
@@ -625,18 +633,19 @@ if (!is.null(adj_multilevel)) {
 }
 ```
 
-The output preserves the observed MPD flow in `flow` and returns the model-based
+The output returns the observed MPD flow in `flow` and the model-based
 adjusted estimate in `flow_adj`. The source and time columns confirm that this
 example is using the S1 contract: one MPD source and one observation period.
 The metadata report the engine, resolved scenario, repeated-observation
 structure, prediction scope and model terms used to fit the adjustment model.
 This method is useful when users need a structured model that can combine
 coverage bias, covariates, distance and hierarchical data structure. Its main
-limitation is that it is heavier than the deterministic methods, and full
-Bayesian fitting requires more runtime, dependencies and diagnostic checking.
+limitation is that it i more data hungry than other methods and require significantly more runtime, dependencies and diagnostic checking if implemented via full Bayesian specification. The key strength is that the model does not require a benchmark dataset of flows.
 
-To fit alternative source/time structures, keep the same function and change the
-scenario columns and repeated-observation contract:
+*Alternative source-time structures*
+
+To fit alternative source-time structures, user should change the
+scenario columns and repeated-observation structure:
 
 ```{r}
 tibble::tribble(
@@ -648,17 +657,11 @@ tibble::tribble(
 )
 ```
 
-Use `model_engine = "frequentist"` for S1-S4 examples until Bayesian transfer is
-complete. Use `model_engine = "bayesian"` for the existing S1 Bayesian path when
-the required backend and runtime budget are available.
+For now, only the `frequentist` engine is enabled. So please only use `model_engine = "frequentist"` for S1-S4 examples until our Bayesian implementation is complete. Then, you will be able to use `model_engine = "bayesian"`.
 
 ## Fit all methods
 
-We first run all six adjustment methods on the same empirical LAD subset. The
-first five methods are fast deterministic adjustments. The multilevel method is
-included through `adjust_multilevel_bayes()` with `model_engine = "frequentist"`
-so the vignette can test the same input and output contract without requiring a
-slow Bayesian fit during routine rendering.
+We can also run all six adjustment methods at once on the same empirical LAD subset:
 
 ```{r}
 method_results <- fit_adjustment_methods(
@@ -684,46 +687,10 @@ tibble::tibble(
 )
 ```
 
-
-
-## How To Read Outputs
-
-All adjustment functions return a data frame with at least `origin`,
-`destination`, `flow`, and `flow_adj`. Additional columns and attributes depend
-on the method. Raking stores IPF convergence metadata; selection methods store
-their calibrated parameters; the multilevel method stores model, formula,
-scenario, diagnostic, and prediction-scope metadata.
-
-```{r}
-validation_row(
-  method_name = "inverse_penetration",
-  adj_df = method_results$inverse_penetration,
-  benchmark_od_df = example_data$benchmark_od
-)
-```
-
-```{r}
-validate_flow_pairs(
-  adj_df = method_results$inverse_penetration,
-  benchmark_od_df = example_data$benchmark_od
-) |>
-  dplyr::select(
-    origin,
-    destination,
-    mpd_flow,
-    adj_flow,
-    benchmark_flow,
-    diff_mpd_benchmark,
-    diff_adj_benchmark
-  ) |>
-  dplyr::slice_head(n = 5)
-```
-
 ## Method summary
 
-The table below follows the same comparison logic as the conceptual method
-guide. It is meant to help users identify which method is feasible before they
-run it.
+As described above, each of the adjustment methods implemented via `debiasR` has different assumptions, input data requirements, strengths and weaknesses. The table below offers a summary which can be used as a conceptual
+guide helping users identify which method is more appropriate given their purpose and constraints.
 
 ```{r results='asis', echo=FALSE}
 eq_stack <- function(...) {
@@ -735,7 +702,7 @@ eq_stack <- function(...) {
 }
 
 method_summary <- tibble::tribble(
-  ~Method, ~`Correction<br>level`, ~`How the correction<br>is applied`, ~Rationale, ~Equation, ~`Benchmark<br>population`, ~`Active<br>users`, ~`Benchmark<br>OD flows`, ~Covariates, ~Strengths, ~Limitations, ~`Validation<br>strategy`,
+  ~Method, ~`Correction<br>level`, ~`How the correction<br>is applied`, ~Rationale, ~Equation, ~`Benchmark<br>population`, ~`Active<br>users`, ~`Benchmark<br>OD flows`, ~Covariates, ~Strengths, ~Limitations,
   "Inverse Penetration Rate Weights",
   "Area-specific coverage correction",
   "Applies origin, destination, or both-side coverage weights using <code>weight_by</code>.",
@@ -747,7 +714,6 @@ method_summary <- tibble::tribble(
   "Yes", "Yes", "No", "No",
   "Simple, transparent, fast, and does not require benchmark OD flows.",
   "Can overinflate sparse areas and misses compositional selection bias.",
-  "Use <code>validate_flow_overall()</code> for summary fit and <code>validate_flow_residuals()</code> for large OD corrections.",
 
   "Selection Rate",
   "Area-specific selection correction",
@@ -760,7 +726,6 @@ method_summary <- tibble::tribble(
   "Yes", "Yes", "Optional", "Yes",
   "More flexible than inverse penetration and can use benchmark calibration.",
   "Depends on covariate quality, calibration choices, and a meaningful selection parameter.",
-  "Compare calibrated and uncalibrated outputs with <code>validate_flow_overall()</code> and inspect OD residuals.",
 
   "Selection Rate II",
   "Area-specific nonlinear coverage correction",
@@ -773,7 +738,6 @@ method_summary <- tibble::tribble(
   "Yes", "Yes", "Optional", "No",
   "Parsimonious, interpretable, and lighter than a covariate-rich adjustment.",
   "Less flexible when bias varies strongly across areas.",
-  "Use summary validation metrics and residual diagnostics to check whether the compact correction is adequate.",
 
   "Raking Ratio (or Iterative proportional fitting)",
   "Margin-constrained correction",
@@ -786,7 +750,6 @@ method_summary <- tibble::tribble(
   "Optional as targets", "No", "Yes or user targets", "No",
   "Guarantees consistency with supplied marginal totals.",
   "Matching margins does not guarantee correct destination allocation within each origin.",
-  "Check IPF convergence and margin matching, then validate OD-pair residuals and allocation fidelity.",
 
   "Coefficient regression modelling",
   "Global coefficient correction",
@@ -799,20 +762,19 @@ method_summary <- tibble::tribble(
   "No", "No", "Yes", "No",
   "Direct benchmark-driven calibration with several model families.",
   "Benchmark quality is critical and a global coefficient can miss local heterogeneity.",
-  "Compare families and levels with <code>validate_flow_overall()</code>; inspect systematic residuals.",
 
   "Bayesian multilevel modelling",
   "Model-based corridor correction",
-  "Predicts OD-specific adjusted flows from a user-specified formula with origin, destination, distance, bias, and optional random effects.",
-  "Fits a multilevel count model using an R-style formula; area covariates enter as origin and destination suffixes such as <code>rural_pct_o</code> and <code>rural_pct_d</code>.",
+  "Predicts OD-specific adjusted flows from separate mobility and bias formula components with optional random effects.",
+  "Fits a reduced-form count model using <code>mobility_formula</code> for true-flow predictors and <code>bias_formula</code> for MPD observation-bias terms.",
   eq_stack(
-    "formula: flow ~ X<sub>i</sub> + X<sub>j</sub> + log(<i>d</i><sub>ij</sub>) + e<sub>i</sub> + ( ... | group )",
+    "mobility: ~ X<sub>i</sub> + X<sub>j</sub> + log(<i>d</i><sub>ij</sub>) + ( ... | group )",
+    "bias: ~ e<sub>i</sub>",
     "<i>F</i><sup>adj</sup><sub>ij</sub> = summary(exp(&eta;<sup>fix</sup><sub>ij</sub>(e<sub>i</sub> = 0)))"
   ),
   "Yes", "Yes", "No", "Yes",
   "Richer structure, no benchmark OD needed for fitting, and a path to uncertainty-aware partial pooling.",
-  "Heavier runtime and dependencies; S2-S4 Bayesian fitting is still being transferred from the development contract.",
-  "Use model diagnostics plus the same validation functions used for other methods when a benchmark is available."
+  "Heavier runtime and dependencies; S2-S4 Bayesian fitting is still being transferred from the development contract."
 )
 
 table_html <- knitr::kable(
@@ -836,7 +798,7 @@ cat("<div class='method-table-wrap'>", table_html, "</div>")
 }
 
 .method-summary-table {
-  min-width: 1850px;
+  min-width: 1650px;
   font-size: 0.9rem;
   line-height: 1.45;
 }
@@ -861,11 +823,3 @@ cat("<div class='method-table-wrap'>", table_html, "</div>")
   margin-top: 0.25rem;
 }
 </style>
-
-Two contrasts are especially important:
-
-- `adjust_coefficient()` directly learns from benchmark flows; the benchmark is
-  part of model fitting.
-- `adjust_multilevel_bayes()` does not use benchmark OD flows in model fitting.
-  It adjusts MPD flows using coverage, covariates, distance, and multilevel
-  structure, then should be validated against a benchmark when one is available.

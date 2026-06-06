@@ -1,6 +1,7 @@
 *.html
 *.R
 !_common.R
+!_validation_helpers.R
 *.knit.md
 *.rmarkdown
 *_files/
