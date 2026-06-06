@@ -12,14 +12,13 @@ optional data package is not installed.
 
 ## Structure
 
-1. `v01-landing-page.qmd`
-2. `v02-why-this-matters.qmd`
-3. `v03-getting-set-up.qmd`
-4. `v04-measuring-coverage-bias.qmd`
-5. `v05-identifying-and-explaining-bias.qmd`
-6. `v06-adjusting-biases.qmd`
-7. `v07-validation.qmd`
-8. `v08-data.qmd`
+1. `v02-why-this-matters.qmd`
+2. `v03-getting-set-up.qmd`
+3. `v04-measuring-coverage-bias.qmd`
+4. `v05-identifying-and-explaining-bias.qmd`
+5. `v06-adjusting-biases.qmd`
+6. `v07-validation.qmd`
+7. `v08-data.qmd`
 
 Supporting package-vignette assets belong in:
 

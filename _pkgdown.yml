@@ -11,8 +11,6 @@ navbar:
     foundations:
       text: Foundations
       menu:
-      - text: Package overview
-        href: articles/v01-landing-page.html
       - text: Why this matters
         href: articles/v02-why-this-matters.html
       - text: Getting set up
@@ -41,13 +39,12 @@ navbar:
         href: articles/v08-data.html
     articles:
       text: All articles
-      href: articles/v01-landing-page.html
+      href: articles/index.html
 
 articles:
 - title: Foundations
   navbar: Foundations
   contents:
-  - v01-landing-page
   - v02-why-this-matters
   - v03-getting-set-up
 - title: Measure bias
