@@ -10,6 +10,9 @@
   requests with code-owner review.
 - Documented public GitHub installation commands for `debiasR` and the
   empirical companion package `debiasRdata`.
+- Refreshed the README and introductory vignettes `v02` through `v05` to
+  clarify package setup, empirical LAD inputs, coverage-bias measurement, and
+  explanatory bias diagnostics.
 - Made vignette setup chunks robust to interactive execution from RStudio by
   falling back to the package root or `vignettes/` folder when the current
   knitted input file is unavailable.
