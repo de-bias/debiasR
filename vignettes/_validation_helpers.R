@@ -354,6 +354,19 @@ validation_pair_difference_limits <- function(data) {
   c(-max_abs_difference, max_abs_difference)
 }
 
+validation_difference_colour_scale <- function(difference_limits) {
+  ggplot2::scale_colour_gradient2(
+    low = "#2166AC",
+    mid = "#F7F7F7",
+    high = "#B2182B",
+    midpoint = 0,
+    limits = difference_limits,
+    labels = validation_flow_axis_label,
+    transform = "pseudo_log",
+    name = "Difference\n(Y - X)"
+  )
+}
+
 validation_plot_margin_scatter <- function(marginal_comparison, level = NULL) {
   margin_data <- marginal_comparison |>
     dplyr::filter(level %in% c("origin_marginal", "destination_marginal"))
@@ -379,6 +392,21 @@ validation_plot_margin_scatter <- function(marginal_comparison, level = NULL) {
     )
 
   difference_limits <- validation_pair_difference_limits(plot_data)
+  single_margin_level <- length(unique(plot_data$level_label)) == 1L
+  margin_plot_title <- if (single_margin_level) {
+    unique(plot_data$level_label)
+  } else {
+    NULL
+  }
+  margin_facet <- if (single_margin_level) {
+    ggplot2::facet_grid(method_plot_label ~ comparison_axis_label, scales = "free")
+  } else {
+    ggplot2::facet_grid(
+      level_label + method_plot_label ~ comparison_axis_label,
+      scales = "free",
+      labeller = ggplot2::label_value
+    )
+  }
 
   plot_data |>
     ggplot2::ggplot(
@@ -395,27 +423,23 @@ validation_plot_margin_scatter <- function(marginal_comparison, level = NULL) {
       linetype = "dashed",
       colour = validation_reference_line_colour
     ) +
-    ggplot2::facet_grid(
-      level_label + method_plot_label ~ comparison_axis_label,
-      scales = "free",
-      labeller = ggplot2::label_value
-    ) +
-    ggplot2::scale_colour_gradient2(
-      low = "#2166AC",
-      mid = "#F7F7F7",
-      high = "#B2182B",
-      midpoint = 0,
-      limits = difference_limits,
-      labels = validation_flow_axis_label,
-      name = "Difference\n(Y - X)"
-    ) +
+    margin_facet +
+    validation_difference_colour_scale(difference_limits) +
     ggplot2::scale_x_continuous(labels = validation_flow_axis_label) +
     ggplot2::scale_y_continuous(labels = validation_flow_axis_label) +
     ggplot2::labs(
+      title = margin_plot_title,
       x = "X-axis marginal total",
       y = "Y-axis marginal total"
     ) +
-    validation_theme()
+    validation_theme() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(
+        face = "bold",
+        hjust = 0.5,
+        margin = ggplot2::margin(b = 6)
+      )
+    )
 }
 
 validation_plot_od_scatter <- function(flow_comparison) {
@@ -447,15 +471,7 @@ validation_plot_od_scatter <- function(flow_comparison) {
       colour = validation_reference_line_colour
     ) +
     ggplot2::facet_grid(method_plot_label ~ comparison_axis_label, scales = "free") +
-    ggplot2::scale_colour_gradient2(
-      low = "#2166AC",
-      mid = "#F7F7F7",
-      high = "#B2182B",
-      midpoint = 0,
-      limits = difference_limits,
-      labels = validation_flow_axis_label,
-      name = "Difference\n(Y - X)"
-    ) +
+    validation_difference_colour_scale(difference_limits) +
     ggplot2::scale_x_continuous(labels = validation_flow_axis_label) +
     ggplot2::scale_y_continuous(labels = validation_flow_axis_label) +
     ggplot2::labs(
@@ -618,7 +634,7 @@ validation_plot_residual_heatmap <- function(heatmap_data) {
     ggplot2::aes(x = method_axis, y = residual_band, fill = share)
   ) +
     ggplot2::geom_tile(width = 0.92, height = 0.92, colour = NA) +
-    ggplot2::geom_text(ggplot2::aes(label = label), colour = "black", size = 3.2) +
+    ggplot2::geom_text(ggplot2::aes(label = label), colour = "black", size = 3.7) +
     ggplot2::scale_fill_gradient(
       low = "#F7F7F7",
       high = "#08519C",
@@ -629,7 +645,7 @@ validation_plot_residual_heatmap <- function(heatmap_data) {
       x = NULL,
       y = "Origin-destination flows"
     ) +
-    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::theme_minimal(base_size = 12.5) +
     ggplot2::theme(
       panel.grid = ggplot2::element_blank(),
       panel.border = ggplot2::element_blank(),
