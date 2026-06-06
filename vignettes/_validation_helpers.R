@@ -17,6 +17,21 @@ validation_comparison_palette <- c(
 
 validation_reference_line_colour <- "#D95F0E"
 
+validation_margin_level_labels <- c(
+  origin_marginal = "Origin totals",
+  destination_marginal = "Destination totals"
+)
+
+validation_margin_display_labels <- c(
+  origin_marginal = "origin",
+  destination_marginal = "destination"
+)
+
+validation_plot_method_labels <- c(
+  "Inverse penetration" = "Inverse\npenetration",
+  "Selection rate II" = "Selection\nrate II"
+)
+
 validation_flow_axis_label <- function(x) {
   dplyr::case_when(
     abs(x) >= 1e6 ~ paste0(round(x / 1e6, 1), "m"),
@@ -164,10 +179,21 @@ validation_metrics_by_method_level <- function(data) {
 
 validation_display_metrics <- function(metrics) {
   show_level <- length(unique(metrics$level)) > 1L
+  show_marginal_level <- show_level &&
+    all(metrics$level %in% names(validation_margin_display_labels))
+  level_column <- if (show_marginal_level) {
+    "Marginal total"
+  } else {
+    "Level"
+  }
 
   display_metrics <- metrics |>
     dplyr::transmute(
-      Level = gsub("_", " ", level),
+      Level = dplyr::recode(
+        level,
+        !!!validation_margin_display_labels,
+        .default = gsub("_", " ", level)
+      ),
       Method = method_label,
       Comparison = comparison_label,
       n,
@@ -183,10 +209,12 @@ validation_display_metrics <- function(metrics) {
   if (!show_level) {
     display_metrics <- display_metrics |>
       dplyr::select(-Level)
+  } else {
+    names(display_metrics)[names(display_metrics) == "Level"] <- level_column
   }
 
   alignment <- ifelse(
-    names(display_metrics) %in% c("Level", "Method", "Comparison"),
+    names(display_metrics) %in% c("Level", "Marginal total", "Method", "Comparison"),
     "l",
     "r"
   )
@@ -265,8 +293,10 @@ validation_build_pair_scatter <- function(data) {
         method_label,
         level,
         comparison = "Adjusted vs benchmark",
+        comparison_axis_label = "Y: adjusted\nX: benchmark",
         reference_flow = flow_bench,
-        compared_flow = flow_adj
+        compared_flow = flow_adj,
+        difference = flow_adj - flow_bench
       ),
     data |>
       dplyr::transmute(
@@ -274,8 +304,10 @@ validation_build_pair_scatter <- function(data) {
         method_label,
         level,
         comparison = "Raw vs benchmark",
+        comparison_axis_label = "Y: raw\nX: benchmark",
         reference_flow = flow_bench,
-        compared_flow = flow_mpd
+        compared_flow = flow_mpd,
+        difference = flow_mpd - flow_bench
       ),
     data |>
       dplyr::transmute(
@@ -283,8 +315,10 @@ validation_build_pair_scatter <- function(data) {
         method_label,
         level,
         comparison = "Raw vs adjusted",
-        reference_flow = flow_mpd,
-        compared_flow = flow_adj
+        comparison_axis_label = "Y: raw\nX: adjusted",
+        reference_flow = flow_adj,
+        compared_flow = flow_mpd,
+        difference = flow_mpd - flow_adj
       )
   ) |>
     dplyr::mutate(
@@ -295,26 +329,63 @@ validation_build_pair_scatter <- function(data) {
           "Raw vs benchmark",
           "Raw vs adjusted"
         )
+      ),
+      comparison_axis_label = factor(
+        comparison_axis_label,
+        levels = c(
+          "Y: adjusted\nX: benchmark",
+          "Y: raw\nX: benchmark",
+          "Y: raw\nX: adjusted"
+        )
       )
     )
 }
 
-validation_plot_margin_scatter <- function(marginal_comparison) {
-  marginal_comparison |>
-    dplyr::filter(level %in% c("origin_marginal", "destination_marginal")) |>
+validation_pair_difference_limits <- function(data) {
+  max_abs_difference <- data |>
+    dplyr::pull(difference) |>
+    abs() |>
+    max(na.rm = TRUE)
+
+  if (!is.finite(max_abs_difference) || max_abs_difference <= 0) {
+    return(c(-1, 1))
+  }
+
+  c(-max_abs_difference, max_abs_difference)
+}
+
+validation_plot_margin_scatter <- function(marginal_comparison, level = NULL) {
+  margin_data <- marginal_comparison |>
+    dplyr::filter(level %in% c("origin_marginal", "destination_marginal"))
+
+  if (!is.null(level)) {
+    margin_data <- margin_data |>
+      dplyr::filter(level %in% !!level)
+  }
+
+  plot_data <- margin_data |>
     validation_build_pair_scatter() |>
     dplyr::mutate(
-      level_label = dplyr::case_when(
-        level == "origin_marginal" ~ "Origin totals",
-        level == "destination_marginal" ~ "Destination totals",
-        TRUE ~ level
+      level_label = dplyr::recode(
+        level,
+        !!!validation_margin_level_labels,
+        .default = level
+      ),
+      method_plot_label = dplyr::recode(
+        method_label,
+        !!!validation_plot_method_labels,
+        .default = method_label
       )
-    ) |>
+    )
+
+  difference_limits <- validation_pair_difference_limits(plot_data)
+
+  plot_data |>
     ggplot2::ggplot(
       ggplot2::aes(
         x = reference_flow,
         y = compared_flow,
-        colour = comparison
+        colour = difference
       )
     ) +
     ggplot2::geom_point(alpha = 0.75, size = 1.5, na.rm = TRUE) +
@@ -324,26 +395,48 @@ validation_plot_margin_scatter <- function(marginal_comparison) {
       linetype = "dashed",
       colour = validation_reference_line_colour
     ) +
-    ggplot2::facet_grid(level_label + method_label ~ comparison, scales = "free") +
-    ggplot2::scale_colour_manual(values = validation_comparison_palette) +
+    ggplot2::facet_grid(
+      level_label + method_plot_label ~ comparison_axis_label,
+      scales = "free",
+      labeller = ggplot2::label_value
+    ) +
+    ggplot2::scale_colour_gradient2(
+      low = "#2166AC",
+      mid = "#F7F7F7",
+      high = "#B2182B",
+      midpoint = 0,
+      limits = difference_limits,
+      labels = validation_flow_axis_label,
+      name = "Difference\n(Y - X)"
+    ) +
     ggplot2::scale_x_continuous(labels = validation_flow_axis_label) +
     ggplot2::scale_y_continuous(labels = validation_flow_axis_label) +
     ggplot2::labs(
-      x = "Reference marginal total",
-      y = "Compared marginal total"
+      x = "X-axis marginal total",
+      y = "Y-axis marginal total"
     ) +
-    ggplot2::guides(colour = "none") +
     validation_theme()
 }
 
 validation_plot_od_scatter <- function(flow_comparison) {
-  flow_comparison |>
+  plot_data <- flow_comparison |>
     validation_build_pair_scatter() |>
+    dplyr::mutate(
+      method_plot_label = dplyr::recode(
+        method_label,
+        !!!validation_plot_method_labels,
+        .default = method_label
+      )
+    )
+
+  difference_limits <- validation_pair_difference_limits(plot_data)
+
+  plot_data |>
     ggplot2::ggplot(
       ggplot2::aes(
         x = reference_flow,
         y = compared_flow,
-        colour = comparison
+        colour = difference
       )
     ) +
     ggplot2::geom_point(alpha = 0.3, size = 0.9, na.rm = TRUE) +
@@ -353,15 +446,22 @@ validation_plot_od_scatter <- function(flow_comparison) {
       linetype = "dashed",
       colour = validation_reference_line_colour
     ) +
-    ggplot2::facet_grid(method_label ~ comparison, scales = "free") +
-    ggplot2::scale_colour_manual(values = validation_comparison_palette) +
+    ggplot2::facet_grid(method_plot_label ~ comparison_axis_label, scales = "free") +
+    ggplot2::scale_colour_gradient2(
+      low = "#2166AC",
+      mid = "#F7F7F7",
+      high = "#B2182B",
+      midpoint = 0,
+      limits = difference_limits,
+      labels = validation_flow_axis_label,
+      name = "Difference\n(Y - X)"
+    ) +
     ggplot2::scale_x_continuous(labels = validation_flow_axis_label) +
     ggplot2::scale_y_continuous(labels = validation_flow_axis_label) +
     ggplot2::labs(
-      x = "Reference flow",
-      y = "Compared flow"
+      x = "X-axis flow",
+      y = "Y-axis flow"
     ) +
-    ggplot2::guides(colour = "none") +
     validation_theme()
 }
 

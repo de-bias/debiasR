@@ -14,6 +14,14 @@ execute:
   message: false
 ---
 
+```{=html}
+<style>
+.template-quarto table {
+  font-size: 14.5px;
+}
+</style>
+```
+
 ## Aim
 
 This vignette describes the range of validation methods included in `debiasR`, to assess the extent of difference between our adjusted mobile-phone-derived flow estimates and target benchmark flows.
@@ -187,7 +195,17 @@ flow dataset on the vertical axis. Points below the line are smaller in that
 same dataset.
 
 ```{r}
-validation_plot_margin_scatter(marginal_comparison)
+validation_plot_margin_scatter(
+  marginal_comparison,
+  level = "destination_marginal"
+)
+```
+
+```{r}
+validation_plot_margin_scatter(
+  marginal_comparison,
+  level = "origin_marginal"
+)
 ```
 
 We can also use the resulting assessment metrics to identify the largest (*remaining*) marginal errors post adjustment. It helps determine
