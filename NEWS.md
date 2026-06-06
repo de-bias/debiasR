@@ -24,8 +24,8 @@
 - Refined validation scatterplot facet labels so OD-flow and marginal-flow
   comparisons name the vertical and horizontal datasets more compactly, while
   avoiding repeated marginal-total row labels in split marginal plots.
-- Updated validation vignette diagnostic plots with pseudo-log signed-difference
-  colour scales and larger residual-heatmap text.
+- Updated validation vignette diagnostic plots with larger residual-heatmap
+  text.
 
 ### Multilevel scenario development
 

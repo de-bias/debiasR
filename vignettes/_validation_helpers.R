@@ -362,7 +362,6 @@ validation_difference_colour_scale <- function(difference_limits) {
     midpoint = 0,
     limits = difference_limits,
     labels = validation_flow_axis_label,
-    transform = "pseudo_log",
     name = "Difference\n(Y - X)"
   )
 }
