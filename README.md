@@ -57,16 +57,6 @@ the source files in `vignettes/`.
 
 ![Three-stage debiasR OD workflow](man/figures/debias-workflow-readme.png)
 
-`debiasR` has three main components:
-
-1.  Measure coverage and representativeness bias in the
-    mobile-phone-derived OD source.
-2.  Adjust bias, with `adjust_multilevel_bayes()` as the main
-    formula-based multilevel innovation and deterministic methods as
-    transparent baselines.
-3.  Validate adjusted OD flows against benchmark OD data using
-    complementary fit, residual, structure and allocation metrics.
-
 
 ## Repository structure
 
@@ -99,6 +89,7 @@ See the [LICENSE](LICENSE) file for full details.
 ## Core development team
 
 The core development team consists of **Francisco Rowe** and **Carmen Cabrera** (University of Liverpool).  
+
 We actively maintain and develop the package and warmly invite contributions from the wider research community — including new methods, bug reports, feature requests and ideas for improvement.
 
 If you’re interested in collaborating or contributing, please join our growing open-source community.
@@ -115,6 +106,7 @@ guidance and pull request templates.
 ## Acknowledging contributors
 
 We use the [All Contributors Bot](https://allcontributors.org/) to recognise everyone’s work—code, docs, ideas, design and more.  
+
 After your PR is merged, comment on an issue or PR:
 
 ```
