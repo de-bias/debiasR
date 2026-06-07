@@ -29,23 +29,8 @@ A typical `debiasR` workflow starts by:
 We start by loading the packages:
 
 ```{r setup}
-input_file <- knitr::current_input(dir = TRUE)
-input_dir <- if (is.null(input_file)) {
-  candidates <- c(".", "vignettes", "../vignettes", "../../vignettes")
-  candidates[file.exists(file.path(candidates, "_common.R"))][1]
-} else {
-  dirname(input_file)
-}
-if (is.na(input_dir)) {
-  stop(
-    "Could not find vignettes/_common.R. ",
-    "Set the working directory to the debiasR package root or vignettes folder."
-  )
-}
-input_dir <- normalizePath(input_dir, mustWork = TRUE)
-debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
-source(file.path(input_dir, "_common.R"))
-example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
+library(debiasR)
+library(debiasRdata)
 ```
 
 ## Notation
@@ -78,11 +63,11 @@ census_OD_travel2work <- debiasRdata::census_lad_OD_travel2work
 coverage <- debiasRdata::coverage_lad
 ```
 
-The example data available via `debiasRdata` also includes supporting inputs used in later vignettes. Particularly, `covariates`, which contains area-level characteristics used to explain variation in bias across places, and `distance`, which contains distance between origin and destination areas, used by flow adjustment models.
+The example data available via `debiasRdata` also includes supporting inputs used in later vignettes. Particularly, `covariates`, which contains area-level characteristics used to explain variation in bias across places, and `centroids`, which contains LAD centroid coordinates that can be used to derive distances for flow adjustment models.
 
 ```{r}
 covariates <- debiasRdata::lad_covariates
-distance <- debiasRdata::lad_centroids
+centroids <- debiasRdata::lad_centroids
 ```
 
 In summary, the main input datasets are as follows:
@@ -93,7 +78,7 @@ In summary, the main input datasets are as follows:
 | `census_OD_travel2work` | benchmark OD flows from the Census |
 | `coverage` | area-level benchmark and observed digital trace population counts |
 | `covariates` | area-level characteristics used to explain bias |
-| `distance` | OD distance used in adjustment models |
+| `centroids` | LAD centroid coordinates that can support distance derivation |
 
 The datasets are also available at the Middle-layer Super-Output Area (MSOA) level via `debiasRdata`.
 
@@ -103,7 +88,7 @@ Before proceeding to the next steps of the workflow, it is useful to check and u
 
 Below, we produce a compact row and column count, which gives a quick overview of the size of the main datasets. If the workflow includes $N$ areas and within-area flows are included, a complete OD-flow table has $N \times N$ rows: one row for every possible origin-destination pair. If within-area flows are excluded, the complete table has $N \times (N - 1)$ rows. If the table only records observed flows, it can have fewer rows, because OD pairs with no recorded flow may be absent. The `coverage` table should have one row per area, so it should contain $N$ rows.
 
-For the supporting tables, `covariates` table should also have one row per area, with columns describing area-level characteristics used to explain variation in bias. The `distance` table is an OD table, so it should contain one row per origin-destination pair and a distance measure for that pair.
+For the supporting tables, the `covariates` table should also have one row per area, with columns describing area-level characteristics used to explain variation in bias. The `centroids` table should contain one row per area with coordinate columns that can be used to calculate distances between origins and destinations.
 
 ```{r}
 
@@ -111,7 +96,7 @@ nrow(OD_travel2work)
 nrow(census_OD_travel2work)
 nrow(coverage)
 nrow(covariates)
-nrow(distance)
+nrow(centroids)
 ```
 
 Next, we can explore the content of each table. We print the column names and the first few rows to show basic structure of the core workflow tables. 
@@ -123,17 +108,9 @@ table. Each row represents a flow from a home area (in this case, a Local Author
 workplace area, stored in `destination`. The `flow` column gives the observed
 number of mobile-phone-derived travel-to-work movements for that OD pair.
 
-Because the example was loaded with `complete_grid = TRUE`, the table also
-contains row-status columns. These indicate whether an OD pair was observed in
-the original Locomizer-derived data or added during complete-grid construction
-with a zero flow. This makes the observed and benchmark OD tables easier to
-compare because they share the same set of origin-destination pairs.
-
-The column `mpd_source` identifies the data source. The columns `mpd_observed`,
-`mpd_zero_filled` and `mpd_row_status` describe whether the row was present in
-the original observed data or added as a zero-filled OD pair. Rows marked as
-`mpd_observed = TRUE` were present in the Locomizer OD table; rows marked as
-`zero_filled = TRUE` were added so that all possible OD pairs among the selected areas are represented.
+The table stores the observed OD pairs available in the empirical companion
+package. If an adjustment workflow needs a strict square OD grid, later steps can
+construct that grid from the observed and benchmark tables.
 
 ```{r}
 head(OD_travel2work)
@@ -145,11 +122,9 @@ head(OD_travel2work)
 The `census_OD_travel2work` table is the benchmark OD-flow table. Each row
 represents a Census travel-to-work flow from a home area, stored in `origin`, to a workplace area, stored in `destination`. The `flow` column gives the benchmark number of people travelling from the origin to the destination.
 
-As with the observed-flow table, the benchmark table includes row-status columns
-because the example was loaded with `complete_grid = TRUE`.
-`benchmark_observed`, `benchmark_zero_filled` and `benchmark_row_status` show
-whether each OD pair was present in the original Census table or added as a
-zero-filled pair to align the benchmark and observed OD grids.
+The benchmark table uses the same `origin`, `destination` and `flow` schema as
+the observed table, which makes the two sources easy to compare or join in later
+steps.
 
 ```{r}
 head(census_OD_travel2work)
