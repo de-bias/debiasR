@@ -19,9 +19,8 @@
 - Moved Reference to the final top-menu position and temporarily hid the data
   overview vignette from public pkgdown navigation while keeping its source
   available for later revision.
-- Made vignette setup chunks robust to interactive execution from RStudio by
-  falling back to the package root or `vignettes/` folder when the current
-  knitted input file is unavailable.
+- Simplified introductory vignette setup chunks to load `debiasR` and
+  `debiasRdata` directly for the public empirical LAD examples.
 - Rewrote the validation workflow vignette to clarify how users can compare
   raw, adjusted, and benchmark OD flows with the current `validate_flow_*`
   diagnostics.
