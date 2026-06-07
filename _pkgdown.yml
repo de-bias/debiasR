@@ -5,7 +5,7 @@ template:
 
 navbar:
   structure:
-    left: [home, reference, foundations, measure, adjust, validate, data]
+    left: [home, foundations, measure, adjust, validate, reference]
     right: [github]
   components:
     foundations:
@@ -32,11 +32,6 @@ navbar:
       menu:
       - text: Validation workflow
         href: articles/v07-validation.html
-    data:
-      text: Data
-      menu:
-      - text: Data overview
-        href: articles/v08-data.html
     articles:
       text: All articles
       href: articles/index.html
@@ -60,8 +55,7 @@ articles:
   navbar: Validate
   contents:
   - v07-validation
-- title: Data
-  navbar: Data
+- title: internal
   contents:
   - v08-data
 
