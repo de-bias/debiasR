@@ -50,6 +50,9 @@ jobs:
             any::lme4
             github::de-bias/debiasRdata
 
+      - name: Install local package
+        run: R CMD INSTALL .
+
       - name: Build pkgdown site
         shell: bash
         run: |
