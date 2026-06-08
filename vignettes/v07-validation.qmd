@@ -75,20 +75,16 @@ table uses adjusted-versus-benchmark notation.[^validation-measure-reuse]
 
 ## Getting ready
 
-We now get ready by installing the companion data package if needed, then
-loading the empirical data, helper functions and visualisation tools.
+The README shows how to install `debiasR` and the companion `debiasRdata`
+package from GitHub. We start by loading those packages.
 
-```{r install-data-package}
-if (!requireNamespace("debiasRdata", quietly = TRUE)) {
-  if (!requireNamespace("remotes", quietly = TRUE)) {
-    install.packages("remotes", repos = "https://cloud.r-project.org")
-  }
-  remotes::install_github("de-bias/debiasRdata", upgrade = "never")
-}
-
+```{r load-packages}
+library(debiasR)
 library(debiasRdata)
-library(ggplot2)
 ```
+
+Next, we source helper functions used only inside this vignette to format
+validation tables and plots.
 
 ```{r load-validation-helpers}
 helper_candidates <- c(
@@ -107,8 +103,11 @@ if (is.na(helper_file)) {
 source(helper_file)
 ```
 
+Finally, we load a small LAD travel-to-work example from `debiasRdata` through
+the exported `debiasR_example_data()` helper.
+
 ```{r load-validation-data}
-example_data <- debiasR::debiasR_example_data(
+example_data <- debiasR_example_data(
   n_areas = 25,
   complete_grid = TRUE
 )

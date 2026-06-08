@@ -24,11 +24,10 @@
 - Rewrote the validation workflow vignette to clarify how users can compare
   raw, adjusted, and benchmark OD flows with the current `validate_flow_*`
   diagnostics.
-- Updated the validation workflow vignette setup to install the empirical
-  companion package `debiasRdata` with `remotes` when needed and load the
-  example data through the exported `debiasR_example_data()` helper.
-- Split the validation workflow vignette setup into separate package,
-  helper-loading, and data-loading chunks for readability.
+- Updated the validation workflow vignette setup to assume the README GitHub
+  installation instructions have been followed, load `debiasR` and `debiasRdata`
+  directly, and keep package, helper-loading, and data-loading steps in
+  separate chunks.
 - Refined the validation vignette interpretation and recommendation text for
   the three-level validation workflow.
 - Improved validation vignette tables and scatterplots with smaller table text,
