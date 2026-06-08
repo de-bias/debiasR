@@ -78,7 +78,7 @@ table uses adjusted-versus-benchmark notation.[^validation-measure-reuse]
 We now get ready by installing the companion data package if needed, then
 loading the empirical data, helper functions and visualisation tools.
 
-```{r setup}
+```{r install-data-package}
 if (!requireNamespace("debiasRdata", quietly = TRUE)) {
   if (!requireNamespace("remotes", quietly = TRUE)) {
     install.packages("remotes", repos = "https://cloud.r-project.org")
@@ -88,7 +88,9 @@ if (!requireNamespace("debiasRdata", quietly = TRUE)) {
 
 library(debiasRdata)
 library(ggplot2)
+```
 
+```{r load-validation-helpers}
 helper_candidates <- c(
   "vignettes/_validation_helpers.R",
   "_validation_helpers.R",
@@ -103,7 +105,9 @@ if (is.na(helper_file)) {
   )
 }
 source(helper_file)
+```
 
+```{r load-validation-data}
 example_data <- debiasR::debiasR_example_data(
   n_areas = 25,
   complete_grid = TRUE
