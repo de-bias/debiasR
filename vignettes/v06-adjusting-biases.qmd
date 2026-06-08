@@ -60,24 +60,39 @@ This vignette covers the bias adjustment methods currently available in
 
 We will use data on travel-to-work flows between local authority districts (LADs) from `debiasRdata`. The dataset is described the Data vignette. The data captures origin-destination flows derived from [Locomizer](https://locomizer.com).
 
-```{r setup}
-input_file <- knitr::current_input(dir = TRUE)
-input_dir <- if (is.null(input_file)) {
-  candidates <- c(".", "vignettes", "../vignettes", "../../vignettes")
-  candidates[file.exists(file.path(candidates, "_common.R"))][1]
-} else {
-  dirname(input_file)
-}
-if (is.na(input_dir)) {
+The README shows how to install `debiasR` and the companion `debiasRdata`
+package from GitHub. We start by loading those packages.
+
+```{r load-packages}
+library(debiasR)
+library(debiasRdata)
+```
+
+Next, we source helper functions used only inside this vignette to run the
+compact all-method comparison near the end.
+
+```{r load-adjustment-helpers}
+helper_candidates <- c(
+  "vignettes/_common.R",
+  "_common.R",
+  "../vignettes/_common.R",
+  "../../vignettes/_common.R"
+)
+helper_file <- helper_candidates[file.exists(helper_candidates)][1]
+if (is.na(helper_file)) {
   stop(
     "Could not find vignettes/_common.R. ",
     "Set the working directory to the debiasR package root or vignettes folder."
   )
 }
-input_dir <- normalizePath(input_dir, mustWork = TRUE)
-debiasr_pkg_root <- normalizePath(file.path(input_dir, ".."), mustWork = FALSE)
-source(file.path(input_dir, "_common.R"))
-example_data <- load_workshop_example(n_areas = 25, complete_grid = TRUE)
+source(helper_file)
+```
+
+We then load a small LAD travel-to-work example from `debiasRdata` through the
+exported `debiasR_example_data()` helper.
+
+```{r load-adjustment-data}
+example_data <- debiasR_example_data(n_areas = 25, complete_grid = TRUE)
 ```
 
 ```{r}
