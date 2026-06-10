@@ -11,6 +11,7 @@ Tools to correct biases in origin-destination mobility data derived from mobile 
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://de-bias.github.io/debiasR/}
   \item \url{https://github.com/de-bias/debiasR}
   \item Report bugs at \url{https://github.com/de-bias/debiasR/issues}
 }

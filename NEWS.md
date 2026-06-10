@@ -44,6 +44,11 @@
 
 ### Multilevel scenario development
 
+- Added a coverage-offset true-flow mode to `adjust_multilevel_bayes()`.
+  `target_scale = "true_flow"` with `observation_model = "coverage_offset"`
+  uses origin, destination, or geometric-mean active-user coverage as a fixed
+  observation-process offset and returns `flow_adj` on the estimated true-flow
+  scale, with `flow_mpd_pred` retaining the fitted MPD scale.
 - Added split `mobility_formula` and `bias_formula` support to
   `adjust_multilevel_bayes()` so users can distinguish conceptual Level-2
   true-flow predictors from Level-1 MPD observation-bias terms while retaining

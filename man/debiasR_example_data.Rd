@@ -39,9 +39,9 @@ preserves the observed positive-flow support.}
 \code{complete_grid = TRUE}. Default \code{0}.}
 
 \item{geography}{Area level to load from \code{debiasRdata}. The default \code{"lad"}
-uses \code{lad_OD_travel2work}, \code{census_lad_OD_travel2work}, and optional
-\code{lad_centroids}. Use \code{"msoa"} only when MSOA-level examples are explicitly
-required.}
+uses \code{lad_OD_travel2work}, \code{census_lad_OD_travel2work}, optional
+\code{lad_covariates}, and optional \code{lad_centroids}. Use \code{"msoa"} only when
+MSOA-level examples are explicitly required.}
 }
 \value{
 A named list with normalised OD matrices and derived teaching tables:
@@ -64,12 +64,16 @@ Both sources are normalised to the package schema:
 from matched origin totals: Census workplace outflow is used as the benchmark
 population-like denominator and MPD travel-to-work outflow is used as the
 active-user numerator for the empirical examples.
+If \code{debiasRdata} supplies area-level covariates, the returned \code{covariates}
+table uses the selected rows from \code{lad_covariates} or \code{msoa_covariates}. If
+no matching covariate object is available, the package falls back to the
+derived covariates used in earlier examples.
 If \code{debiasRdata} supplies LAD centroids, the optional distance table is
 computed for the selected example areas from those real centroids rather than
 from a synthetic placeholder.
 }
 \examples{
-\dontshow{if (requireNamespace("debiasRdata", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (requireNamespace("debiasRdata", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 ex <- debiasR_example_data(n_areas = 12)
 names(ex)
 head(ex$lad_OD_travel2work)

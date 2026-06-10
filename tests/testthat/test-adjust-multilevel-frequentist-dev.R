@@ -288,6 +288,117 @@ test_that("internal frequentist scaffold returns adjusted observed flows", {
   expect_true(all(c("rural_pct_o", "rural_pct_d") %in% attr(res, "model_terms")$formula_variables))
 })
 
+test_that("internal frequentist scaffold supports coverage-offset true-flow mode", {
+  toy <- make_multilevel_scenario_toy()
+
+  res <- adjust_multilevel_bayes(
+    mpd_od_df = toy$mpd_od,
+    coverage_df = toy$coverage,
+    covariates_df = toy$covariates,
+    distance_df = toy$distance,
+    model_engine = "frequentist",
+    scenario = "s1",
+    random_intercept = "none",
+    target_scale = "true_flow",
+    observation_model = "coverage_offset",
+    coverage_scale = "origin",
+    mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
+    bias_formula = ~ bias_e_origin,
+    include_flow_adj_draws = TRUE
+  )
+
+  metadata <- attr(res, "result_metadata")
+
+  expect_s3_class(res, "tbl_df")
+  expect_true(all(c(
+    "flow_adj", "flow_mpd_pred", "flow_true_pred",
+    "observation_probability", "coverage_rate_o", "coverage_rate_d"
+  ) %in% names(res)))
+  expect_equal(attr(res, "target_scale"), "true_flow")
+  expect_equal(attr(res, "observation_model"), "coverage_offset")
+  expect_equal(attr(res, "coverage_scale"), "origin")
+  expect_equal(metadata$target_scale, "true_flow")
+  expect_equal(metadata$observation_model, "coverage_offset")
+  expect_equal(metadata$coverage_scale, "origin")
+  expect_equal(metadata$offset_column, "log_observation_probability")
+  expect_equal(attr(res, "bias_terms"), character())
+  expect_equal(attr(res, "model_terms")$formula_interface, "split_true_flow")
+  expect_match(paste(attr(res, "formula"), collapse = " "), "offset\\(log_observation_probability\\)")
+  expect_equal(as.numeric(res$flow_adj), as.numeric(res$flow_true_pred))
+  expect_true(all(is.finite(res$flow_mpd_pred)))
+  expect_true(all(is.finite(res$flow_true_pred)))
+  expect_true(all(res$observation_probability > 0 & res$observation_probability < 1))
+  expect_equal(
+    as.numeric(res$flow_mpd_pred),
+    as.numeric(res$flow_true_pred * res$observation_probability),
+    tolerance = 1e-6
+  )
+  expect_true(all(res$flow_true_pred > res$flow_mpd_pred))
+  expect_equal(dim(attr(res, "flow_adj_draws")), c(1L, nrow(res)))
+})
+
+test_that("coverage-offset true-flow mode supports destination and both coverage scales", {
+  toy <- make_multilevel_scenario_toy()
+
+  res_destination <- adjust_multilevel_bayes(
+    mpd_od_df = toy$mpd_od,
+    coverage_df = toy$coverage,
+    covariates_df = toy$covariates,
+    distance_df = toy$distance,
+    model_engine = "frequentist",
+    scenario = "s1",
+    random_intercept = "none",
+    target_scale = "true_flow",
+    observation_model = "coverage_offset",
+    coverage_scale = "destination",
+    mobility_formula = ~ log_distance,
+    bias_formula = ~ bias_e_origin
+  )
+  res_both <- adjust_multilevel_bayes(
+    mpd_od_df = toy$mpd_od,
+    coverage_df = toy$coverage,
+    covariates_df = toy$covariates,
+    distance_df = toy$distance,
+    model_engine = "frequentist",
+    scenario = "s1",
+    random_intercept = "none",
+    target_scale = "true_flow",
+    observation_model = "coverage_offset",
+    coverage_scale = "both",
+    mobility_formula = ~ log_distance,
+    bias_formula = ~ bias_e_origin
+  )
+
+  expect_equal(res_destination$observation_probability, res_destination$coverage_rate_d)
+  expect_equal(
+    res_both$observation_probability,
+    sqrt(res_both$coverage_rate_o * res_both$coverage_rate_d)
+  )
+})
+
+test_that("coverage-offset true-flow mode errors clearly on zero user coverage", {
+  toy <- make_multilevel_scenario_toy()
+  toy$coverage$user_count[1] <- 0
+
+  expect_error(
+    adjust_multilevel_bayes(
+      mpd_od_df = toy$mpd_od,
+      coverage_df = toy$coverage,
+      covariates_df = toy$covariates,
+      distance_df = toy$distance,
+      model_engine = "frequentist",
+      scenario = "s1",
+      random_intercept = "none",
+      target_scale = "true_flow",
+      observation_model = "coverage_offset",
+      coverage_scale = "origin",
+      mobility_formula = ~ log_distance,
+      bias_formula = ~ bias_e_origin
+    ),
+    "positive finite coverage rates"
+  )
+})
+
 test_that("internal frequentist scaffold supports S4 complete-grid prediction", {
   toy <- make_multilevel_scenario_toy(
     sources = c("src1", "src2"),
