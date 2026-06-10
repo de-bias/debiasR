@@ -27,6 +27,9 @@ adjust_multilevel_bayes(
   model_engine = c("bayesian", "frequentist"),
   backend = c("auto", "rstanarm", "brms"),
   flow_adj_summary = c("mean", "median"),
+  target_scale = c("mpd_counterfactual", "true_flow"),
+  observation_model = c("reduced_form", "coverage_offset"),
+  coverage_scale = c("origin", "destination", "both"),
   prediction_scope = c("observed", "complete_grid"),
   iter = 1000,
   chains = 2,
@@ -128,6 +131,19 @@ development before Bayesian scenario support is promoted.}
 Stage-1 adjusted flows are collapsed into the returned \code{flow_adj}
 column after removing the estimated coverage-bias contribution.}
 
+\item{target_scale}{Adjustment target. \code{"mpd_counterfactual"} preserves
+the reduced-form MPD-scale counterfactual. \code{"true_flow"} estimates a
+true-flow scale by using coverage as an observation-process offset.}
+
+\item{observation_model}{Observation model. \code{"reduced_form"} preserves
+the existing fitted-bias-covariate path. \code{"coverage_offset"} uses
+active-user coverage as a fixed offset and is required for
+\code{target_scale = "true_flow"}.}
+
+\item{coverage_scale}{Coverage rate used by \code{"coverage_offset"}:
+\code{"origin"} uses \eqn{p_i}, \code{"destination"} uses \eqn{p_j}, and
+\code{"both"} uses \eqn{\sqrt{p_i p_j}}.}
+
 \item{prediction_scope}{Prediction contract. \code{"observed"} preserves the
 original observed-row workflow. \code{"complete_grid"} requires a strict
 square OD grid and predicts for all valid rows, while fitting on rows marked
@@ -197,6 +213,13 @@ one reduced-form model to observed MPD flows.
 The adjusted flow is computed from a formula-aware fixed-effect
 counterfactual prediction with the numeric variables in \code{bias_formula}
 set to zero, then summarizes draw-level adjusted flows by mean or median.
+
+In \code{target_scale = "true_flow"} mode, coverage is treated as an
+observation-process offset. The fitted model is
+\deqn{\log E(F^{mpd}_{ij}) = \log(q_{ij}) + \eta^{true}_{ij},}
+where \eqn{q_{ij}} is derived from origin, destination, or geometric-mean
+active-user coverage. The returned \code{flow_adj} is the estimated
+true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
 }
 \examples{
 if (requireNamespace("lme4", quietly = TRUE)) {

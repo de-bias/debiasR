@@ -20,6 +20,13 @@
 #' counterfactual prediction with the numeric variables in \code{bias_formula}
 #' set to zero, then summarizes draw-level adjusted flows by mean or median.
 #'
+#' In \code{target_scale = "true_flow"} mode, coverage is treated as an
+#' observation-process offset. The fitted model is
+#' \deqn{\log E(F^{mpd}_{ij}) = \log(q_{ij}) + \eta^{true}_{ij},}
+#' where \eqn{q_{ij}} is derived from origin, destination, or geometric-mean
+#' active-user coverage. The returned \code{flow_adj} is the estimated
+#' true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
+#'
 #' @param mpd_od_df Data frame with at least \code{origin}, \code{destination},
 #'   and \code{flow_col}. Optional \code{mpd_source} is carried through.
 #' @param coverage_df Data frame with at least \code{origin},
@@ -90,6 +97,16 @@
 #'   \code{"mean"} or \code{"median"}. This controls how the draw-level
 #'   Stage-1 adjusted flows are collapsed into the returned \code{flow_adj}
 #'   column after removing the estimated coverage-bias contribution.
+#' @param target_scale Adjustment target. \code{"mpd_counterfactual"} preserves
+#'   the reduced-form MPD-scale counterfactual. \code{"true_flow"} estimates a
+#'   true-flow scale by using coverage as an observation-process offset.
+#' @param observation_model Observation model. \code{"reduced_form"} preserves
+#'   the existing fitted-bias-covariate path. \code{"coverage_offset"} uses
+#'   active-user coverage as a fixed offset and is required for
+#'   \code{target_scale = "true_flow"}.
+#' @param coverage_scale Coverage rate used by \code{"coverage_offset"}:
+#'   \code{"origin"} uses \eqn{p_i}, \code{"destination"} uses \eqn{p_j}, and
+#'   \code{"both"} uses \eqn{\sqrt{p_i p_j}}.
 #' @param prediction_scope Prediction contract. \code{"observed"} preserves the
 #'   original observed-row workflow. \code{"complete_grid"} requires a strict
 #'   square OD grid and predicts for all valid rows, while fitting on rows marked
@@ -202,6 +219,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                     model_engine = c("bayesian", "frequentist"),
                                     backend = c("auto", "rstanarm", "brms"),
                                     flow_adj_summary = c("mean", "median"),
+                                    target_scale = c("mpd_counterfactual", "true_flow"),
+                                    observation_model = c("reduced_form", "coverage_offset"),
+                                    coverage_scale = c("origin", "destination", "both"),
                                     prediction_scope = c("observed", "complete_grid"),
                                     iter = 1000,
                                     chains = 2,
@@ -217,7 +237,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   model_engine <- match.arg(model_engine)
   repeated_observation <- match.arg(repeated_observation)
   flow_adj_summary <- match.arg(flow_adj_summary)
+  target_scale <- match.arg(target_scale)
+  observation_model <- match.arg(observation_model)
+  coverage_scale <- match.arg(coverage_scale)
   prediction_scope <- match.arg(prediction_scope)
+  .validate_multilevel_observation_contract(
+    target_scale = target_scale,
+    observation_model = observation_model
+  )
   formula_info <- .resolve_multilevel_user_formula(
     formula = formula,
     custom_formula = custom_formula,
@@ -247,6 +274,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       formula_info = formula_info,
       model_family = model_family,
       flow_adj_summary = flow_adj_summary,
+      target_scale = target_scale,
+      observation_model = observation_model,
+      coverage_scale = coverage_scale,
       prediction_scope = prediction_scope,
       include_flow_adj_draws = include_flow_adj_draws,
       keep_cols = keep_cols,
@@ -314,14 +344,33 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     repeated_observation = scenario_info$repeated_observation,
     random_intercept = random_intercept
   )
+  fit_formula_info <- .resolve_multilevel_target_formula_info(
+    formula_info = formula_info,
+    target_scale = target_scale
+  )
 
   fit_formula <- .build_multilevel_formula(
     random_intercept = random_intercept,
-    formula_info = formula_info,
+    formula_info = fit_formula_info,
     default_covariate_col = prep$default_covariate_col,
     include_pop_terms = prep$has_pop_terms,
-    scenario_terms = scenario_terms
+    scenario_terms = scenario_terms,
+    target_scale = target_scale
   )
+  if (observation_model == "coverage_offset") {
+    .validate_multilevel_coverage_offset_data(
+      data = prediction_df,
+      coverage_scale = coverage_scale
+    )
+    prediction_df <- .set_multilevel_observation_probability(
+      data = prediction_df,
+      coverage_scale = coverage_scale
+    )
+    fit_formula <- .add_multilevel_offset(
+      formula = fit_formula,
+      offset_col = "log_observation_probability"
+    )
+  }
   prediction_df <- .filter_multilevel_model_data(
     data = prediction_df,
     formula = fit_formula,
@@ -351,8 +400,10 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     }
   }
   .validate_multilevel_formula_random_effects(fit_df, fit_formula)
-  bias_terms <- .resolve_multilevel_bias_terms(formula_info, fit_formula)
-  .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
+  bias_terms <- .resolve_multilevel_bias_terms(fit_formula_info, fit_formula)
+  if (target_scale == "mpd_counterfactual") {
+    .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
+  }
 
   fit <- .fit_multilevel_bayes(
     backend = backend,
@@ -365,27 +416,60 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     refresh = refresh
   )
 
-  bias_zero_df <- .counterfactual_multilevel_bias_data(
-    prediction_df,
-    bias_terms = bias_terms
-  )
-  lin_true <- .posterior_linpred_fixef(
-    fit = fit,
-    backend = backend,
-    newdata = bias_zero_df
-  )
+  if (target_scale == "true_flow") {
+    mpd_pred_df <- prediction_df
+    true_pred_df <- prediction_df
+    true_pred_df$log_observation_probability <- 0
 
-  # Predict the fixed-effect counterfactual where modeled coverage bias is zero.
-  flow_adj_draws <- exp(lin_true)
+    lin_mpd <- .posterior_linpred_fixef(
+      fit = fit,
+      backend = backend,
+      newdata = mpd_pred_df
+    )
+    lin_true <- .posterior_linpred_fixef(
+      fit = fit,
+      backend = backend,
+      newdata = true_pred_df
+    )
+    flow_mpd_pred_draws <- exp(lin_mpd)
+    flow_adj_draws <- exp(lin_true)
+  } else {
+    bias_zero_df <- .counterfactual_multilevel_bias_data(
+      prediction_df,
+      bias_terms = bias_terms
+    )
+    lin_true <- .posterior_linpred_fixef(
+      fit = fit,
+      backend = backend,
+      newdata = bias_zero_df
+    )
+
+    # Predict the fixed-effect counterfactual where modeled coverage bias is zero.
+    flow_mpd_pred_draws <- NULL
+    flow_adj_draws <- exp(lin_true)
+  }
 
   flow_adj <- if (flow_adj_summary == "median") {
     apply(flow_adj_draws, 2, stats::median)
   } else {
     colMeans(flow_adj_draws)
   }
+  flow_mpd_pred <- if (!is.null(flow_mpd_pred_draws)) {
+    if (flow_adj_summary == "median") {
+      apply(flow_mpd_pred_draws, 2, stats::median)
+    } else {
+      colMeans(flow_mpd_pred_draws)
+    }
+  } else {
+    rep(NA_real_, length(flow_adj))
+  }
 
   modeled_out <- prediction_df |>
-    dplyr::mutate(flow_adj = as.numeric(flow_adj))
+    dplyr::mutate(
+      flow_adj = as.numeric(flow_adj),
+      flow_true_pred = if (target_scale == "true_flow") as.numeric(flow_adj) else NA_real_,
+      flow_mpd_pred = as.numeric(flow_mpd_pred)
+    )
 
   base_out <- prep$base_df |>
     dplyr::mutate(
@@ -397,7 +481,13 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       )
     ) |>
     dplyr::left_join(
-      dplyr::select(modeled_out, dplyr::all_of(c("row_id", "flow_adj"))),
+      dplyr::select(
+        modeled_out,
+        dplyr::any_of(c(
+          "row_id", "flow_adj", "flow_mpd_pred", "flow_true_pred",
+          "observation_probability", "log_observation_probability"
+        ))
+      ),
       by = "row_id"
     )
 
@@ -414,6 +504,12 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     "model_fit_status",
     "flow",
     "flow_adj",
+    "flow_mpd_pred",
+    "flow_true_pred",
+    "observation_probability",
+    "coverage_rate_o",
+    "coverage_rate_d",
+    "log_observation_probability",
     "distance_km",
     "log_distance",
     "bias_e_origin",
@@ -430,12 +526,13 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   )
   model_terms <- .summarize_multilevel_model_terms(
     formula = fit_formula,
-    formula_info = formula_info,
+    formula_info = fit_formula_info,
     default_covariate_col = prep$default_covariate_col,
     include_pop_terms = prep$has_pop_terms,
     scenario_terms = scenario_terms,
     random_intercept = random_intercept,
-    bias_terms = bias_terms
+    bias_terms = bias_terms,
+    target_scale = target_scale
   )
 
   runtime_seconds <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
@@ -459,6 +556,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     scenario_cols = scenario_info$scenario_cols,
     n_sources = scenario_info$n_sources,
     n_time_periods = scenario_info$n_time_periods,
+    target_scale = target_scale,
+    observation_model = observation_model,
+    coverage_scale = if (observation_model == "coverage_offset") coverage_scale else NA_character_,
+    offset_column = if (observation_model == "coverage_offset") {
+      "log_observation_probability"
+    } else {
+      NA_character_
+    },
     model_terms = model_terms,
     bias_terms = bias_terms,
     random_intercept = random_intercept,
@@ -484,6 +589,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "backend") <- backend
   attr(out, "model_engine") <- model_engine
   attr(out, "model_family") <- model_family
+  attr(out, "target_scale") <- target_scale
+  attr(out, "observation_model") <- observation_model
+  attr(out, "coverage_scale") <- if (observation_model == "coverage_offset") coverage_scale else NA_character_
   attr(out, "model_terms") <- model_terms
   attr(out, "bias_terms") <- bias_terms
   attr(out, "stage") <- "stage_1"
@@ -501,7 +609,13 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "od_audit") <- od_audit
   attr(out, "distance_source") <- prep$distance_source
   attr(out, "diagnostics") <- diagnostics
-  if (prediction_scope == "complete_grid") {
+  if (target_scale == "true_flow") {
+    attr(out, "prototype_notes") <- paste(
+      "Coverage-offset true-flow mode: MPD flows are modelled as coverage-scaled observations of true OD flows.",
+      "flow_adj equals flow_true_pred; flow_mpd_pred retains the fitted MPD observation scale.",
+      "The observation offset is fixed from", coverage_scale, "coverage and is not estimated as a bias covariate."
+    )
+  } else if (prediction_scope == "complete_grid") {
     attr(out, "prototype_notes") <- paste(
       "Stage-1 complete-grid prediction: fit to originally observed MPD rows when mpd_observed is available.",
       "Rows marked mpd_zero_filled are zero-filled source-missing OD cells predicted on the supplied square grid.",
@@ -538,6 +652,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                                formula_info = list(formula = NULL, source = "default"),
                                                model_family = c("poisson", "negbin", "zip", "zinb"),
                                                flow_adj_summary = c("mean", "median"),
+                                               target_scale = c("mpd_counterfactual", "true_flow"),
+                                               observation_model = c("reduced_form", "coverage_offset"),
+                                               coverage_scale = c("origin", "destination", "both"),
                                                prediction_scope = c("observed", "complete_grid"),
                                                include_flow_adj_draws = FALSE,
                                                keep_cols = character(),
@@ -548,7 +665,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   random_intercept <- match.arg(random_intercept)
   model_family <- match.arg(model_family)
   flow_adj_summary <- match.arg(flow_adj_summary)
+  target_scale <- match.arg(target_scale)
+  observation_model <- match.arg(observation_model)
+  coverage_scale <- match.arg(coverage_scale)
   prediction_scope <- match.arg(prediction_scope)
+  .validate_multilevel_observation_contract(
+    target_scale = target_scale,
+    observation_model = observation_model
+  )
 
   if (model_family %in% c("zip", "zinb")) {
     stop("The internal frequentist development engine supports only Poisson and negative-binomial families.")
@@ -608,14 +732,33 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     repeated_observation = scenario_info$repeated_observation,
     random_intercept = random_intercept
   )
+  fit_formula_info <- .resolve_multilevel_target_formula_info(
+    formula_info = formula_info,
+    target_scale = target_scale
+  )
 
   fit_formula <- .build_multilevel_formula(
     random_intercept = random_intercept,
-    formula_info = formula_info,
+    formula_info = fit_formula_info,
     default_covariate_col = prep$default_covariate_col,
     include_pop_terms = prep$has_pop_terms,
-    scenario_terms = scenario_terms
+    scenario_terms = scenario_terms,
+    target_scale = target_scale
   )
+  if (observation_model == "coverage_offset") {
+    .validate_multilevel_coverage_offset_data(
+      data = prediction_df,
+      coverage_scale = coverage_scale
+    )
+    prediction_df <- .set_multilevel_observation_probability(
+      data = prediction_df,
+      coverage_scale = coverage_scale
+    )
+    fit_formula <- .add_multilevel_offset(
+      formula = fit_formula,
+      offset_col = "log_observation_probability"
+    )
+  }
   prediction_df <- .filter_multilevel_model_data(
     data = prediction_df,
     formula = fit_formula,
@@ -638,8 +781,10 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     .validate_multilevel_random_intercept(fit_df, random_intercept)
   }
   .validate_multilevel_formula_random_effects(fit_df, fit_formula)
-  bias_terms <- .resolve_multilevel_bias_terms(formula_info, fit_formula)
-  .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
+  bias_terms <- .resolve_multilevel_bias_terms(fit_formula_info, fit_formula)
+  if (target_scale == "mpd_counterfactual") {
+    .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
+  }
 
   fit <- .fit_multilevel_frequentist(
     model_family = model_family,
@@ -647,15 +792,30 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     data = fit_df
   )
 
-  bias_zero_df <- .counterfactual_multilevel_bias_data(
-    prediction_df,
-    bias_terms = bias_terms
-  )
-  lin_true <- .predict_linpred_fixef_frequentist(fit, bias_zero_df)
-  flow_adj <- exp(as.numeric(lin_true))
+  if (target_scale == "true_flow") {
+    mpd_pred_df <- prediction_df
+    true_pred_df <- prediction_df
+    true_pred_df$log_observation_probability <- 0
+    lin_mpd <- .predict_linpred_fixef_frequentist(fit, mpd_pred_df)
+    lin_true <- .predict_linpred_fixef_frequentist(fit, true_pred_df)
+    flow_mpd_pred <- exp(as.numeric(lin_mpd))
+    flow_adj <- exp(as.numeric(lin_true))
+  } else {
+    bias_zero_df <- .counterfactual_multilevel_bias_data(
+      prediction_df,
+      bias_terms = bias_terms
+    )
+    lin_true <- .predict_linpred_fixef_frequentist(fit, bias_zero_df)
+    flow_adj <- exp(as.numeric(lin_true))
+    flow_mpd_pred <- rep(NA_real_, length(flow_adj))
+  }
 
   modeled_out <- prediction_df |>
-    dplyr::mutate(flow_adj = as.numeric(flow_adj))
+    dplyr::mutate(
+      flow_adj = as.numeric(flow_adj),
+      flow_true_pred = if (target_scale == "true_flow") as.numeric(flow_adj) else NA_real_,
+      flow_mpd_pred = as.numeric(flow_mpd_pred)
+    )
 
   base_out <- prep$base_df |>
     dplyr::mutate(
@@ -667,7 +827,13 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       )
     ) |>
     dplyr::left_join(
-      dplyr::select(modeled_out, dplyr::all_of(c("row_id", "flow_adj"))),
+      dplyr::select(
+        modeled_out,
+        dplyr::any_of(c(
+          "row_id", "flow_adj", "flow_mpd_pred", "flow_true_pred",
+          "observation_probability", "log_observation_probability"
+        ))
+      ),
       by = "row_id"
     )
 
@@ -684,6 +850,12 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     "model_fit_status",
     "flow",
     "flow_adj",
+    "flow_mpd_pred",
+    "flow_true_pred",
+    "observation_probability",
+    "coverage_rate_o",
+    "coverage_rate_d",
+    "log_observation_probability",
     "distance_km",
     "log_distance",
     "bias_e_origin",
@@ -696,12 +868,13 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   coef_tbl <- .coef_summary_frequentist(fit)
   model_terms <- .summarize_multilevel_model_terms(
     formula = fit_formula,
-    formula_info = formula_info,
+    formula_info = fit_formula_info,
     default_covariate_col = prep$default_covariate_col,
     include_pop_terms = prep$has_pop_terms,
     scenario_terms = scenario_terms,
     random_intercept = random_intercept,
-    bias_terms = bias_terms
+    bias_terms = bias_terms,
+    target_scale = target_scale
   )
   runtime_seconds <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
   stage_scope <- if (prediction_scope == "complete_grid") {
@@ -723,6 +896,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     scenario_cols = scenario_info$scenario_cols,
     n_sources = scenario_info$n_sources,
     n_time_periods = scenario_info$n_time_periods,
+    target_scale = target_scale,
+    observation_model = observation_model,
+    coverage_scale = if (observation_model == "coverage_offset") coverage_scale else NA_character_,
+    offset_column = if (observation_model == "coverage_offset") {
+      "log_observation_probability"
+    } else {
+      NA_character_
+    },
     model_terms = model_terms,
     bias_terms = bias_terms,
     random_intercept = random_intercept,
@@ -742,6 +923,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "backend") <- "frequentist_dev"
   attr(out, "model_engine") <- "frequentist"
   attr(out, "model_family") <- model_family
+  attr(out, "target_scale") <- target_scale
+  attr(out, "observation_model") <- observation_model
+  attr(out, "coverage_scale") <- if (observation_model == "coverage_offset") coverage_scale else NA_character_
   attr(out, "model_terms") <- model_terms
   attr(out, "bias_terms") <- bias_terms
   attr(out, "stage") <- "frequentist_dev"
@@ -759,10 +943,17 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "od_audit") <- od_audit
   attr(out, "distance_source") <- prep$distance_source
   attr(out, "diagnostics") <- .collect_frequentist_diagnostics(fit, coef_tbl)
-  attr(out, "prototype_notes") <- paste(
-    "Internal frequentist development scaffold for multilevel scenario testing.",
-    "The intended user-facing inferential method remains Bayesian."
-  )
+  attr(out, "prototype_notes") <- if (target_scale == "true_flow") {
+    paste(
+      "Internal frequentist development scaffold for coverage-offset true-flow mode.",
+      "flow_adj equals flow_true_pred; the intended user-facing inferential method remains Bayesian."
+    )
+  } else {
+    paste(
+      "Internal frequentist development scaffold for multilevel scenario testing.",
+      "The intended user-facing inferential method remains Bayesian."
+    )
+  }
   if (isTRUE(include_flow_adj_draws)) {
     attr(out, "flow_adj_draws") <- matrix(flow_adj, nrow = 1L)
   }
@@ -985,6 +1176,88 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       "`model_engine = 'bayesian'` currently supports the existing Stage-1 S1 path only. ",
       "Resolved `scenario = '", scenario_info$scenario, "'`; use ",
       "`model_engine = 'frequentist'` for S1-S4 scenario development until the Bayesian transfer is implemented."
+    )
+  }
+
+  invisible(TRUE)
+}
+
+.validate_multilevel_observation_contract <- function(target_scale,
+                                                      observation_model) {
+  if (target_scale == "true_flow" && observation_model != "coverage_offset") {
+    stop(
+      "`target_scale = 'true_flow'` requires ",
+      "`observation_model = 'coverage_offset'`."
+    )
+  }
+  if (observation_model == "coverage_offset" && target_scale != "true_flow") {
+    stop(
+      "`observation_model = 'coverage_offset'` is currently supported only with ",
+      "`target_scale = 'true_flow'`."
+    )
+  }
+
+  invisible(TRUE)
+}
+
+.resolve_multilevel_target_formula_info <- function(formula_info,
+                                                    target_scale) {
+  if (target_scale != "true_flow" || !identical(formula_info$interface, "split")) {
+    return(formula_info)
+  }
+
+  mobility_rhs <- paste(deparse(formula_info$mobility_formula[[2]]), collapse = " ")
+  out <- formula_info
+  out$formula <- stats::as.formula(paste("flow ~", mobility_rhs))
+  out$interface <- "split_true_flow"
+  out$bias_variables <- character()
+  out
+}
+
+.add_multilevel_offset <- function(formula, offset_col) {
+  rhs <- paste(deparse(formula[[length(formula)]]), collapse = " ")
+  stats::as.formula(paste("flow ~", rhs, "+ offset(", offset_col, ")"))
+}
+
+.set_multilevel_observation_probability <- function(data, coverage_scale) {
+  if (coverage_scale == "origin") {
+    data$observation_probability <- data$coverage_rate_o
+  } else if (coverage_scale == "destination") {
+    data$observation_probability <- data$coverage_rate_d
+  } else {
+    data$observation_probability <- sqrt(data$coverage_rate_o * data$coverage_rate_d)
+  }
+  data$log_observation_probability <- log(data$observation_probability)
+  data
+}
+
+.validate_multilevel_coverage_offset_data <- function(data, coverage_scale) {
+  needed <- switch(
+    coverage_scale,
+    origin = "coverage_rate_o",
+    destination = "coverage_rate_d",
+    both = c("coverage_rate_o", "coverage_rate_d")
+  )
+  missing <- setdiff(needed, names(data))
+  if (length(missing) > 0L) {
+    stop(
+      "`observation_model = 'coverage_offset'` requires prepared coverage column(s): ",
+      paste(missing, collapse = ", ")
+    )
+  }
+
+  invalid <- needed[!vapply(
+    needed,
+    function(col) all(is.finite(data[[col]]) & data[[col]] > 0),
+    logical(1)
+  )]
+  if (length(invalid) > 0L) {
+    stop(
+      "`observation_model = 'coverage_offset'` requires positive finite coverage rates. ",
+      "Invalid column(s): ",
+      paste(invalid, collapse = ", "),
+      ". Check that `coverage_df` has positive population and user_count values ",
+      "for every required origin/destination/source/time combination."
     )
   }
 
@@ -1539,7 +1812,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                               include_pop_terms,
                                               scenario_terms,
                                               random_intercept,
-                                              bias_terms = character()) {
+                                              bias_terms = character(),
+                                              target_scale = "mpd_counterfactual") {
   user_formula_supplied <- !is.null(formula_info$formula)
   formula_interface <- formula_info$interface
   if (is.null(formula_interface)) {
@@ -1555,7 +1829,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     out <- c(
       if (!is.null(default_covariate_col)) c("income_o", "income_d"),
       "log_distance",
-      "bias_e_origin"
+      if (target_scale == "mpd_counterfactual") "bias_e_origin"
     )
     if (isTRUE(include_pop_terms)) {
       out <- c(out, "log_pop_o", "log_pop_d")
@@ -1677,7 +1951,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                       formula_info = list(formula = NULL, source = "default"),
                                       default_covariate_col = NULL,
                                       include_pop_terms,
-                                      scenario_terms = character()) {
+                                      scenario_terms = character(),
+                                      target_scale = "mpd_counterfactual") {
   if (!is.null(formula_info$formula)) {
     return(stats::as.formula(formula_info$formula))
   }
@@ -1685,7 +1960,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   rhs_terms <- c(
     if (!is.null(default_covariate_col)) c("income_o", "income_d"),
     "log_distance",
-    "bias_e_origin"
+    if (target_scale == "mpd_counterfactual") "bias_e_origin"
   )
   if (isTRUE(include_pop_terms)) {
     rhs_terms <- c(rhs_terms, "log_pop_o", "log_pop_d")
@@ -2079,6 +2354,16 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
   base_df <- dplyr::left_join(base_df, cov_origin, by = join_keys)
 
+  cov_destination <- cov_origin |>
+    dplyr::rename(
+      destination = origin,
+      population_d_coverage = population,
+      user_count_d_coverage = user_count
+    )
+  destination_join_keys <- intersect(c("destination", "mpd_source", "mpd_time"), names(cov_destination))
+  destination_join_keys <- destination_join_keys[destination_join_keys %in% names(base_df)]
+  base_df <- dplyr::left_join(base_df, cov_destination, by = destination_join_keys)
+
   pop_area_map <- coverage_df |>
     dplyr::transmute(
       area = as.character(.data$origin),
@@ -2148,7 +2433,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       pop_d = ifelse(is.finite(.data$pop_d), .data$pop_d, .data$pop_o),
       log_pop_o = log(pmax(.data$pop_o, .Machine$double.eps)),
       log_pop_d = log(pmax(.data$pop_d, .Machine$double.eps)),
-      bias_e_origin = 1 - (.data$user_count / .data$population)
+      coverage_rate_o = .data$user_count / .data$population,
+      coverage_rate_d = .data$user_count_d_coverage / .data$population_d_coverage,
+      log_coverage_o = log(.data$coverage_rate_o),
+      log_coverage_d = log(.data$coverage_rate_d),
+      bias_e_origin = 1 - .data$coverage_rate_o
     )
 
   if (!is.null(default_covariate_col)) {

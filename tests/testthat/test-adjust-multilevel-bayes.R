@@ -221,6 +221,81 @@ test_that("prepare helper builds deterministic bias and synthetic distance colum
   expect_equal(prep1$base_df$bias_e_origin, prep2$base_df$bias_e_origin)
 })
 
+test_that("prepare helper builds origin and destination coverage columns", {
+  mpd <- data.frame(
+    origin = c("A", "A", "B"),
+    destination = c("A", "B", "A"),
+    flow = c(2, 4, 3)
+  )
+  coverage <- data.frame(
+    origin = c("A", "B"),
+    population = c(100, 200),
+    user_count = c(25, 20)
+  )
+
+  prep <- suppressWarnings(
+    debiasR:::.prepare_multilevel_bayes_data(
+      mpd_od_df = mpd,
+      coverage_df = coverage,
+      covariates_df = NULL,
+      distance_df = NULL,
+      flow_col = "flow",
+      income_col = NULL,
+      pop_col = "population",
+      distance_col = "distance_km"
+    )
+  )
+
+  expect_equal(prep$base_df$coverage_rate_o, c(0.25, 0.25, 0.10))
+  expect_equal(prep$base_df$coverage_rate_d, c(0.25, 0.10, 0.25))
+
+  origin_offset <- debiasR:::.set_multilevel_observation_probability(
+    prep$base_df,
+    coverage_scale = "origin"
+  )
+  destination_offset <- debiasR:::.set_multilevel_observation_probability(
+    prep$base_df,
+    coverage_scale = "destination"
+  )
+  both_offset <- debiasR:::.set_multilevel_observation_probability(
+    prep$base_df,
+    coverage_scale = "both"
+  )
+
+  expect_equal(origin_offset$observation_probability, origin_offset$coverage_rate_o)
+  expect_equal(destination_offset$observation_probability, destination_offset$coverage_rate_d)
+  expect_equal(
+    both_offset$observation_probability,
+    sqrt(both_offset$coverage_rate_o * both_offset$coverage_rate_d)
+  )
+  expect_equal(
+    both_offset$log_observation_probability,
+    log(both_offset$observation_probability)
+  )
+})
+
+test_that("coverage-offset validation rejects non-positive coverage", {
+  bad <- data.frame(
+    coverage_rate_o = c(0.1, 0),
+    coverage_rate_d = c(0.2, 0.3)
+  )
+
+  expect_error(
+    debiasR:::.validate_multilevel_coverage_offset_data(
+      bad,
+      coverage_scale = "origin"
+    ),
+    "positive finite coverage rates"
+  )
+  expect_error(
+    debiasR:::.validate_multilevel_observation_contract(
+      target_scale = "true_flow",
+      observation_model = "reduced_form"
+    ),
+    "requires"
+  )
+})
+
 test_that("prepare helper preserves complete-grid source row status", {
   complete_od <- data.frame(
     origin = c("A", "A", "B", "B"),
