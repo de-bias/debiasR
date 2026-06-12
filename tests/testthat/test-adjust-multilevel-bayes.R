@@ -1,3 +1,5 @@
+source(testthat::test_path("helper-multilevel-scenarios.R"))
+
 test_that("adjust_multilevel_bayes errors clearly when rstanarm is unavailable", {
   data(simulated_mpd.od)
   data(simulated_coverage)
@@ -562,6 +564,150 @@ test_that("Bayesian coverage-offset predictions separate MPD and true-flow scale
     tolerance = 1e-6
   )
   expect_true(all(res$flow_true_pred > res$flow_mpd_pred))
+})
+
+test_that("Bayesian formula contract resolves S2-S4 repeated source/time terms", {
+  scenarios <- list(
+    s2 = list(
+      sources = "src1",
+      periods = c("t1", "t2"),
+      repeated = "time",
+      terms = "mpd_time"
+    ),
+    s3 = list(
+      sources = c("src1", "src2"),
+      periods = "t1",
+      repeated = "source",
+      terms = "mpd_source"
+    ),
+    s4 = list(
+      sources = c("src1", "src2"),
+      periods = c("t1", "t2"),
+      repeated = "source_time",
+      terms = c("mpd_source", "mpd_time")
+    )
+  )
+
+  for (scenario_name in names(scenarios)) {
+    spec <- scenarios[[scenario_name]]
+    toy <- make_multilevel_scenario_toy(
+      sources = spec$sources,
+      periods = spec$periods
+    )
+    scenario_info <- debiasR:::.resolve_multilevel_scenario(
+      mpd_od_df = toy$mpd_od,
+      coverage_df = toy$coverage,
+      scenario = scenario_name,
+      repeated_observation = "auto"
+    )
+    prep <- debiasR:::.prepare_multilevel_bayes_data(
+      mpd_od_df = toy$mpd_od,
+      coverage_df = toy$coverage,
+      covariates_df = toy$covariates,
+      distance_df = toy$distance,
+      flow_col = "flow",
+      income_col = NULL,
+      pop_col = "population",
+      distance_col = "distance_km",
+      scenario_info = scenario_info
+    )
+    scenario_terms <- debiasR:::.resolve_multilevel_formula_terms(
+      data = prep$model_df,
+      repeated_observation = scenario_info$repeated_observation,
+      random_intercept = "none"
+    )
+    fit_formula <- debiasR:::.build_multilevel_formula(
+      random_intercept = "none",
+      formula_info = list(formula = NULL, source = "default", interface = "default"),
+      default_covariate_col = prep$default_covariate_col,
+      include_pop_terms = prep$has_pop_terms,
+      scenario_terms = scenario_terms,
+      target_scale = "true_flow"
+    )
+
+    expect_equal(scenario_info$scenario, scenario_name)
+    expect_equal(scenario_info$repeated_observation, spec$repeated)
+    expect_equal(scenario_terms, spec$terms)
+    expect_true(all(spec$terms %in% all.vars(fit_formula)))
+  }
+})
+
+test_that("Bayesian engine fits an S4 repeated source/time scenario", {
+  skip_if_not_installed("rstanarm")
+
+  toy <- make_multilevel_scenario_toy(
+    sources = c("src1", "src2"),
+    periods = c("t1", "t2"),
+    zero_filled = TRUE
+  )
+
+  res <- suppressWarnings(
+    adjust_multilevel_bayes(
+      mpd_od_df = toy$mpd_od,
+      coverage_df = toy$coverage,
+      covariates_df = toy$covariates,
+      distance_df = toy$distance,
+      model_engine = "bayesian",
+      scenario = "s4",
+      random_intercept = "none",
+      target_scale = "true_flow",
+      observation_model = "coverage_offset",
+      coverage_scale = "origin",
+      model_family = "poisson",
+      flow_adj_summary = "median",
+      prediction_scope = "complete_grid",
+      iter = 50,
+      chains = 1,
+      seed = 804,
+      refresh = 0
+    )
+  )
+
+  metadata <- attr(res, "result_metadata")
+  model_terms <- attr(res, "model_terms")
+
+  expect_equal(attr(res, "model_engine"), "bayesian")
+  expect_equal(attr(res, "backend"), "rstanarm")
+  expect_equal(attr(res, "scenario"), "s4")
+  expect_equal(attr(res, "repeated_observation"), "source_time")
+  expect_equal(metadata$model_terms$scenario_fixed_effects, c("mpd_source", "mpd_time"))
+  expect_equal(model_terms$scenario_fixed_effects, c("mpd_source", "mpd_time"))
+  expect_true(all(is.finite(res$flow_adj)))
+  expect_true(all(res$flow_adj >= 0))
+  expect_equal(as.numeric(res$flow_adj), as.numeric(res$flow_true_pred))
+  expect_equal(
+    as.numeric(res$flow_mpd_pred),
+    as.numeric(res$flow_true_pred * res$observation_probability),
+    tolerance = 1e-6
+  )
+
+  coverage_lookup <- toy$coverage
+  coverage_lookup$expected_observation_probability <-
+    coverage_lookup$user_count / coverage_lookup$population
+  coverage_check <- merge(
+    as.data.frame(res[c(
+      "origin",
+      "mpd_source",
+      "mpd_time",
+      "observation_probability"
+    )]),
+    coverage_lookup[c(
+      "origin",
+      "mpd_source",
+      "mpd_time",
+      "expected_observation_probability"
+    )],
+    by = c("origin", "mpd_source", "mpd_time"),
+    sort = FALSE
+  )
+  expect_equal(
+    coverage_check$observation_probability,
+    coverage_check$expected_observation_probability
+  )
+
+  expect_equal(metadata$n_fit_rows, nrow(toy$mpd_od) - 1L)
+  expect_equal(metadata$n_zero_filled_prediction_rows, 1L)
+  expect_equal(res$model_fit_status[res$mpd_zero_filled], "predicted")
 })
 
 test_that("adjust_multilevel_bayes can attach draw-level summaries when requested", {

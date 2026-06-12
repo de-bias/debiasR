@@ -58,11 +58,11 @@
 - Added an S1-S4 scenario contract for `adjust_multilevel_bayes()` covering single/multiple mobile-phone-derived data sources crossed with single/multiple observation periods.
 - Added `scenario`, `source_col`, `time_col`, `repeated_observation`, and `model_engine` parameters so the multilevel path can validate and carry source/time metadata without introducing separate user-facing functions.
 - Added a primary `formula` interface for `adjust_multilevel_bayes()`, with arbitrary area covariates available as `{covariate}_o` and `{covariate}_d`, formula-specified random effects and slopes, and legacy `custom_formula` / `income_col` compatibility retained.
-- Added a frequentist development engine for fast testing of the shared multilevel data contract, complete-grid semantics, and bias-removal algebra; new S1-S4 model development should use this engine before Bayesian sampling is promoted.
+- Added a frequentist development engine for fast testing of the shared multilevel data contract, complete-grid semantics, and bias-removal algebra; use this engine for quick experimentation and runtime-sensitive method comparison.
 - Added `model_terms` metadata to the multilevel result contract so the resolved default fixed-effect and random-effect structure can be inspected directly.
-- Kept S2-S4 Bayesian scenario fitting explicitly deferred by returning a clear error under `model_engine = "bayesian"` when a repeated source/time scenario is resolved; use `model_engine = "frequentist"` for current S1-S4 development.
+- Enabled the Bayesian engine for S2-S4 repeated source/time scenarios, so the same `scenario`, `source_col`, `time_col`, and `repeated_observation` contract now works with either `model_engine = "bayesian"` or `model_engine = "frequentist"`. Optional rstanarm tests now smoke-check the S2-S4 formula contract and an S4 Bayesian fit with source/time-specific coverage offsets.
 - Expanded fast tests with MSOA-like S1-S4 fixtures that exercise the default frequentist formula contract and complete-grid prediction metadata.
-- Updated workshop/testing vignettes to show an S1 `model_engine = "frequentist"` placeholder example with one source and one time unit, plus parameter guidance for S2-S4 repeated source/time structures.
+- Updated workshop/testing vignettes to show a Bayesian coverage-offset example, raw/adjusted/benchmark comparison columns, active-user coverage notation, and parameter guidance for S1-S4 repeated source/time structures.
 
 ### Empirical LAD travel-to-work examples
 

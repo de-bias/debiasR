@@ -1,5 +1,5 @@
 ---
-title: "Frequentist Placeholder for Bayesian Multilevel Adjustment"
+title: "Fast Multilevel Adjustment Check"
 format: html
 editor: visual
 ---
@@ -7,9 +7,10 @@ editor: visual
 # Purpose
 
 This walkthrough uses `adjust_multilevel_bayes()` with
-`model_engine = "frequentist"` as a fast placeholder while the full S1-S4
-Bayesian implementation is completed. The fitted example is S1: one
-mobile-phone data source observed during one time unit.
+`model_engine = "frequentist"` as a fast multilevel check. Use
+`model_engine = "bayesian"` when posterior inference and sampler diagnostics are
+part of the analysis. The fitted example is S1: one mobile-phone data source
+observed during one time unit.
 
 # Package and data
 

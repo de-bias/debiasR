@@ -256,11 +256,12 @@ list(coef = attr(adj_m5, "coef"))
 plot_adj_vs_benchmark(adj_m5, simulated_benchmark.od, "Method 5: Adjusted vs Benchmark")
 ```
 
-## 6) `adjust_multilevel_bayes` (frequentist placeholder)
+## 6) `adjust_multilevel_bayes` (fast engine)
 
-While the full S1-S4 Bayesian implementation is being completed, this example
-uses the frequentist development engine as a fast placeholder. The data below
-represent S1: one MPD source observed in one time period.
+This example uses the frequentist engine as a fast way to inspect the
+multilevel data contract and output shape. Use `model_engine = "bayesian"` when
+posterior inference and sampler diagnostics are part of the analysis. The data
+below represent S1: one MPD source observed in one time period.
 
 ```{r}
 mpd_s1 <- simulated_mpd.od |>
