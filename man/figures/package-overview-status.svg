@@ -59,10 +59,11 @@
   <text class="section" x="425" y="210">1. Measure bias</text>
   <text class="body" x="425" y="248">Core functions</text>
   <text class="small" x="425" y="278">- `measure_bias()`</text>
-  <text class="small" x="425" y="302">- `validate_bias_residual_structure()`</text>
+  <text class="small" x="425" y="302">- `measure_bias_distribution()`</text>
+  <text class="small" x="425" y="326">- `validate_bias_residual_structure()`</text>
   <text class="body" x="425" y="348">What it does</text>
-  <text class="small" x="425" y="378">Coverage bias and active-user</text>
-  <text class="small" x="425" y="402">residual diagnostics.</text>
+  <text class="small" x="425" y="378">Coverage, distributional bias,</text>
+  <text class="small" x="425" y="402">and residual diagnostics.</text>
 
   <rect class="review box" x="390" y="445" width="270" height="190"/>
   <text class="body" x="425" y="480">Current status</text>

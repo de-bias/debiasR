@@ -66,6 +66,8 @@ table uses adjusted-versus-benchmark notation.[^validation-measure-reuse]
 | Mean absolute percentage error | Average absolute error as a percentage of the benchmark flow. | $\frac{100}{n}\sum_{ij}\lvert \frac{e_{ij}}{F^{bench}_{ij}} \rvert$ |
 | Pearson's r | Linear correlation; shows whether large benchmark flows also tend to be large adjusted flows. | $\mathrm{cor}(F^{adj}_{ij}, F^{bench}_{ij})$ |
 | Spearman's rho | Rank correlation; shows whether the ordering of flows is similar. | $\mathrm{cor}(\mathrm{rank}(F^{adj}_{ij}), \mathrm{rank}(F^{bench}_{ij}))$ |
+| Kullback-Leibler divergence | Directional difference between origin-conditioned destination-share distributions. Lower values mean the comparison flow allocates destinations more like the reference flow. | $\sum_i\sum_j p^{ref}_{j\mid i}\log\frac{p^{ref}_{j\mid i}}{p^{comp}_{j\mid i}}$ |
+| Jensen-Shannon divergence | Symmetric companion to KL divergence for the same origin-conditioned destination-share distributions. Lower values mean closer allocation. | $\frac{1}{2} KL(p^{ref}\mid\mid m) + \frac{1}{2} KL(p^{comp}\mid\mid m)$ |
 
 [^validation-measure-reuse]: The equations are written for
     adjusted-versus-benchmark flows. The same formulas can be reused for
@@ -353,6 +355,65 @@ At the individual origin-destination pair level, `r level3_best` has the lower m
 against the benchmark in this example. Looking only at the largest residual
 bands, `r level3_outlier_best` has the smaller share of OD pairs above three
 standard deviations.
+
+## Distributional allocation validation
+
+The previous levels compare scale, residuals and outliers. A final check is
+whether each origin sends its flows to destinations in similar proportions
+across the raw, adjusted and benchmark OD matrices. This is useful because a
+method can improve total flow scale while still allocating an origin's flows to
+the wrong destinations.
+
+`validate_flow_distribution()` computes origin-conditioned destination-share
+metrics. For each origin, the function converts flows to destination shares and
+then reports KL divergence and Jensen-Shannon divergence. The table below asks
+for all three comparisons: raw versus benchmark, adjusted versus benchmark, and
+raw versus adjusted.
+
+```{r}
+distribution_summaries <- lapply(
+  names(method_results),
+  function(method_id) {
+    debiasR::validate_flow_distribution(
+      adj_df = method_results[[method_id]],
+      benchmark_od_df = benchmark_od,
+      comparisons = "all",
+      method_name = method_id,
+      weight_by = "benchmark_origin_total",
+      return_origin_level = FALSE
+    )$summary
+  }
+) |>
+  dplyr::bind_rows() |>
+  dplyr::mutate(
+    method_label = dplyr::coalesce(
+      unname(validation_method_labels[method]),
+      method
+    ),
+    comparison_label = dplyr::coalesce(
+      unname(validation_comparison_labels[comparison]),
+      comparison
+    )
+  )
+
+distribution_summaries |>
+  dplyr::transmute(
+    Method = method_label,
+    Comparison = comparison_label,
+    `Origins used` = n_origins_used,
+    `Mean KL` = round(kl_mean, 4),
+    `Weighted mean KL` = round(kl_weighted_mean, 4),
+    `Mean JSD` = round(jsd_mean, 4),
+    `Weighted mean JSD` = round(jsd_weighted_mean, 4)
+  ) |>
+  knitr::kable()
+```
+
+Here, the benchmark-weighted means give more influence to origins with larger
+benchmark outflows. KL divergence is directional, so the reference distribution
+matters. Jensen-Shannon divergence is symmetric and easier to compare across
+rows. Both metrics evaluate allocation shares, not whether the total number of
+flows is correct.
 
 ## Recommendation
 

@@ -1,6 +1,6 @@
 # Test Health
 
-Last updated: 2026-05-21
+Last updated: 2026-06-12
 
 ## Summary
 
@@ -13,7 +13,7 @@ Last updated: 2026-05-21
 - The runner loads the package with `devtools::load_all(".")` before executing targeted tests.
 - Full suite still includes a slower Bayesian test file with MCMC runtime and optional `brms` coverage.
 - Observed behavior today:
-  - `Rscript scripts/run_fast_tests.R` passes, most recently on 2026-05-21 after adding MSOA-like frequentist multilevel formula-contract tests and a Bayesian S2-S4 deferral guard.
+  - `Rscript scripts/run_fast_tests.R` passes, most recently on 2026-06-12 after adding `measure_bias_distribution()`, extended `validate_flow_distribution()` comparisons, and latent two-level contract checks.
   - merged PR #11 (`Codex/validation distribution`) passed the GitHub Actions fast deterministic workflow for commit `59705b376c26a4b33ecbbc9cd1063b037fd61572`.
   - the current working tree has been validated locally; the pushed head still needs remote GitHub Actions confirmation.
   - package-readiness check with tests/vignettes/manual skipped now completes with 0 errors, 0 warnings, and 1 note:
@@ -23,12 +23,12 @@ Last updated: 2026-05-21
   - `debiasRdata` now exists at <https://github.com/de-bias/debiasRdata>; empirical integration should be validated with the installed companion package.
   - local integration smoke check on 2026-05-18 passed by loading `../debiasRdata` and calling `debiasR_example_data(n_areas = 5, complete_grid = TRUE)`. The helper returned default LAD objects and `distance_source = "debiasRdata_lad_centroids"`.
   - core workshop vignettes `vignettes/01-landing-page.qmd` through `vignettes/08-data.qmd` render against the installed `debiasRdata` route using bounded empirical examples.
-  - `vignettes/06-adjusting-biases.qmd`, `vignettes/testing/methods-conceptual-guide.qmd`, and `vignettes/testing/simulated-methods-walkthrough.qmd` render after replacing the Bayesian Method 6 example with the S1 frequentist placeholder.
+  - `vignettes/v06-adjusting-biases.qmd`, `vignettes/v09-advanced-bayesian-adjustment.qmd`, `vignettes/testing/methods-conceptual-guide.qmd`, and `vignettes/testing/simulated-methods-walkthrough.qmd` render after replacing the Bayesian Method 6 example with a precomputed Bayesian coverage-offset example and splitting advanced Bayesian material into its own article.
   - `vignettes/testing/short-illustration.qmd` and `vignettes/testing/method-comparison.qmd` render to a temporary output directory after the same placeholder update.
   - `quarto render notes/project-management/STAGE3_MEASURE_BIAS_REVIEW_NOTEBOOK.qmd` passes.
   - core workshop vignettes and updated testing notebooks render cleanly without `debiasRdata` installed by exiting early with an installation note.
-  - targeted tests for `measure_bias`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
-  - targeted fast tests for `model_engine = "frequentist"` pass under `load_all`, covering S1-S4 scenario resolution, source/time metadata preparation, observed prediction, complete-grid prediction, MSOA-like default formula-contract fixtures, `model_terms` metadata, the Bayesian S2-S4 deferral guard, and the optional `lme4` mixed-model smoke path when installed.
+  - targeted tests for `measure_bias`, `measure_bias_distribution()`, empirical example-data loading, Stage 3 bias residual diagnostics, deterministic adjustment helpers, Stage 2 validation helpers, and the raking smoke test pass under `load_all`.
+  - targeted fast tests for `model_engine = "frequentist"` pass under `load_all`, covering S1-S4 scenario resolution, source/time metadata preparation, observed prediction, complete-grid prediction, MSOA-like default formula-contract fixtures, `model_terms` metadata, latent S1/S3 data-contract behavior, and the optional `lme4` mixed-model smoke path when installed.
   - `validate_bias_residual_structure()` now has a regression test for the documented `population_lm` residual option.
   - `test-adjust-coefficient.R` skips one optional `pscl`-dependent case when `pscl` is not installed.
   - the Bayesian draw-summary names mismatch has been fixed in the optional Bayesian test file.
@@ -40,6 +40,7 @@ Last updated: 2026-05-21
 ### Tier 1: Fast deterministic (run on every commit)
 
 - `tests/testthat/test-measure_bias.R`
+- `tests/testthat/test-measure-bias-distribution.R`
 - `tests/testthat/test-example-data.R`
 - `tests/testthat/test-validate-bias-residual-structure.R`
 - `tests/testthat/test-adjust_inverse_penetration.R`

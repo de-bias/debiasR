@@ -5,20 +5,15 @@
 #' The complete-grid mode fits to originally observed source rows and predicts
 #' adjusted flows for every row in a supplied square OD grid.
 #'
-#' Core idea:
-#' \deqn{\log(\mu^{obs}_{ij}) = f(X_i, X_j, d_{ij}, e_i, u)}
-#' where \eqn{e_i} is origin bias from coverage and \eqn{u} is an optional
-#' random-effect structure supplied through a model formula.
-#'
 #' Users can either supply a single reduced-form \code{formula}, or separate
 #' \code{mobility_formula} and \code{bias_formula} terms. The split interface
 #' keeps the conceptual Level-2 true-flow predictors separate from the Level-1
-#' MPD observation-bias predictors, while the current implementation still fits
-#' one reduced-form model to observed MPD flows.
+#' MPD observation-bias predictors.
 #'
-#' The adjusted flow is computed from a formula-aware fixed-effect
-#' counterfactual prediction with the numeric variables in \code{bias_formula}
-#' set to zero, then summarizes draw-level adjusted flows by mean or median.
+#' In \code{target_scale = "mpd_counterfactual"} mode, the adjusted flow is
+#' computed from a formula-aware fixed-effect counterfactual prediction with
+#' the numeric variables in \code{bias_formula} set to zero, then summarizes
+#' draw-level adjusted flows by mean or median.
 #'
 #' In \code{target_scale = "true_flow"} mode, coverage is treated as an
 #' observation-process offset. The fitted model is
@@ -26,6 +21,12 @@
 #' where \eqn{q_{ij}} is derived from origin, destination, or geometric-mean
 #' active-user coverage. The returned \code{flow_adj} is the estimated
 #' true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
+#'
+#' In \code{observation_model = "latent_two_level"} mode, the Bayesian path adds
+#' an experimental shared \code{latent_flow_id} random intercept for repeated
+#' OD or OD-time states while retaining the coverage-offset observation model.
+#' This prototype is most informative for repeated source structures (S3/S4)
+#' and is weaker for S1/S2 designs.
 #'
 #' @param mpd_od_df Data frame with at least \code{origin}, \code{destination},
 #'   and \code{flow_col}. Optional \code{mpd_source} is carried through.
@@ -95,18 +96,24 @@
 #'   \pkg{brms} for zero-inflated families.
 #' @param flow_adj_summary Summary for posterior draw-level adjusted flows:
 #'   \code{"mean"} or \code{"median"}. This controls how the draw-level
-#'   Stage-1 adjusted flows are collapsed into the returned \code{flow_adj}
-#'   column after removing the estimated coverage-bias contribution.
+#'   adjusted flows are collapsed into the returned \code{flow_adj} column.
 #' @param target_scale Adjustment target. \code{"mpd_counterfactual"} preserves
 #'   the reduced-form MPD-scale counterfactual. \code{"true_flow"} estimates a
 #'   true-flow scale by using coverage as an observation-process offset.
 #' @param observation_model Observation model. \code{"reduced_form"} preserves
 #'   the existing fitted-bias-covariate path. \code{"coverage_offset"} uses
 #'   active-user coverage as a fixed offset and is required for
-#'   \code{target_scale = "true_flow"}.
+#'   \code{target_scale = "true_flow"}. \code{"latent_two_level"} fits an
+#'   experimental two-level prototype with a shared latent-flow random
+#'   intercept and coverage-offset observation process.
 #' @param coverage_scale Coverage rate used by \code{"coverage_offset"}:
 #'   \code{"origin"} uses \eqn{c_i}, \code{"destination"} uses \eqn{c_j}, and
 #'   \code{"both"} uses \eqn{\sqrt{c_i c_j}}.
+#' @param latent_flow_unit Latent state used when
+#'   \code{observation_model = "latent_two_level"}. \code{"od"} shares one
+#'   latent flow across source/time observations of an OD pair; \code{"od_time"}
+#'   shares one latent flow across sources within each OD-time cell.
+#'   \code{"auto"} chooses \code{"od_time"} for S2/S4 and \code{"od"} otherwise.
 #' @param prediction_scope Prediction contract. \code{"observed"} preserves the
 #'   original observed-row workflow. \code{"complete_grid"} requires a strict
 #'   square OD grid and predicts for all valid rows, while fitting on rows marked
@@ -220,8 +227,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                     backend = c("auto", "rstanarm", "brms"),
                                     flow_adj_summary = c("mean", "median"),
                                     target_scale = c("mpd_counterfactual", "true_flow"),
-                                    observation_model = c("reduced_form", "coverage_offset"),
+                                    observation_model = c("reduced_form", "coverage_offset", "latent_two_level"),
                                     coverage_scale = c("origin", "destination", "both"),
+                                    latent_flow_unit = c("auto", "od", "od_time"),
                                     prediction_scope = c("observed", "complete_grid"),
                                     iter = 1000,
                                     chains = 2,
@@ -240,10 +248,12 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   target_scale <- match.arg(target_scale)
   observation_model <- match.arg(observation_model)
   coverage_scale <- match.arg(coverage_scale)
+  latent_flow_unit <- match.arg(latent_flow_unit)
   prediction_scope <- match.arg(prediction_scope)
   .validate_multilevel_observation_contract(
     target_scale = target_scale,
-    observation_model = observation_model
+    observation_model = observation_model,
+    model_engine = model_engine
   )
   formula_info <- .resolve_multilevel_user_formula(
     formula = formula,
@@ -277,6 +287,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       target_scale = target_scale,
       observation_model = observation_model,
       coverage_scale = coverage_scale,
+      latent_flow_unit = latent_flow_unit,
       prediction_scope = prediction_scope,
       include_flow_adj_draws = include_flow_adj_draws,
       keep_cols = keep_cols,
@@ -329,6 +340,15 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   )
 
   prediction_df <- prep$model_df
+  latent_info <- NULL
+  if (observation_model == "latent_two_level") {
+    latent_info <- .prepare_multilevel_latent_state(
+      data = prediction_df,
+      scenario_info = scenario_info,
+      latent_flow_unit = latent_flow_unit
+    )
+    prediction_df <- latent_info$data
+  }
   fit_candidate_df <- prediction_df
   if (prediction_scope == "complete_grid" && "mpd_observed" %in% names(fit_candidate_df)) {
     fit_candidate_df <- fit_candidate_df |>
@@ -342,7 +362,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   )
   fit_formula_info <- .resolve_multilevel_target_formula_info(
     formula_info = formula_info,
-    target_scale = target_scale
+    target_scale = target_scale,
+    observation_model = observation_model
   )
 
   fit_formula <- .build_multilevel_formula(
@@ -353,7 +374,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     scenario_terms = scenario_terms,
     target_scale = target_scale
   )
-  if (observation_model == "coverage_offset") {
+  if (observation_model %in% c("coverage_offset", "latent_two_level")) {
     .validate_multilevel_coverage_offset_data(
       data = prediction_df,
       coverage_scale = coverage_scale
@@ -366,6 +387,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       formula = fit_formula,
       offset_col = "log_observation_probability"
     )
+  }
+  if (observation_model == "latent_two_level") {
+    fit_formula <- .add_multilevel_latent_random_intercept(fit_formula)
   }
   prediction_df <- .filter_multilevel_model_data(
     data = prediction_df,
@@ -380,6 +404,12 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   if (prediction_scope == "complete_grid" && "mpd_observed" %in% names(fit_df)) {
     fit_df <- fit_df |>
       dplyr::filter(.data$mpd_observed)
+  }
+  if (observation_model == "latent_two_level") {
+    .validate_multilevel_latent_prediction_levels(
+      prediction_df = prediction_df,
+      fit_df = fit_df
+    )
   }
 
   if (nrow(fit_df) < 2L) {
@@ -400,6 +430,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   if (target_scale == "mpd_counterfactual") {
     .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
   }
+  if (observation_model == "latent_two_level") {
+    .validate_multilevel_bias_terms_for_counterfactual(prediction_df, bias_terms)
+  }
 
   fit <- .fit_multilevel_bayes(
     backend = backend,
@@ -414,20 +447,27 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
   if (target_scale == "true_flow") {
     mpd_pred_df <- prediction_df
-    true_pred_df <- prediction_df
+    true_pred_df <- if (observation_model == "latent_two_level") {
+      .counterfactual_multilevel_bias_data(prediction_df, bias_terms = bias_terms)
+    } else {
+      prediction_df
+    }
     true_pred_df$log_observation_probability <- 0
+    include_random_effects <- observation_model == "latent_two_level"
 
     lin_mpd <- .posterior_linpred_fixef(
       fit = fit,
       backend = backend,
       newdata = mpd_pred_df,
-      offset_col = "log_observation_probability"
+      offset_col = "log_observation_probability",
+      include_random_effects = include_random_effects
     )
     lin_true <- .posterior_linpred_fixef(
       fit = fit,
       backend = backend,
       newdata = true_pred_df,
-      offset_col = "log_observation_probability"
+      offset_col = "log_observation_probability",
+      include_random_effects = include_random_effects
     )
     flow_mpd_pred_draws <- exp(lin_mpd)
     flow_adj_draws <- exp(lin_true)
@@ -483,7 +523,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
         modeled_out,
         dplyr::any_of(c(
           "row_id", "flow_adj", "flow_mpd_pred", "flow_true_pred",
-          "observation_probability", "log_observation_probability"
+          "observation_probability", "log_observation_probability",
+          "latent_flow_id", "latent_flow_unit"
         ))
       ),
       by = "row_id"
@@ -505,6 +546,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     "flow_mpd_pred",
     "flow_true_pred",
     "observation_probability",
+    "latent_flow_id",
+    "latent_flow_unit",
     "coverage_rate_o",
     "coverage_rate_d",
     "log_observation_probability",
@@ -544,7 +587,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     backend = backend,
     model_engine = model_engine,
     model_family = model_family,
-    stage = "stage_1",
+    stage = if (observation_model == "latent_two_level") {
+      "latent_two_level_prototype"
+    } else {
+      "stage_1"
+    },
     stage_scope = stage_scope,
     prediction_scope = prediction_scope,
     scenario = scenario_info$scenario,
@@ -556,8 +603,12 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     n_time_periods = scenario_info$n_time_periods,
     target_scale = target_scale,
     observation_model = observation_model,
-    coverage_scale = if (observation_model == "coverage_offset") coverage_scale else NA_character_,
-    offset_column = if (observation_model == "coverage_offset") {
+    coverage_scale = if (observation_model %in% c("coverage_offset", "latent_two_level")) {
+      coverage_scale
+    } else {
+      NA_character_
+    },
+    offset_column = if (observation_model %in% c("coverage_offset", "latent_two_level")) {
       "log_observation_probability"
     } else {
       NA_character_
@@ -572,6 +623,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     n_fit_rows = nrow(fit_df),
     n_prediction_rows = nrow(prediction_df),
     n_zero_filled_prediction_rows = sum(prediction_df$mpd_zero_filled %in% TRUE),
+    latent_flow_unit = if (!is.null(latent_info)) latent_info$latent_flow_unit else NA_character_,
+    n_latent_flows = if (!is.null(latent_info)) latent_info$n_latent_flows else NA_integer_,
+    latent_identifiability = if (!is.null(latent_info)) latent_info$identifiability else NULL,
     od_audit = od_audit
   )
 
@@ -589,7 +643,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "model_family") <- model_family
   attr(out, "target_scale") <- target_scale
   attr(out, "observation_model") <- observation_model
-  attr(out, "coverage_scale") <- if (observation_model == "coverage_offset") coverage_scale else NA_character_
+  attr(out, "coverage_scale") <- if (observation_model %in% c("coverage_offset", "latent_two_level")) coverage_scale else NA_character_
+  attr(out, "latent_flow_unit") <- if (!is.null(latent_info)) latent_info$latent_flow_unit else NA_character_
   attr(out, "model_terms") <- model_terms
   attr(out, "bias_terms") <- bias_terms
   attr(out, "stage") <- "stage_1"
@@ -607,7 +662,15 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "od_audit") <- od_audit
   attr(out, "distance_source") <- prep$distance_source
   attr(out, "diagnostics") <- diagnostics
-  if (target_scale == "true_flow") {
+  if (observation_model == "latent_two_level") {
+    attr(out, "stage") <- "latent_two_level_prototype"
+    attr(out, "prototype_notes") <- paste(
+      "Latent two-level prototype: flow_adj summarizes a latent OD or OD-time true-flow state",
+      "represented by a latent_flow_id random intercept in the Bayesian observation model.",
+      "The MPD observation scale uses a fixed coverage offset plus any bias_formula terms.",
+      "S1/S2 fits remain weakly identified without repeated source observations or strong priors."
+    )
+  } else if (target_scale == "true_flow") {
     attr(out, "prototype_notes") <- paste(
       "Coverage-offset true-flow mode: MPD flows are modelled as coverage-scaled observations of true OD flows.",
       "flow_adj equals flow_true_pred; flow_mpd_pred retains the fitted MPD observation scale.",
@@ -651,8 +714,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                                model_family = c("poisson", "negbin", "zip", "zinb"),
                                                flow_adj_summary = c("mean", "median"),
                                                target_scale = c("mpd_counterfactual", "true_flow"),
-                                               observation_model = c("reduced_form", "coverage_offset"),
+                                               observation_model = c("reduced_form", "coverage_offset", "latent_two_level"),
                                                coverage_scale = c("origin", "destination", "both"),
+                                               latent_flow_unit = c("auto", "od", "od_time"),
                                                prediction_scope = c("observed", "complete_grid"),
                                                include_flow_adj_draws = FALSE,
                                                keep_cols = character(),
@@ -666,10 +730,12 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   target_scale <- match.arg(target_scale)
   observation_model <- match.arg(observation_model)
   coverage_scale <- match.arg(coverage_scale)
+  latent_flow_unit <- match.arg(latent_flow_unit)
   prediction_scope <- match.arg(prediction_scope)
   .validate_multilevel_observation_contract(
     target_scale = target_scale,
-    observation_model = observation_model
+    observation_model = observation_model,
+    model_engine = "frequentist"
   )
 
   if (model_family %in% c("zip", "zinb")) {
@@ -732,7 +798,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   )
   fit_formula_info <- .resolve_multilevel_target_formula_info(
     formula_info = formula_info,
-    target_scale = target_scale
+    target_scale = target_scale,
+    observation_model = observation_model
   )
 
   fit_formula <- .build_multilevel_formula(
@@ -1169,17 +1236,27 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 }
 
 .validate_multilevel_observation_contract <- function(target_scale,
-                                                      observation_model) {
-  if (target_scale == "true_flow" && observation_model != "coverage_offset") {
+                                                      observation_model,
+                                                      model_engine = "bayesian") {
+  if (target_scale == "true_flow" &&
+      !observation_model %in% c("coverage_offset", "latent_two_level")) {
     stop(
       "`target_scale = 'true_flow'` requires ",
-      "`observation_model = 'coverage_offset'`."
+      "`observation_model = 'coverage_offset'` or ",
+      "`observation_model = 'latent_two_level'`."
     )
   }
-  if (observation_model == "coverage_offset" && target_scale != "true_flow") {
+  if (observation_model %in% c("coverage_offset", "latent_two_level") &&
+      target_scale != "true_flow") {
     stop(
-      "`observation_model = 'coverage_offset'` is currently supported only with ",
+      "`observation_model = '", observation_model, "'` is supported only with ",
       "`target_scale = 'true_flow'`."
+    )
+  }
+  if (observation_model == "latent_two_level" && model_engine != "bayesian") {
+    stop(
+      "`observation_model = 'latent_two_level'` requires ",
+      "`model_engine = 'bayesian'`."
     )
   }
 
@@ -1187,8 +1264,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 }
 
 .resolve_multilevel_target_formula_info <- function(formula_info,
-                                                    target_scale) {
-  if (target_scale != "true_flow" || !identical(formula_info$interface, "split")) {
+                                                    target_scale,
+                                                    observation_model = "reduced_form") {
+  if (target_scale != "true_flow" ||
+      observation_model == "latent_two_level" ||
+      !identical(formula_info$interface, "split")) {
     return(formula_info)
   }
 
@@ -1215,6 +1295,96 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
   data$log_observation_probability <- log(data$observation_probability)
   data
+}
+
+.prepare_multilevel_latent_state <- function(data,
+                                             scenario_info,
+                                             latent_flow_unit = c("auto", "od", "od_time")) {
+  latent_flow_unit <- match.arg(latent_flow_unit)
+  if (latent_flow_unit == "auto") {
+    latent_flow_unit <- if (scenario_info$scenario %in% c("s2", "s4")) {
+      "od_time"
+    } else {
+      "od"
+    }
+  }
+
+  needed <- c("origin", "destination")
+  if (latent_flow_unit == "od_time") {
+    needed <- c(needed, "mpd_time")
+  }
+  missing <- setdiff(needed, names(data))
+  if (length(missing) > 0L) {
+    stop(
+      "`latent_flow_unit = '", latent_flow_unit,
+      "'` requires prepared column(s): ",
+      paste(missing, collapse = ", ")
+    )
+  }
+
+  id_df <- data[needed]
+  id <- do.call(paste, c(id_df, sep = "::"))
+  data$latent_flow_unit <- latent_flow_unit
+  data$latent_flow_id <- factor(id)
+
+  counts <- table(data$latent_flow_id)
+  weak_scenarios <- scenario_info$scenario %in% c("s1", "s2")
+  if (weak_scenarios) {
+    warning(
+      "`observation_model = 'latent_two_level'` is weakly identified for ",
+      toupper(scenario_info$scenario),
+      " without repeated source observations or strong priors.",
+      call. = FALSE
+    )
+  }
+
+  list(
+    data = data,
+    latent_flow_unit = latent_flow_unit,
+    n_latent_flows = length(counts),
+    identifiability = list(
+      scenario = scenario_info$scenario,
+      repeated_observation = scenario_info$repeated_observation,
+      min_observations_per_latent_flow = min(as.integer(counts)),
+      max_observations_per_latent_flow = max(as.integer(counts)),
+      weak_identification_warning = weak_scenarios,
+      stronger_repeated_source_design = scenario_info$scenario %in% c("s3", "s4")
+    )
+  )
+}
+
+.add_multilevel_latent_random_intercept <- function(formula) {
+  calls <- .formula_random_effect_calls(formula)
+  has_latent_term <- any(vapply(
+    calls,
+    function(call) "latent_flow_id" %in% all.vars(call[[3]]),
+    logical(1)
+  ))
+  if (has_latent_term) {
+    return(formula)
+  }
+
+  rhs <- paste(deparse(formula[[length(formula)]]), collapse = " ")
+  stats::as.formula(paste("flow ~", rhs, "+ (1 | latent_flow_id)"))
+}
+
+.validate_multilevel_latent_prediction_levels <- function(prediction_df, fit_df) {
+  new_levels <- setdiff(
+    as.character(unique(prediction_df$latent_flow_id)),
+    as.character(unique(fit_df$latent_flow_id))
+  )
+  if (length(new_levels) > 0L) {
+    stop(
+      "`observation_model = 'latent_two_level'` cannot predict latent states ",
+      "that were absent from the fit data in this prototype. Unseen latent ",
+      "state count: ",
+      length(new_levels),
+      ". Use observed repeated source/time rows, or use the coverage-offset ",
+      "mode for complete-grid prediction over entirely unobserved OD cells."
+    )
+  }
+
+  invisible(TRUE)
 }
 
 .validate_multilevel_coverage_offset_data <- function(data, coverage_scale) {
@@ -2065,7 +2235,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   stop("Unsupported backend: ", backend)
 }
 
-.posterior_linpred_fixef <- function(fit, backend, newdata, offset_col = NULL) {
+.posterior_linpred_fixef <- function(fit,
+                                     backend,
+                                     newdata,
+                                     offset_col = NULL,
+                                     include_random_effects = FALSE) {
   if (backend == "rstanarm") {
     offset <- NULL
     if (!is.null(offset_col) && offset_col %in% names(newdata)) {
@@ -2075,7 +2249,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       fit,
       newdata = newdata,
       transform = FALSE,
-      re.form = NA,
+      re.form = if (isTRUE(include_random_effects)) NULL else NA,
       offset = offset
     )
     return(as.matrix(lp))
@@ -2085,7 +2259,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     fit,
     newdata = newdata,
     transform = FALSE,
-    re_formula = NA
+    re_formula = if (isTRUE(include_random_effects)) NULL else NA
   )
   as.matrix(lp)
 }

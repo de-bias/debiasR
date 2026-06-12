@@ -1,3 +1,32 @@
+# debiasR 0.0.0.9001
+
+### Bias distribution and latent Bayesian development
+
+- Added `measure_bias_distribution()` as exported package API for comparing
+  active-user and benchmark-population spatial distributions with
+  `KL(population || active users)`, Jensen-Shannon divergence, share
+  differences, and area-level contribution outputs.
+- Extended `validate_flow_distribution()` so method-comparison workflows can
+  evaluate `raw_vs_benchmark`, `adjusted_vs_benchmark`, and
+  `raw_vs_adjusted` origin-conditioned destination-share distributions with a
+  shared KL/JSD output contract.
+- Added an experimental `observation_model = "latent_two_level"` path to
+  `adjust_multilevel_bayes()` for repeated source/time structures. The
+  prototype creates `latent_flow_id` states, adds a shared latent-state random
+  intercept in the Bayesian observation model, and records latent-state
+  metadata and identifiability notes while preserving the frequentist engine
+  for shared S1-S4 data-contract testing.
+- Added a latent two-level Bayesian design note for enhancement issue #18,
+  documenting the intended full model, identifiability constraints, backend
+  strategy, diagnostics, and remaining hardening work.
+- Updated the measuring-bias and validation vignettes to teach the new
+  distributional bias helper and extended flow-distribution validator.
+- Split Bayesian adjustment documentation so the main adjustment vignette
+  focuses on the default coverage-offset implementation, while a new advanced
+  Bayesian adjustment vignette explains the experimental latent prototype,
+  reduced-form compatibility mode, S1-S4 source/time structures, and
+  diagnostics.
+
 # debiasR 0.0.0.9000
 
 ### Public documentation and governance

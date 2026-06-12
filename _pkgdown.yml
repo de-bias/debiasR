@@ -67,6 +67,7 @@ reference:
 - title: Measure bias
   contents:
   - measure_bias
+  - measure_bias_distribution
   - validate_bias_residual_structure
 - title: Adjust flows
   contents:

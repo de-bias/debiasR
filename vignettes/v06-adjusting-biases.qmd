@@ -498,14 +498,26 @@ chosen model family and estimation level capture the relevant structure.
 
 Bayesian multilevel modelling adjusts origin-destination flows by fitting a
 structured count model to the observed MPD flows and estimating the underlying
-true-flow scale. The new coverage-offset mode treats MPD flows as coverage-scaled
-observations of true flows, rather than as flows that are only adjusted after
-fitting by switching off a bias covariate. The multilevel structure can borrow
-information across origins, destinations, sources or time periods when those
-data structures are available. The Bayesian implementation can take time, so the
-vignette shows the model code but renders a precomputed example output. For
-analysis, run enough iterations and chains for your data and check the sampler
-diagnostics before interpreting the posterior summaries.
+true-flow scale. This vignette focuses on the recommended default
+implementation: the coverage-offset true-flow model. This mode treats MPD flows
+as coverage-scaled observations of true flows, rather than as flows that are
+only adjusted after fitting by switching off a bias covariate. The multilevel
+structure can borrow information across origins, destinations and corridors when
+those data structures are available. The Bayesian implementation can take time,
+so the vignette shows the model code but renders a precomputed example output.
+For analysis, run enough iterations and chains for your data and check the
+sampler diagnostics before interpreting the posterior summaries.
+
+`adjust_multilevel_bayes()` also includes advanced Bayesian modes for repeated
+source/time data and backward compatibility. Those options are described in the
+[advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html);
+the practical default for routine adjustment is:
+
+| Target | Recommended setting |
+|:--|:--|
+| Adjustment scale | `target_scale = "true_flow"` |
+| Observation model | `observation_model = "coverage_offset"` |
+| Coverage offset | `coverage_scale = "origin"`, `"destination"` or `"both"` |
 
 In coverage-offset true-flow mode, the model can be written as:
 
@@ -585,44 +597,29 @@ observed MPD count.
 
 To use `debiasR::adjust_multilevel_bayes()`, input the observed MPD flows to `mpd_od_df`,
 the population coverage table to `coverage_df`, area-level covariates to
-`covariates_df` and OD distances to `distance_df`. The `scenario`, `source_col`,
-`time_col` and `repeated_observation` arguments describe the source/time data
-structure.
-Specifically, four scenarios can be accommodated through `scenario` for different source/time structures in the MPD data: one source and one time (s1), one source across times (s2), multiple sources at one time (s3), multiple sources across times (s4), or auto to infer this from the data.
-The `prediction_scope` argument controls whether the method adjusts
-only observed MPD pairs or predicts over a complete OD grid. The
-`target_scale`, `observation_model`, `coverage_scale`, `model_family`,
-`model_engine` and `flow_adj_summary` arguments control the output scale,
-observation model, coverage offset, likelihood, fitting engine and how adjusted
-flows are summarised.
+`covariates_df` and OD distances to `distance_df`. The compact default example
+below uses a single source and a single observation period. The
+`prediction_scope` argument controls whether the method adjusts only observed
+MPD pairs or predicts over a supplied complete OD grid.
 
 The equations above translate into two conceptual formula components.
-`mobility_formula` defines the Level 2 true-flow model. For example, we can
-include `rural_pct_o`, `rural_pct_d` and `log_distance` to represent the terms
-$X_i$, $X_j$ and $d_{ij}$. Random-effect terms represent the origin,
-destination and corridor structure: `(1 | origin)` for $u_i$,
-`(1 | destination)` for $v_j$, and `(1 | od_id)` for $w_{ij}$. The package
-creates `od_id` internally before fitting. In coverage-offset mode, the
-observation model is selected with `target_scale = "true_flow"` and
+`mobility_formula` defines the true-flow model; here we use `rural_pct_o`,
+`rural_pct_d` and `log_distance` to represent origin covariates, destination
+covariates and distance. In the recommended default mode, the observation model
+is selected with `target_scale = "true_flow"` and
 `observation_model = "coverage_offset"`, while `coverage_scale` selects whether
 the offset uses origin, destination or geometric-mean coverage.
 
-A full specification matching the true-flow description is:
+For repeated source/time observations, legacy reduced-form behaviour, and the
+experimental latent two-level model, see the
+[advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html).
+Keeping those choices separate from the default example makes the basic workflow
+easier to follow.
 
-```{r eval=FALSE}
-mobility_formula_full <- ~ rural_pct_o + rural_pct_d + log_distance +
-  (1 | origin) + (1 | destination) + (1 | od_id)
-
-bias_formula_origin <- ~ bias_e_origin
-```
-
-Use this model specification when the data support origin, destination and
-corridor partial pooling. In an S1 scenario, like the example below, each OD
-corridor appears once, so the corridor random effect is weakly identified. We
-recommend not using it in such scenarios. The example below therefore uses a
-Bayesian fixed-effect true-flow model with an origin coverage offset. The model
-code is shown for reproducibility, while the rendered table is loaded from a
-precomputed package artifact so routine vignette updates do not rerun MCMC.
+The example below therefore uses a Bayesian fixed-effect true-flow model with
+an origin coverage offset. The model code is shown for reproducibility, while
+the rendered table is loaded from a precomputed package artifact so routine
+vignette updates do not rerun MCMC.
 Regenerate the artifact explicitly with
 `Rscript scripts/precompute_v06_bayesian_example.R`.
 
@@ -700,40 +697,6 @@ is not used to fit the Bayesian model. The `flow_mpd_pred_*` columns are the
 corresponding fitted expected flows on the MPD observation scale, before
 removing the coverage offset.
 
-For a richer dataset, use the full multilevel formula in the function call:
-
-```{r eval=FALSE}
-adj_multilevel_full <- debiasR::adjust_multilevel_bayes(
-  mpd_od_df = mpd_s1,
-  coverage_df = coverage_s1,
-  covariates_df = covariates_adjustment,
-  distance_df = distance,
-  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
-    (1 | origin) + (1 | destination) + (1 | od_id),
-  bias_formula = ~ bias_e_origin,
-  target_scale = "true_flow",
-  observation_model = "coverage_offset",
-  coverage_scale = "origin",
-  model_engine = "bayesian",
-  scenario = "s1",
-  source_col = "mpd_source",
-  time_col = "mpd_time",
-  repeated_observation = "none",
-  prediction_scope = "complete_grid",
-  model_family = "poisson",
-  flow_adj_summary = "median",
-  iter = 1000,
-  chains = 4,
-  seed = 123,
-  refresh = 0
-)
-
-adj_multilevel_full |>
-  show_adjustment_comparison(
-    extra_cols = c("observation_probability", "flow_mpd_pred")
-  )
-```
-
 The saved example uses moderate sampler settings for a compact illustration.
 For applied analysis, run enough iterations and chains for your data and inspect
 the diagnostics:
@@ -809,28 +772,16 @@ significantly more runtime, dependencies and diagnostic checking when fitted
 with the full Bayesian engine. The key strength is that the model does not
 require a benchmark dataset of flows.
 
-*Alternative source-time structures*
+*More complex Bayesian structures*
 
-To fit alternative source-time structures, change the scenario columns and
-repeated-observation structure. The Bayesian and frequentist engines use the
-same scenario contract:
-
-```{r}
-tibble::tribble(
-  ~data_structure, ~scenario, ~source_col, ~time_col, ~repeated_observation, ~typical_random_intercept,
-  "S1: one source, one time", "s1", "optional constant source column", "optional constant time column", "none", "none or origin",
-  "S2: one source, multiple times", "s2", "optional constant source column", "time-period column", "time", "time or origin",
-  "S3: multiple sources, one time", "s3", "source column", "optional constant time column", "source", "source or origin",
-  "S4: multiple sources, multiple times", "s4", "source column", "time-period column", "source_time", "source_time, source, time, or origin"
-)
-```
-
-Use `model_engine = "bayesian"` when you want posterior uncertainty and the
-coverage-offset true-flow model. Use `model_engine = "frequentist"` for faster
-testing, experimentation and method comparison. When you supply a custom
-`mobility_formula` for S2-S4, include `mpd_time`, `mpd_source`, or both if you
-want those repeated source/time effects estimated explicitly; the default
-formula adds the relevant scenario fixed effects automatically.
+The example above uses the simplest S1 structure: one source and one observation
+period. `adjust_multilevel_bayes()` can also accept S2-S4 source/time
+structures through `scenario`, `source_col`, `time_col` and
+`repeated_observation`. The
+[advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html)
+explains when to keep the default coverage-offset model, when to use the
+experimental latent two-level model, and when the legacy reduced-form mode is
+useful for backward compatibility.
 
 ## Fit all methods
 

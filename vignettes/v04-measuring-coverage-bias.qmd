@@ -127,6 +127,59 @@ ggplot(bias_lad, aes(x = coverage_bias)) +
   theme_minimal()
 ```
 
+## Measure distributional bias
+
+Coverage rates tell us whether each area is over- or under-represented relative
+to its own benchmark population. A related question is whether the active-user
+population is distributed across areas in the same proportions as the Census
+population. For example, if an LAD contains 3% of the benchmark population, a
+proportionally representative active-user dataset would also place about 3% of
+active users in that LAD.
+
+`measure_bias_distribution()` summarises this distributional comparison. It
+uses the benchmark population shares as the reference distribution and active
+user shares as the comparison distribution. Lower KL divergence and
+Jensen-Shannon divergence mean the active-user distribution is closer to the
+benchmark population distribution.
+
+```{r}
+distribution_bias <- debiasR::measure_bias_distribution(
+  coverage_df = coverage,
+  area_col = "area",
+  population_col = "population",
+  user_count_col = "user_count"
+)
+
+distribution_bias$summary
+```
+
+The area-level output shows which LADs contribute most to the difference
+between the two distributions. Positive share differences mean an LAD accounts
+for a larger share of active users than of the benchmark population. Negative
+values mean the opposite.
+
+```{r}
+distribution_bias$area_level |>
+  dplyr::left_join(
+    coverage |> dplyr::select(area, name),
+    by = "area"
+  ) |>
+  dplyr::mutate(
+    abs_share_difference = abs(share_difference_user_minus_population)
+  ) |>
+  dplyr::arrange(dplyr::desc(abs_share_difference)) |>
+  dplyr::select(
+    area,
+    name,
+    population_share,
+    user_share,
+    share_difference_user_minus_population,
+    kl_contribution,
+    jsd_contribution
+  ) |>
+  head(10)
+```
+
 Another simple check is whether coverage bias changes with area population size. This does not prove representativeness, but it helps show whether small or large areas behave differently.
 
 ```{r}
