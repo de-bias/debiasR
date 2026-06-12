@@ -10,6 +10,7 @@ fast_test_files <- c(
   "tests/testthat/test-adjust-selection-rate2.R",
   "tests/testthat/test-adjust-raking-ratio.R",
   "tests/testthat/test-adjust-coefficient.R",
+  "tests/testthat/test-adjust-multilevel-latent-contract.R",
   "tests/testthat/test-adjust-multilevel-frequentist-dev.R",
   "tests/testthat/test-validate-flow-overall.R",
   "tests/testthat/test-validate-flow-pairs.R",

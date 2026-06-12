@@ -16,6 +16,10 @@ if (!requireNamespace("rstanarm", quietly = TRUE)) {
   stop("The Bayesian test runner requires the optional 'rstanarm' package.")
 }
 
+if (!requireNamespace("rstan", quietly = TRUE)) {
+  stop("The Bayesian test runner requires the optional 'rstan' package for the latent two-level backend.")
+}
+
 options(mc.cores = 1)
 Sys.setenv(RSTAN_NUM_THREADS = "1")
 
@@ -24,6 +28,7 @@ message("Bayesian test run started at ", format(start_time, "%Y-%m-%d %H:%M:%S %
 message("R version: ", getRversion())
 message("testthat version: ", as.character(utils::packageVersion("testthat")))
 message("rstanarm version: ", as.character(utils::packageVersion("rstanarm")))
+message("rstan version: ", as.character(utils::packageVersion("rstan")))
 message("Loading debiasR package context with devtools::load_all().")
 
 devtools::load_all(".", quiet = TRUE)

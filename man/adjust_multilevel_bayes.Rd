@@ -25,7 +25,7 @@ adjust_multilevel_bayes(
   bias_formula = NULL,
   model_family = c("poisson", "negbin", "zip", "zinb"),
   model_engine = c("bayesian", "frequentist"),
-  backend = c("auto", "rstanarm", "brms"),
+  backend = c("auto", "rstanarm", "brms", "stan_latent"),
   flow_adj_summary = c("mean", "median"),
   target_scale = c("mpd_counterfactual", "true_flow"),
   observation_model = c("reduced_form", "coverage_offset", "latent_two_level"),
@@ -123,9 +123,11 @@ backend for S1-S4 source/time scenarios; \code{"frequentist"} uses a
 faster Poisson/negative-binomial GLM/GLMM scaffold for testing,
 experimentation, and runtime-sensitive comparisons.}
 
-\item{backend}{Bayesian backend: \code{"auto"}, \code{"rstanarm"}, or
-\code{"brms"}. \code{"auto"} chooses \pkg{rstanarm} for Poisson/NegBin and
-\pkg{brms} for zero-inflated families.}
+\item{backend}{Bayesian backend: \code{"auto"}, \code{"rstanarm"},
+\code{"brms"}, or \code{"stan_latent"}. \code{"auto"} chooses
+\pkg{rstanarm} for Poisson/NegBin reduced-form and coverage-offset models,
+\pkg{brms} for zero-inflated families, and the package's custom Stan
+backend for \code{observation_model = "latent_two_level"}.}
 
 \item{flow_adj_summary}{Summary for posterior draw-level adjusted flows:
 \code{"mean"} or \code{"median"}. This controls how the draw-level
@@ -139,8 +141,8 @@ true-flow scale by using coverage as an observation-process offset.}
 the existing fitted-bias-covariate path. \code{"coverage_offset"} uses
 active-user coverage as a fixed offset and is required for
 \code{target_scale = "true_flow"}. \code{"latent_two_level"} fits an
-experimental two-level prototype with a shared latent-flow random
-intercept and coverage-offset observation process.}
+experimental joint latent model with a source-invariant true-flow state
+and source/time-specific MPD observation process.}
 
 \item{coverage_scale}{Coverage rate used by \code{"coverage_offset"}:
 \code{"origin"} uses \eqn{c_i}, \code{"destination"} uses \eqn{c_j}, and
@@ -224,11 +226,13 @@ where \eqn{q_{ij}} is derived from origin, destination, or geometric-mean
 active-user coverage. The returned \code{flow_adj} is the estimated
 true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
 
-In \code{observation_model = "latent_two_level"} mode, the Bayesian path adds
-an experimental shared \code{latent_flow_id} random intercept for repeated
-OD or OD-time states while retaining the coverage-offset observation model.
-This prototype is most informative for repeated source structures (S3/S4)
-and is weaker for S1/S2 designs.
+In \code{observation_model = "latent_two_level"} mode, the Bayesian path
+fits an experimental joint latent model. It estimates a source-invariant
+true-flow intensity for each OD or OD-time state, then models each MPD
+source/time row as a coverage-scaled noisy observation of that latent state.
+This model is most informative for repeated source structures (S3/S4) and
+remains weakly identified for S1/S2 designs without strong priors or
+external validation.
 }
 \examples{
 if (requireNamespace("lme4", quietly = TRUE)) {
