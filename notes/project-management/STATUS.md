@@ -8,7 +8,7 @@ Last updated: 2026-06-05
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
-- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; empirical use remains dependency- and runtime-sensitive
+- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; S1-S4 source/time scenarios are supported by both Bayesian and frequentist engines, while empirical use remains dependency- and runtime-sensitive
 - Current execution board: see [TASK_BOARD.md](TASK_BOARD.md)
 
 ## Stable vs Experimental
@@ -36,9 +36,9 @@ Last updated: 2026-06-05
   - complete-grid prediction mode is available for strict square OD matrices
   - row-status metadata distinguishes observed MPD rows from zero-filled source-missing cells
   - scenario metadata now distinguishes S1 single-source/single-time, S2 single-source/multiple-time, S3 multiple-source/single-time, and S4 multiple-source/multiple-time inputs
-  - S1-S4 development should use `model_engine = "frequentist"` first; Bayesian scenario implementation is deferred until the complete model contract is stable
-  - `model_terms` metadata records the resolved default fixed-effect and random-effect structure for the frequentist-first scenario contract
-  - `model_engine = "bayesian"` now errors clearly for resolved S2-S4 inputs so repeated source/time Bayesian fitting is not implied before the transfer step
+  - S1-S4 repeated source/time scenarios can now be fitted with `model_engine = "bayesian"` or `model_engine = "frequentist"`
+  - `model_terms` metadata records the resolved default fixed-effect and random-effect structure for the shared S1-S4 scenario contract
+  - `model_engine = "frequentist"` remains useful for fast testing, experimentation, and method comparison before committing to Bayesian runtime
   - performance and dependency footprint are heavy relative to fixed-rule adjustment methods
   - backend guidance: prefer `rstanarm` for standard Poisson / negative-binomial models because it is lighter and easier to fit in a package workflow; use `brms` when you need extra flexibility, especially zero-inflated or more complex Bayesian specifications
 
@@ -59,7 +59,7 @@ Last updated: 2026-06-05
 - User-facing docs now name the default empirical OD matrices explicitly: `lad_OD_travel2work` for observed MPD travel-to-work flows and `census_lad_OD_travel2work` for the Census benchmark. MSOA assets remain available through `geography = "msoa"` when needed.
 - `debiasR_example_data()` now supports optional complete-grid OD output with zero-filled absent pairs, row-status indicators, an OD audit for strict square support, and selected-area LAD distances computed from `debiasRdata::lad_centroids`.
 - `adjust_multilevel_bayes()` now supports `prediction_scope = "complete_grid"` for supplied square OD matrices; it fits on originally observed source rows when `mpd_observed` is available and predicts across the grid.
-- `adjust_multilevel_bayes()` now has explicit scenario/source/time parameters for the planned S1-S4 multilevel path, plus `model_engine = "frequentist"` for fast design and test iteration while the Bayesian method remains the goal.
+- `adjust_multilevel_bayes()` now has explicit scenario/source/time parameters for the S1-S4 multilevel path, with `model_engine = "bayesian"` for posterior fitting and `model_engine = "frequentist"` for fast design, test iteration, and method comparison.
 - `adjust_multilevel_bayes()` now accepts a primary R formula interface. Area covariates are prepared with origin/destination suffixes, formula random-effect terms drive model dispatch, and `income_col` remains only as a legacy default-formula helper.
 - `adjust_multilevel_bayes()` now also accepts split `mobility_formula` and
   `bias_formula` inputs. The package combines them internally for the current
@@ -68,8 +68,8 @@ Last updated: 2026-06-05
 - Enhancement issue #18 records the planned genuinely latent two-level
   Bayesian model, where `F_true_ij` is estimated explicitly rather than
   recovered only through a zero-bias counterfactual prediction.
-- The default frequentist S1-S4 formula contract is documented: S1 uses the base OD/covariate/bias terms, S2 adds `mpd_time`, S3 adds `mpd_source`, and S4 adds `mpd_source + mpd_time`; S4 source-time interaction remains deferred.
-- The adjustment and testing vignettes now include an S1 `model_engine = "frequentist"` placeholder example with constant source/time columns, plus parameter guidance for S2-S4 source/time structures while Bayesian transfer is incomplete.
+- The default S1-S4 formula contract is documented for both engines: S1 uses the base OD/covariate/bias terms, S2 adds `mpd_time`, S3 adds `mpd_source`, and S4 adds `mpd_source + mpd_time`; S4 source-time interaction remains deferred.
+- The adjustment vignette now includes a Bayesian coverage-offset example with constant source/time columns, raw/adjusted/benchmark comparison columns, and parameter guidance for S2-S4 source/time structures.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
 - Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside the validation helpers for now; `sf`-aware mapping remains outside the package; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.
@@ -109,7 +109,7 @@ Last updated: 2026-06-05
 - `validate_bias_residual_structure()` now supports and tests the documented `population_lm` residual option.
 - Verified on 2026-05-21 with targeted
   `Rscript -e "devtools::load_all('.', quiet = TRUE); testthat::test_file('tests/testthat/test-adjust-multilevel-frequentist-dev.R', reporter = 'summary')"`.
-- Result: pass. The targeted file now covers S1-S4 scenario resolution, source/time metadata, observed prediction, complete-grid prediction, MSOA-like default frequentist formula-contract fixtures, `model_terms` metadata, and the explicit Bayesian S2-S4 deferral guard.
+- Result: pass. The targeted file covers S1-S4 scenario resolution, source/time metadata, observed prediction, complete-grid prediction, MSOA-like default frequentist formula-contract fixtures, and `model_terms` metadata.
 - Verified on 2026-05-21 with `Rscript scripts/run_fast_tests.R`.
 - Result: pass. Existing locale warnings remained, and the optional `lme4` tiny-data smoke path can still print a singular-fit message.
 - Package-readiness check on 2026-05-21 with tests, vignettes, and manual skipped completed with 0 errors, 0 warnings, and 1 note:
@@ -121,6 +121,15 @@ Last updated: 2026-06-05
   - `vignettes/testing/simulated-methods-walkthrough.qmd`
   - `vignettes/testing/short-illustration.qmd` to a temporary output directory
   - `vignettes/testing/method-comparison.qmd` to a temporary output directory
+- Verified on 2026-06-12 with `Rscript scripts/run_fast_tests.R`.
+- Result: pass. The fast deterministic tier covers the frequentist S1-S4
+  scenario contract, complete-grid metadata, and the unchanged deterministic
+  adjustment/validation API.
+- Bayesian S2-S4 validation on 2026-06-12 used a targeted `rstanarm` smoke
+  check for S4 repeated source/time fitting because the full optional Bayesian
+  test file remains slow. The targeted check verifies scenario metadata,
+  source/time-specific coverage offsets, and MPD-scale versus true-flow-scale
+  prediction algebra.
 
 ## Current Risks / Blockers
 

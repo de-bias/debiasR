@@ -86,10 +86,10 @@
 #'   counterfactual sets them to zero.
 #' @param model_family Count family: \code{"poisson"}, \code{"negbin"},
 #'   \code{"zip"}, or \code{"zinb"}.
-#' @param model_engine Development engine: \code{"bayesian"} uses the existing
-#'   Stage-1 Bayesian S1 backend; \code{"frequentist"} uses a faster
-#'   Poisson/negative-binomial GLM/GLMM scaffold for S1-S4 model-contract
-#'   development before Bayesian scenario support is promoted.
+#' @param model_engine Fitting engine. \code{"bayesian"} uses the Bayesian
+#'   backend for S1-S4 source/time scenarios; \code{"frequentist"} uses a
+#'   faster Poisson/negative-binomial GLM/GLMM scaffold for testing,
+#'   experimentation, and runtime-sensitive comparisons.
 #' @param backend Bayesian backend: \code{"auto"}, \code{"rstanarm"}, or
 #'   \code{"brms"}. \code{"auto"} chooses \pkg{rstanarm} for Poisson/NegBin and
 #'   \pkg{brms} for zero-inflated families.
@@ -105,8 +105,8 @@
 #'   active-user coverage as a fixed offset and is required for
 #'   \code{target_scale = "true_flow"}.
 #' @param coverage_scale Coverage rate used by \code{"coverage_offset"}:
-#'   \code{"origin"} uses \eqn{p_i}, \code{"destination"} uses \eqn{p_j}, and
-#'   \code{"both"} uses \eqn{\sqrt{p_i p_j}}.
+#'   \code{"origin"} uses \eqn{c_i}, \code{"destination"} uses \eqn{c_j}, and
+#'   \code{"both"} uses \eqn{\sqrt{c_i c_j}}.
 #' @param prediction_scope Prediction contract. \code{"observed"} preserves the
 #'   original observed-row workflow. \code{"complete_grid"} requires a strict
 #'   square OD grid and predicts for all valid rows, while fitting on rows marked
@@ -296,10 +296,6 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     time_col = time_col,
     scenario = scenario,
     repeated_observation = repeated_observation
-  )
-  .validate_multilevel_engine_scope(
-    model_engine = model_engine,
-    scenario_info = scenario_info
   )
 
   od_audit <- NULL
@@ -1170,18 +1166,6 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   out
-}
-
-.validate_multilevel_engine_scope <- function(model_engine, scenario_info) {
-  if (model_engine == "bayesian" && !identical(scenario_info$scenario, "s1")) {
-    stop(
-      "`model_engine = 'bayesian'` currently supports the existing Stage-1 S1 path only. ",
-      "Resolved `scenario = '", scenario_info$scenario, "'`; use ",
-      "`model_engine = 'frequentist'` for S1-S4 scenario development until the Bayesian transfer is implemented."
-    )
-  }
-
-  invisible(TRUE)
 }
 
 .validate_multilevel_observation_contract <- function(target_scale,

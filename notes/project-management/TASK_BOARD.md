@@ -30,11 +30,10 @@ The staged track below is intended to be implemented one stage per chat window. 
 3. Validate optional Bayesian CI workflow - `1-2h`
 - Fast core GitHub Actions validation passed on merged PR #11.
 - Current branch fast core tests pass locally.
-- Local optional Bayesian test-file run passes with `rstanarm`; the remaining workflow check is the manual/optional GitHub Actions lane.
+- Local optional Bayesian smoke checks use `rstanarm`; the remaining workflow check is the manual/optional GitHub Actions lane when broader Bayesian validation is required.
 - Confirm the optional/manual Bayesian lane on GitHub Actions when Bayesian-lane validation is required.
-- The full optional Bayesian implementation for the S1-S4 multilevel scenario
-  path has not been implemented yet; current S1-S4 development should proceed
-  through the frequentist engine first.
+- The Stage-1 Bayesian implementation now supports S1-S4 source/time scenarios;
+  the frequentist engine remains available for fast testing and experimentation.
 - The default LAD empirical route now has selected-area distance support through
   `debiasRdata::lad_centroids`.
 
@@ -248,7 +247,7 @@ mobile-phone-derived input scenarios.
 
 Estimated effort: `3-5 days`
 
-Status: `in progress; frequentist-first scaffold implemented`
+Status: `in progress; Bayesian S1-S4 transfer implemented, LAD teaching examples remain`
 
 Scenario plan:
 
@@ -264,14 +263,11 @@ Working recommendation:
   separate exported functions.
 - Use MSOA-scale data for software development and internal stress testing.
 - Use LAD-scale data for vignettes and teaching materials.
-- Use `model_engine = "frequentist"` as the active development scaffold for
-  formula, data-shape, and runtime checks; skip new Bayesian scenario work until
-  the complete S1-S4 model contract is stable.
-- Keep `model_engine = "bayesian"` as the existing Stage-1 path and final
-  inferential target.
-- Full optional Bayesian S1-S4 support is explicitly not implemented in this
-  stage; it remains a later transfer step after the frequentist model contract
-  is complete.
+- Use `model_engine = "frequentist"` as the fast scaffold for formula,
+  data-shape, runtime checks, experimentation, and method comparison.
+- Use `model_engine = "bayesian"` for the Stage-1 posterior workflow across
+  S1-S4 scenarios when optional Bayesian dependencies and runtime budgets are
+  available.
 
 Software-development tasks:
 
@@ -282,18 +278,16 @@ Software-development tasks:
 - Keep existing observed-flow and complete-grid behavior backward compatible.
 - Implementation update: `scenario`, `source_col`, `time_col`,
   `repeated_observation`, and `model_engine` are now parameters on
-  `adjust_multilevel_bayes()`. S2-S4 Bayesian use is explicitly deferred with a
-  clear error; current scenario development uses `model_engine =
-  "frequentist"`.
+  `adjust_multilevel_bayes()`. The shared scenario contract now works with
+  both `model_engine = "bayesian"` and `model_engine = "frequentist"`.
 
 2. Build the internal modelling scaffold.
-- Prototype formula and random-effect structures with a faster frequentist
-  implementation first.
-- Transfer the selected structure into the Bayesian backend only once the data
-  contract and output contract are stable.
+- Prototype formula and random-effect structures with the faster frequentist
+  implementation when runtime matters.
+- Keep the selected structure shared by the Bayesian and frequentist backends.
 - Keep the frequentist path as a development engine option, not a separate
   exported adjustment function.
-- Implementation update: the default frequentist formula contract is now
+- Implementation update: the default S1-S4 formula contract is now
   recorded in `MULTILEVEL_MODEL_SCENARIO_PLAN.md` and returned in
   `model_terms` metadata. S1 has no source/time term; S2 adds `mpd_time`; S3
   adds `mpd_source`; S4 adds `mpd_source + mpd_time`.
@@ -303,9 +297,10 @@ Software-development tasks:
   stricter scale for grid size and repeated observations.
 - Add focused tests for scenario detection, required columns, output metadata,
   and compatibility with existing Bayesian prediction scopes.
-- Implementation update: the fast tier now includes deterministic MSOA-like
-  S1-S4 fixtures for default frequentist formula terms, metadata, and S4
-  complete-grid prediction.
+- Implementation update: the fast tier includes deterministic MSOA-like S1-S4
+  fixtures for default frequentist formula terms, metadata, and S4
+  complete-grid prediction. Optional Bayesian tests cover repeated S2-S4
+  source/time fitting with the rstanarm backend when installed.
 
 Vignette and teaching-material tasks:
 
@@ -314,17 +309,17 @@ Vignette and teaching-material tasks:
   explain, and teach.
 - Keep examples small enough for optional Bayesian dependencies and vignette
   rendering constraints.
-- Implementation update: the adjustment vignette and testing notebooks now use
-  an S1 `model_engine = "frequentist"` placeholder with one source and one time
-  unit, and describe the parameter switches for S2-S4. Full LAD-scale teaching
-  examples for each separate scenario remain to be completed.
+- Implementation update: the adjustment vignette now uses a Bayesian
+  coverage-offset S1 example with one source and one time unit, and describes
+  the parameter switches for S2-S4. Full LAD-scale teaching examples for each
+  separate scenario remain to be completed.
 
 2. Teach the four scenarios separately.
 - Start with S1 as the baseline.
 - Introduce time effects with S2, source effects with S3, and the combined
   source-time setting with S4.
-- Make clear that the frequentist engine is for development iteration and that
-  the intended final inferential method is Bayesian.
+- Make clear that the frequentist engine is for fast iteration/comparison and
+  the Bayesian engine is the posterior inferential method.
 
 Deliverables:
 
@@ -332,7 +327,7 @@ Deliverables:
 - [x] scenario parameters for `adjust_multilevel_bayes()`
 - [x] internal MSOA-like software tests for S1-S4 data contracts
 - [ ] LAD vignette examples for the teachable scenario path
-- [ ] a documented decision on when the frequentist development engine is ready to
+- [x] a documented decision on when the frequentist development engine is ready to
   transfer into the Bayesian implementation
 
 Decision gate:

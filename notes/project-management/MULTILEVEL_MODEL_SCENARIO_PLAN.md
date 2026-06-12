@@ -1,18 +1,17 @@
 # Multilevel Model Scenario Plan
 
-Last updated: 2026-05-21
+Last updated: 2026-06-12
 
 ## Purpose
 
-This note defines the planned scenario support for mobile-phone-derived inputs
+This note defines the scenario support for mobile-phone-derived inputs
 in `adjust_multilevel_bayes()`. The aim is to handle variation in data source
 and observation time through one transparent Bayesian modelling path.
 
-The Bayesian model remains the end goal. During S1-S4 model development, use
-the faster frequentist engine first through `model_engine = "frequentist"` so we
-can skip sampler work until the complete data contract, formula structure, and
-output contract are stable. Move the completed structure into
-`model_engine = "bayesian"` only after that contract has been reviewed.
+The Stage-1 Bayesian engine now supports S1-S4 source/time scenarios. The
+frequentist engine remains available through `model_engine = "frequentist"` for
+fast formula checks, data-shape checks, runtime-sensitive experimentation, and
+method comparison before committing to Bayesian sampling.
 
 ## Scenario Definitions
 
@@ -60,16 +59,15 @@ Working recommendation:
 
 - Accept explicit source and time column arguments.
 - Allow a scenario argument for clarity and validation.
-- Use `model_engine = "frequentist"` as the active development path until S1-S4
-  behaviour is complete; keep `model_engine = "bayesian"` for the existing
-  Stage-1 path and final transfer.
+- Use `model_engine = "frequentist"` for fast S1-S4 checks and
+  `model_engine = "bayesian"` for posterior S1-S4 fitting.
 - Infer the simplest valid scenario only when `scenario = "auto"`.
 - Return scenario metadata so downstream validation and teaching examples can
   show what was fit.
 - Keep existing observed-flow and complete-grid prediction behavior unchanged
   for S1.
 
-## Current Frequentist Formula Contract
+## Current Shared Formula Contract
 
 The primary user-facing model interface is now `formula`, for example:
 
@@ -80,8 +78,7 @@ Formula random-effect terms are treated as the source of truth when supplied.
 `custom_formula` is retained as a deprecated alias, and `income_col` is retained
 only as a legacy helper for the default formula.
 
-Under `model_engine = "frequentist"` and no `formula`, the default formula
-starts from:
+Under either engine and no `formula`, the default formula starts from:
 
 `flow ~ income_o + income_d + log_distance + bias_e_origin`
 
@@ -106,9 +103,10 @@ and identifiability are reviewed. Users can request `random_intercept =
 "source_time"` during development to test source-time pooling without adding a
 default fixed interaction.
 
-`model_engine = "bayesian"` currently remains the existing Stage-1 S1 path. It
-now errors clearly for resolved S2-S4 inputs so the package does not imply that
-full Bayesian scenario transfer has already happened.
+The S1-S4 formula contract is shared by `model_engine = "bayesian"` and
+`model_engine = "frequentist"`. Bayesian fits retain the heavier optional
+dependency and sampler-diagnostic burden; frequentist fits remain the fast
+contract-checking option.
 
 ## Development Data Policy
 

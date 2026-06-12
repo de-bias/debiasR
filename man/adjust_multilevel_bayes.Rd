@@ -117,10 +117,10 @@ counterfactual sets them to zero.}
 \item{model_family}{Count family: \code{"poisson"}, \code{"negbin"},
 \code{"zip"}, or \code{"zinb"}.}
 
-\item{model_engine}{Development engine: \code{"bayesian"} uses the existing
-Stage-1 Bayesian S1 backend; \code{"frequentist"} uses a faster
-Poisson/negative-binomial GLM/GLMM scaffold for S1-S4 model-contract
-development before Bayesian scenario support is promoted.}
+\item{model_engine}{Fitting engine. \code{"bayesian"} uses the Bayesian
+backend for S1-S4 source/time scenarios; \code{"frequentist"} uses a
+faster Poisson/negative-binomial GLM/GLMM scaffold for testing,
+experimentation, and runtime-sensitive comparisons.}
 
 \item{backend}{Bayesian backend: \code{"auto"}, \code{"rstanarm"}, or
 \code{"brms"}. \code{"auto"} chooses \pkg{rstanarm} for Poisson/NegBin and
@@ -141,8 +141,8 @@ active-user coverage as a fixed offset and is required for
 \code{target_scale = "true_flow"}.}
 
 \item{coverage_scale}{Coverage rate used by \code{"coverage_offset"}:
-\code{"origin"} uses \eqn{p_i}, \code{"destination"} uses \eqn{p_j}, and
-\code{"both"} uses \eqn{\sqrt{p_i p_j}}.}
+\code{"origin"} uses \eqn{c_i}, \code{"destination"} uses \eqn{c_j}, and
+\code{"both"} uses \eqn{\sqrt{c_i c_j}}.}
 
 \item{prediction_scope}{Prediction contract. \code{"observed"} preserves the
 original observed-row workflow. \code{"complete_grid"} requires a strict

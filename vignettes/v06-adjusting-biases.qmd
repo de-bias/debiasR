@@ -766,8 +766,9 @@ require a benchmark dataset of flows.
 
 *Alternative source-time structures*
 
-To fit alternative source-time structures, user should change the
-scenario columns and repeated-observation structure:
+To fit alternative source-time structures, change the scenario columns and
+repeated-observation structure. The Bayesian and frequentist engines use the
+same scenario contract:
 
 ```{r}
 tibble::tribble(
@@ -779,14 +780,20 @@ tibble::tribble(
 )
 ```
 
-For now, use `model_engine = "frequentist"` for S2-S4 source-time examples until
-the Bayesian transfer for repeated source/time observations is complete. For S1
-examples, `model_engine = "bayesian"` is available when the optional Bayesian
-dependencies are installed.
+Use `model_engine = "bayesian"` when you want posterior uncertainty and the
+coverage-offset true-flow model. Use `model_engine = "frequentist"` for faster
+testing, experimentation and method comparison. When you supply a custom
+`mobility_formula` for S2-S4, include `mpd_time`, `mpd_source`, or both if you
+want those repeated source/time effects estimated explicitly; the default
+formula adds the relevant scenario fixed effects automatically.
 
 ## Fit all methods
 
-We can also run all six adjustment methods at once on the same empirical LAD subset:
+We can also run all six adjustment methods at once on the same empirical LAD
+subset. The helper uses the frequentist multilevel engine by default here so the
+method-comparison table renders quickly; switch `multilevel_engine` to
+`"bayesian"` when you want posterior summaries and have time to inspect sampler
+diagnostics.
 
 ```{r}
 method_results <- fit_adjustment_methods(
@@ -899,7 +906,7 @@ method_summary <- tibble::tribble(
   ),
   "Yes", "Yes", "No", "Yes",
   "Richer structure, no benchmark OD needed for fitting, and a path to uncertainty-aware partial pooling.",
-  "Heavier runtime and dependencies; S2-S4 Bayesian fitting is still being transferred from the development contract."
+  "Heavier runtime and dependencies; posterior fitting requires sampler diagnostics and careful runtime checks."
 )
 
 table_html <- knitr::kable(
