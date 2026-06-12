@@ -28,8 +28,9 @@ adjust_multilevel_bayes(
   backend = c("auto", "rstanarm", "brms"),
   flow_adj_summary = c("mean", "median"),
   target_scale = c("mpd_counterfactual", "true_flow"),
-  observation_model = c("reduced_form", "coverage_offset"),
+  observation_model = c("reduced_form", "coverage_offset", "latent_two_level"),
   coverage_scale = c("origin", "destination", "both"),
+  latent_flow_unit = c("auto", "od", "od_time"),
   prediction_scope = c("observed", "complete_grid"),
   iter = 1000,
   chains = 2,
@@ -128,8 +129,7 @@ experimentation, and runtime-sensitive comparisons.}
 
 \item{flow_adj_summary}{Summary for posterior draw-level adjusted flows:
 \code{"mean"} or \code{"median"}. This controls how the draw-level
-Stage-1 adjusted flows are collapsed into the returned \code{flow_adj}
-column after removing the estimated coverage-bias contribution.}
+adjusted flows are collapsed into the returned \code{flow_adj} column.}
 
 \item{target_scale}{Adjustment target. \code{"mpd_counterfactual"} preserves
 the reduced-form MPD-scale counterfactual. \code{"true_flow"} estimates a
@@ -138,11 +138,19 @@ true-flow scale by using coverage as an observation-process offset.}
 \item{observation_model}{Observation model. \code{"reduced_form"} preserves
 the existing fitted-bias-covariate path. \code{"coverage_offset"} uses
 active-user coverage as a fixed offset and is required for
-\code{target_scale = "true_flow"}.}
+\code{target_scale = "true_flow"}. \code{"latent_two_level"} fits an
+experimental two-level prototype with a shared latent-flow random
+intercept and coverage-offset observation process.}
 
 \item{coverage_scale}{Coverage rate used by \code{"coverage_offset"}:
 \code{"origin"} uses \eqn{c_i}, \code{"destination"} uses \eqn{c_j}, and
 \code{"both"} uses \eqn{\sqrt{c_i c_j}}.}
+
+\item{latent_flow_unit}{Latent state used when
+\code{observation_model = "latent_two_level"}. \code{"od"} shares one
+latent flow across source/time observations of an OD pair; \code{"od_time"}
+shares one latent flow across sources within each OD-time cell.
+\code{"auto"} chooses \code{"od_time"} for S2/S4 and \code{"od"} otherwise.}
 
 \item{prediction_scope}{Prediction contract. \code{"observed"} preserves the
 original observed-row workflow. \code{"complete_grid"} requires a strict
@@ -199,20 +207,15 @@ The complete-grid mode fits to originally observed source rows and predicts
 adjusted flows for every row in a supplied square OD grid.
 }
 \details{
-Core idea:
-\deqn{\log(\mu^{obs}_{ij}) = f(X_i, X_j, d_{ij}, e_i, u)}
-where \eqn{e_i} is origin bias from coverage and \eqn{u} is an optional
-random-effect structure supplied through a model formula.
-
 Users can either supply a single reduced-form \code{formula}, or separate
 \code{mobility_formula} and \code{bias_formula} terms. The split interface
 keeps the conceptual Level-2 true-flow predictors separate from the Level-1
-MPD observation-bias predictors, while the current implementation still fits
-one reduced-form model to observed MPD flows.
+MPD observation-bias predictors.
 
-The adjusted flow is computed from a formula-aware fixed-effect
-counterfactual prediction with the numeric variables in \code{bias_formula}
-set to zero, then summarizes draw-level adjusted flows by mean or median.
+In \code{target_scale = "mpd_counterfactual"} mode, the adjusted flow is
+computed from a formula-aware fixed-effect counterfactual prediction with
+the numeric variables in \code{bias_formula} set to zero, then summarizes
+draw-level adjusted flows by mean or median.
 
 In \code{target_scale = "true_flow"} mode, coverage is treated as an
 observation-process offset. The fitted model is
@@ -220,6 +223,12 @@ observation-process offset. The fitted model is
 where \eqn{q_{ij}} is derived from origin, destination, or geometric-mean
 active-user coverage. The returned \code{flow_adj} is the estimated
 true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
+
+In \code{observation_model = "latent_two_level"} mode, the Bayesian path adds
+an experimental shared \code{latent_flow_id} random intercept for repeated
+OD or OD-time states while retaining the coverage-offset observation model.
+This prototype is most informative for repeated source structures (S3/S4)
+and is weaker for S1/S2 designs.
 }
 \examples{
 if (requireNamespace("lme4", quietly = TRUE)) {

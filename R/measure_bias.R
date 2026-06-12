@@ -71,6 +71,126 @@ measure_bias <- function(coverage_df) {
   return(coverage_df)
 }
 
+#' Measure active-user versus population distribution bias
+#'
+#' @description
+#' Compares the spatial distribution of active users with the benchmark
+#' population distribution. This complements \code{measure_bias()}, which
+#' reports area-level coverage rates. Here the target is distributional
+#' imbalance: whether active users are allocated across areas in the same
+#' proportions as the benchmark population.
+#'
+#' The directional metric is:
+#' \deqn{KL(population || active users)}
+#' and Jensen-Shannon divergence is returned as a symmetric companion metric.
+#' Lower values mean the active-user distribution is closer to the population
+#' distribution.
+#'
+#' @param coverage_df A data frame with one row per area, containing an area
+#'   identifier, benchmark population, and active-user count.
+#' @param area_col Area identifier column. Default \code{"origin"}.
+#' @param population_col Population column. Default \code{"population"}.
+#' @param user_count_col Active-user count column. Default \code{"user_count"}.
+#' @param epsilon Small positive smoothing constant added before shares are
+#'   computed. Default \code{1e-8}.
+#' @param return_area_level Logical; return one row per area in the output.
+#'   Default \code{TRUE}.
+#'
+#' @return A list with:
+#' \itemize{
+#'   \item \code{summary}: one-row tibble with KL, JSD, totals, and share
+#'     difference summaries,
+#'   \item \code{area_level}: area-level tibble with population/user shares and
+#'     KL/JSD contributions when \code{return_area_level = TRUE}.
+#' }
+#'
+#' @examples
+#' data(simulated_coverage)
+#' measure_bias_distribution(simulated_coverage)
+#'
+#' @export
+measure_bias_distribution <- function(coverage_df,
+                                      area_col = "origin",
+                                      population_col = "population",
+                                      user_count_col = "user_count",
+                                      epsilon = 1e-8,
+                                      return_area_level = TRUE) {
+  .validate_distribution_epsilon(epsilon)
+
+  required_cols <- c(area_col, population_col, user_count_col)
+  missing_cols <- setdiff(required_cols, names(coverage_df))
+  if (length(missing_cols) > 0L) {
+    stop("`coverage_df` must contain: ", paste(required_cols, collapse = ", "))
+  }
+
+  coverage_tbl <- coverage_df |>
+    dplyr::select(
+      area = dplyr::all_of(area_col),
+      population = dplyr::all_of(population_col),
+      user_count = dplyr::all_of(user_count_col)
+    )
+
+  if (any(is.na(coverage_tbl$area))) {
+    stop("`area_col` contains NA values; areas must be identifiable.")
+  }
+  if (anyDuplicated(coverage_tbl$area) > 0L) {
+    stop("`coverage_df` must contain one row per area.")
+  }
+  if (any(is.na(coverage_tbl$population))) {
+    stop("`population_col` contains NA values; cannot compute distribution bias.")
+  }
+  if (any(is.na(coverage_tbl$user_count))) {
+    stop("`user_count_col` contains NA values; cannot compute distribution bias.")
+  }
+  if (any(coverage_tbl$population <= 0, na.rm = TRUE)) {
+    stop("`population_col` must be positive.")
+  }
+  if (any(coverage_tbl$user_count < 0, na.rm = TRUE)) {
+    stop("`user_count_col` must be non-negative.")
+  }
+
+  area_level <- measure_bias(coverage_tbl) |>
+    dplyr::mutate(
+      population_share = .distribution_shares(.data$population, epsilon),
+      user_share = .distribution_shares(.data$user_count, epsilon),
+      share_difference_user_minus_population =
+        .data$user_share - .data$population_share,
+      midpoint_share = 0.5 * (.data$population_share + .data$user_share),
+      kl_contribution = .data$population_share *
+        log(.data$population_share / .data$user_share),
+      jsd_contribution = .distribution_jsd_contributions(
+        .data$population_share,
+        .data$user_share
+      )
+    )
+
+  summary_tbl <- tibble::tibble(
+    comparison = "active_users_vs_population",
+    reference_distribution = "population",
+    comparison_distribution = "active_users",
+    n_areas = nrow(area_level),
+    total_population = sum(area_level$population, na.rm = TRUE),
+    total_user_count = sum(area_level$user_count, na.rm = TRUE),
+    epsilon = epsilon,
+    kl_population_user = sum(area_level$kl_contribution, na.rm = TRUE),
+    jsd_population_user = sum(area_level$jsd_contribution, na.rm = TRUE),
+    mean_abs_share_difference = mean(
+      abs(area_level$share_difference_user_minus_population),
+      na.rm = TRUE
+    ),
+    max_abs_share_difference = max(
+      abs(area_level$share_difference_user_minus_population),
+      na.rm = TRUE
+    )
+  )
+
+  out <- list(summary = summary_tbl)
+  if (isTRUE(return_area_level)) {
+    out$area_level <- area_level
+  }
+  out
+}
+
 .normalise_benchmark_flow_roles <- function(benchmark_flow_roles) {
   if (is.null(benchmark_flow_roles) || length(benchmark_flow_roles) == 0L) {
     return(character())

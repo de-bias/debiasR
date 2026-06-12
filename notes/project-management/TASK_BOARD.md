@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-06-05
+Last updated: 2026-06-12
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -19,13 +19,16 @@ The staged track below is intended to be implemented one stage per chat window. 
 - Keep all changes to `main` flowing through pull requests with code-owner
   review.
 
-2. Scope latent two-level Bayesian enhancement - `1-2h`
-- Enhancement issue #18 is open for implementing a genuinely latent two-level
-  Bayesian model in `adjust_multilevel_bayes()`.
-- The current intermediate implementation separates `mobility_formula` and
-  `bias_formula`, but still fits one reduced-form observed-flow model.
-- Before implementing the latent model, write a design note covering priors,
-  identifiability, required data structures, S1-S4 scope, and diagnostics.
+2. Harden latent two-level Bayesian enhancement - `1-2 days`
+- Enhancement issue #18 now has a design note and first experimental
+  `observation_model = "latent_two_level"` prototype in
+  `adjust_multilevel_bayes()`.
+- The prototype creates `latent_flow_id` states, adds a shared latent-state
+  random intercept in the Bayesian observation model, and records latent-state
+  metadata and identifiability notes.
+- Remaining work is to evaluate whether a custom latent backend is needed for
+  stronger priors, source/time observation-layer effects, posterior predictive
+  diagnostics, and larger S3/S4 empirical workflows.
 
 3. Validate optional Bayesian CI workflow - `1-2h`
 - Fast core GitHub Actions validation passed on merged PR #11.
@@ -38,6 +41,25 @@ The staged track below is intended to be implemented one stage per chat window. 
   `debiasRdata::lad_centroids`.
 
 ## Recently Completed
+
+1. Implement distributional bias API and latent prototype scaffolding - `complete`
+- Completed on 2026-06-12 for the current development branch.
+- `measure_bias_distribution()` is now exported package API for
+  active-user-versus-population distributional bias.
+- `validate_flow_distribution()` now supports raw-versus-benchmark,
+  adjusted-versus-benchmark, and raw-versus-adjusted comparisons through the
+  same origin-conditioned KL/JSD contract.
+- `adjust_multilevel_bayes()` now exposes the experimental
+  `observation_model = "latent_two_level"` option for repeated source/time
+  structures while preserving the frequentist engine for shared S1-S4 data
+  contract testing.
+- This is a prototype milestone for issue #18, not the final closure of the
+  latent-model enhancement; custom-backend hardening remains in Now.
+- Vignettes and project notes were updated to explain the new package-level
+  functions and the latent prototype status. The main adjustment vignette now
+  teaches the default coverage-offset Bayesian implementation, while the
+  advanced Bayesian adjustment vignette carries the latent prototype,
+  reduced-form compatibility, S1-S4 source/time, and diagnostics material.
 
 1. Make repository public on GitHub - `complete`
 - Completed on 2026-06-04.

@@ -1,12 +1,12 @@
 # Project Status
 
-Last updated: 2026-06-05
+Last updated: 2026-06-12
 
 ## Snapshot
 
-- Project stage: active development (`0.0.0.9000`)
+- Project stage: active development (`0.0.0.9001`)
 - Repository visibility: public on GitHub since 2026-06-04
-- Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics
+- Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
 - Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; S1-S4 source/time scenarios are supported by both Bayesian and frequentist engines, while empirical use remains dependency- and runtime-sensitive
 - Current execution board: see [TASK_BOARD.md](TASK_BOARD.md)
@@ -16,6 +16,7 @@ Last updated: 2026-06-05
 ### Stable adjustment and validation API
 
 - `measure_bias()`
+- `measure_bias_distribution()`
 - `validate_bias_residual_structure()`
 - `adjust_inverse_penetration()`
 - `adjust_selection_rate()`
@@ -37,6 +38,7 @@ Last updated: 2026-06-05
   - row-status metadata distinguishes observed MPD rows from zero-filled source-missing cells
   - scenario metadata now distinguishes S1 single-source/single-time, S2 single-source/multiple-time, S3 multiple-source/single-time, and S4 multiple-source/multiple-time inputs
   - S1-S4 repeated source/time scenarios can now be fitted with `model_engine = "bayesian"` or `model_engine = "frequentist"`
+  - `observation_model = "latent_two_level"` is available as an experimental Bayesian prototype for repeated source/time structures; it creates `latent_flow_id` states and records latent-state metadata and identifiability notes
   - `model_terms` metadata records the resolved default fixed-effect and random-effect structure for the shared S1-S4 scenario contract
   - `model_engine = "frequentist"` remains useful for fast testing, experimentation, and method comparison before committing to Bayesian runtime
   - performance and dependency footprint are heavy relative to fixed-rule adjustment methods
@@ -55,6 +57,9 @@ Last updated: 2026-06-05
 - Bias metric updated to:
   - `coverage_bias = 1 - user_count/population`
   - `coverage_score = user_count/population`
+- `measure_bias_distribution()` now compares benchmark-population and
+  active-user spatial distributions using KL divergence, Jensen-Shannon
+  divergence, share differences, and area-level contribution outputs.
 - Top-level docs were refreshed to reflect the exported API, the implemented `debiasRdata` companion package, simulated test fixtures, and current repository structure
 - User-facing docs now name the default empirical OD matrices explicitly: `lad_OD_travel2work` for observed MPD travel-to-work flows and `census_lad_OD_travel2work` for the Census benchmark. MSOA assets remain available through `geography = "msoa"` when needed.
 - `debiasR_example_data()` now supports optional complete-grid OD output with zero-filled absent pairs, row-status indicators, an OD audit for strict square support, and selected-area LAD distances computed from `debiasRdata::lad_centroids`.
@@ -67,9 +72,20 @@ Last updated: 2026-06-05
   observation-bias components separately.
 - Enhancement issue #18 records the planned genuinely latent two-level
   Bayesian model, where `F_true_ij` is estimated explicitly rather than
-  recovered only through a zero-bias counterfactual prediction.
+  recovered only through a zero-bias counterfactual prediction. The current
+  branch includes a first experimental `latent_two_level` prototype using a
+  shared latent-state random intercept; a fuller custom latent backend remains
+  future hardening work.
+- `validate_flow_distribution()` now supports `comparisons = "all"` so raw
+  MPD, adjusted MPD-derived, and benchmark OD-flow allocation distributions can
+  be compared through the same KL/JSD contract.
 - The default S1-S4 formula contract is documented for both engines: S1 uses the base OD/covariate/bias terms, S2 adds `mpd_time`, S3 adds `mpd_source`, and S4 adds `mpd_source + mpd_time`; S4 source-time interaction remains deferred.
-- The adjustment vignette now includes a Bayesian coverage-offset example with constant source/time columns, raw/adjusted/benchmark comparison columns, and parameter guidance for S2-S4 source/time structures.
+- The adjustment vignette now keeps the Bayesian walkthrough focused on the
+  default coverage-offset example with constant source/time columns and
+  raw/adjusted/benchmark comparison columns.
+- The advanced Bayesian adjustment vignette now explains S1-S4 source/time
+  structures, the experimental `latent_two_level` prototype, reduced-form
+  compatibility mode, and Bayesian diagnostics.
 - The adjustment vignette now reads its compact Bayesian example output from a
   precomputed package artifact reporting posterior median and mean summaries;
   maintainers can regenerate it explicitly with
@@ -135,6 +151,12 @@ Last updated: 2026-06-05
   test file remains slow. The targeted check verifies scenario metadata,
   source/time-specific coverage offsets, and MPD-scale versus true-flow-scale
   prediction algebra.
+- Fast deterministic validation on 2026-06-12 passed with
+  `Rscript scripts/run_fast_tests.R`. The tier now covers
+  `measure_bias_distribution()`, extended `validate_flow_distribution()`
+  comparisons, and the latent two-level prototype metadata/data-contract path.
+  The current vignette split still needs a pkgdown render after the advanced
+  Bayesian article is added.
 
 ## Current Risks / Blockers
 
@@ -153,6 +175,7 @@ Last updated: 2026-06-05
 3. Validate the optional/manual Bayesian workflow behavior on GitHub Actions when Bayesian-lane validation is needed; the local optional Bayesian test file now passes.
 4. Keep top-level docs synchronized with exported API (`NAMESPACE`).
 5. Record feasible LAD empirical grid sizes and runtime expectations before promoting Bayesian examples beyond prototype guidance.
-6. Scope enhancement issue #18 into a latent-model design note before changing
-   the Bayesian fitting engine.
+6. Harden enhancement issue #18 beyond the current `latent_two_level`
+   prototype when a custom latent backend, prior controls, and richer
+   diagnostics are ready.
 7. Use MSOA-scale inputs for software/runtime stress tests and LAD-scale inputs for vignettes and teaching material as the S1-S4 scenario work develops.

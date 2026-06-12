@@ -1,6 +1,6 @@
 # Coauthor Package Overview
 
-Last updated: 2026-05-18
+Last updated: 2026-06-12
 
 ## Purpose
 
@@ -14,16 +14,21 @@ Purpose:
 
 - compare benchmark population against active-user coverage
 - quantify where mobile-phone-derived data appear under- or over-representative
+- compare the active-user spatial distribution against the benchmark
+  population distribution
 
 Main functions:
 
 - `measure_bias()`
+- `measure_bias_distribution()`
 - `validate_bias_residual_structure()`
 
 Current status:
 
 - implemented
 - Stage 3 diagnostics are maintainer-reviewed and stable
+- distributional bias measurement is exported as package API in the current
+  development branch
 
 ### 2. Adjust Bias
 
@@ -48,6 +53,8 @@ Current status:
 - deterministic methods are the main stable path
 - Bayesian method is still experimental but now supports observed-flow and
   complete-grid prediction scopes
+- the latent two-level Bayesian option is available as an experimental
+  prototype for repeated source/time structures
 - empirical Bayesian use remains dependency- and runtime-sensitive
 
 ### 3. Validate Adjusted Flows
@@ -96,13 +103,15 @@ Empirical data:
 - overall validation
 - OD-level residual diagnostics
 - distributional validation
+- distributional bias measurement
 - measure-bias residual diagnostics
 - empirical OD-flow loading when `debiasRdata` is installed
 
 ## What Is Still In Progress
 
 - Stage 4 origin-destination random-effects extension
-- Bayesian path hardening and complete-grid empirical validation
+- Bayesian path hardening, including the fuller latent two-level backend
+- complete-grid empirical validation
 - empirical Bayesian runtime guidance for feasible LAD grid sizes
 
 ## Suggested Reading Order

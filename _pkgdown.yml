@@ -27,6 +27,8 @@ navbar:
       menu:
       - text: Adjusting origin-destination flows
         href: articles/v06-adjusting-biases.html
+      - text: Advanced Bayesian adjustment
+        href: articles/v09-advanced-bayesian-adjustment.html
     validate:
       text: Validate
       menu:
@@ -51,6 +53,7 @@ articles:
   navbar: Adjust flows
   contents:
   - v06-adjusting-biases
+  - v09-advanced-bayesian-adjustment
 - title: Validate flows
   navbar: Validate
   contents:
@@ -67,6 +70,7 @@ reference:
 - title: Measure bias
   contents:
   - measure_bias
+  - measure_bias_distribution
   - validate_bias_residual_structure
 - title: Adjust flows
   contents:
