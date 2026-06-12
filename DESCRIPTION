@@ -17,6 +17,7 @@ Imports:
     tibble,
     magrittr,
     rlang,
+    rstanarm,
     stats
 Suggests:
     debiasRdata,
@@ -27,7 +28,6 @@ Suggests:
     lme4,
     pscl,
     brms,
-    rstanarm,
     ggplot2,
     ggthemes,
     showtext,

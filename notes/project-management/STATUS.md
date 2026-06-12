@@ -40,7 +40,7 @@ Last updated: 2026-06-05
   - `model_terms` metadata records the resolved default fixed-effect and random-effect structure for the shared S1-S4 scenario contract
   - `model_engine = "frequentist"` remains useful for fast testing, experimentation, and method comparison before committing to Bayesian runtime
   - performance and dependency footprint are heavy relative to fixed-rule adjustment methods
-  - backend guidance: prefer `rstanarm` for standard Poisson / negative-binomial models because it is lighter and easier to fit in a package workflow; use `brms` when you need extra flexibility, especially zero-inflated or more complex Bayesian specifications
+  - backend guidance: `rstanarm` is the default package dependency for standard Poisson / negative-binomial models because it is lighter and easier to fit in a package workflow; use optional `brms` when you need extra flexibility, especially zero-inflated or more complex Bayesian specifications
 
 ## What Changed Recently
 
@@ -70,6 +70,11 @@ Last updated: 2026-06-05
   recovered only through a zero-bias counterfactual prediction.
 - The default S1-S4 formula contract is documented for both engines: S1 uses the base OD/covariate/bias terms, S2 adds `mpd_time`, S3 adds `mpd_source`, and S4 adds `mpd_source + mpd_time`; S4 source-time interaction remains deferred.
 - The adjustment vignette now includes a Bayesian coverage-offset example with constant source/time columns, raw/adjusted/benchmark comparison columns, and parameter guidance for S2-S4 source/time structures.
+- The adjustment vignette now reads its compact Bayesian example output from a
+  precomputed package artifact reporting posterior median and mean summaries;
+  maintainers can regenerate it explicitly with
+  `Rscript scripts/precompute_v06_bayesian_example.R` when the model or data
+  change.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
 - Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside the validation helpers for now; `sf`-aware mapping remains outside the package; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.
@@ -136,7 +141,7 @@ Last updated: 2026-06-05
 1. Public repository visibility raises the bar for repository hygiene: avoid committing confidential material, credentials, restricted raw data, or development-only artifacts that are not intended for public release.
 2. Documentation mismatch risk now mainly sits in archival migration materials and older review notebook sources that intentionally use fixed test fixtures.
 3. Test suite reliability still depends on using the curated runner rather than raw `test_dir()` calls.
-4. Bayesian tests are slower and environment-sensitive due to optional dependencies; run them manually when Bayesian-lane validation is needed.
+4. Bayesian tests are slower and environment-sensitive due to MCMC runtime and optional `brms` support; run them manually when Bayesian-lane validation is needed.
 5. CI has been scaffolded and the fast core workflow passed on merged PR #11; the current branch head still needs live validation on the next PR or push.
 6. Full cartographic residual maps remain user-supplied because the package deliberately avoids adding an `sf` dependency at this stage.
 7. The default LAD empirical route now has selected-area distance support through `lad_centroids`; MSOA distance-aware examples still require a future `msoa_OD_distance` or `msoa_centroids` asset if `geography = "msoa"` is needed.

@@ -241,7 +241,7 @@ method_summary <- tibble::tribble(
   "Yes", "Yes", "No", "Yes", "Yes",
   "Model family and hierarchy are well specified; coverage bias is captured by the fitted bias term; S1-S4 source/time structure is declared explicitly.",
   "Richer structure, no benchmark OD needed for fitting; frequentist engine gives a fast contract check before Bayesian sampling.",
-  "Bayesian runtime and optional dependencies are heavier; posterior output needs sampler diagnostics before interpretation.",
+  "Bayesian runtime is heavier; posterior output needs sampler diagnostics before interpretation.",
   "Promising for noisy or sparse observed OD correction; not yet ready for full OD completion.",
   "Posterior predictive checks plus <code>validate_flow_overall()</code> on observed OD rows; use <code>validate_flow_residuals()</code> for row-level audit."
 )

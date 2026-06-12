@@ -480,9 +480,9 @@ observations of true flows, rather than as flows that are only adjusted after
 fitting by switching off a bias covariate. The multilevel structure can borrow
 information across origins, destinations, sources or time periods when those
 data structures are available. The Bayesian implementation can take time, so the
-example below uses deliberately short sampler settings to keep the vignette
-renderable. For analysis, increase the number of iterations and chains and check
-the sampler diagnostics before interpreting the posterior summaries.
+vignette shows the model code but renders a precomputed example output. For
+analysis, run enough iterations and chains for your data and check the sampler
+diagnostics before interpreting the posterior summaries.
 
 In coverage-offset true-flow mode, the model can be written as:
 
@@ -596,10 +596,14 @@ bias_formula_origin <- ~ bias_e_origin
 Use this model specification when the data support origin, destination and
 corridor partial pooling. In an S1 scenario, like the example below, each OD
 corridor appears once, so the corridor random effect is weakly identified. We
-recommend not using it in such scenarios. The example below therefore runs a
-Bayesian fixed-effect true-flow model with an origin coverage offset.
+recommend not using it in such scenarios. The example below therefore uses a
+Bayesian fixed-effect true-flow model with an origin coverage offset. The model
+code is shown for reproducibility, while the rendered table is loaded from a
+precomputed package artifact so routine vignette updates do not rerun MCMC.
+Regenerate the artifact explicitly with
+`Rscript scripts/precompute_v06_bayesian_example.R`.
 
-```{r}
+```{r eval=FALSE}
 mpd_s1 <- example_data$mpd_od |>
   dplyr::mutate(
     mpd_source = "operator_a",
@@ -612,51 +616,66 @@ coverage_s1 <- example_data$coverage |>
     mpd_time = "2021_q1"
   )
 
-adj_multilevel <- NULL
-
-if (!requireNamespace("rstanarm", quietly = TRUE)) {
-  tibble::tibble(
-    note = "Install rstanarm to run this Bayesian example."
-  )
-} else {
-  adj_multilevel <- adjust_multilevel_bayes(
-    mpd_od_df = mpd_s1,
-    coverage_df = coverage_s1,
-    covariates_df = example_data$covariates,
-    distance_df = example_data$distance,
-    mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
-    bias_formula = ~ bias_e_origin,
-    target_scale = "true_flow",
-    observation_model = "coverage_offset",
-    coverage_scale = "origin",
-    model_engine = "bayesian",
-    scenario = "s1",
-    source_col = "mpd_source",
-    time_col = "mpd_time",
-    repeated_observation = "none",
-    prediction_scope = "complete_grid",
-    random_intercept = "none",
-    model_family = "poisson",
-    flow_adj_summary = "median",
-    iter = 100,
-    chains = 1,
-    seed = 123,
-    refresh = 0
-  )
-
-  show_adjustment_comparison(
-    adj_multilevel,
-    extra_cols = c("observation_probability", "flow_mpd_pred")
-  )
-}
+adj_multilevel <- adjust_multilevel_bayes(
+  mpd_od_df = mpd_s1,
+  coverage_df = coverage_s1,
+  covariates_df = example_data$covariates,
+  distance_df = example_data$distance,
+  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
+  bias_formula = ~ bias_e_origin,
+  target_scale = "true_flow",
+  observation_model = "coverage_offset",
+  coverage_scale = "origin",
+  model_engine = "bayesian",
+  scenario = "s1",
+  source_col = "mpd_source",
+  time_col = "mpd_time",
+  repeated_observation = "none",
+  prediction_scope = "complete_grid",
+  random_intercept = "none",
+  model_family = "poisson",
+  flow_adj_summary = "median",
+  include_flow_adj_draws = TRUE,
+  iter = 1000,
+  chains = 2,
+  seed = 123,
+  refresh = 0
+)
 ```
 
-For the Bayesian model, `flow_mpd_adjusted` is the adjusted MPD-derived estimate
-returned by the model; in `target_scale = "true_flow"` mode, it equals
-`flow_adj` and `flow_true_pred`. The benchmark column is shown for
-interpretation and validation, but it is not used to fit the Bayesian model.
-The column `flow_mpd_pred` is the fitted expected flow on the MPD observation
-scale, before removing the coverage offset.
+The precomputed output below reports both posterior median and posterior mean
+summaries from this model fit.
+
+```{r echo=FALSE}
+bayesian_example_file <- system.file(
+  "extdata",
+  "v06-bayesian-s1-comparison.csv",
+  package = "debiasR"
+)
+
+if (identical(bayesian_example_file, "")) {
+  stop(
+    "Missing precomputed Bayesian vignette output. ",
+    "Regenerate it with scripts/precompute_v06_bayesian_example.R."
+  )
+}
+
+bayesian_example <- tibble::as_tibble(
+  utils::read.csv(bayesian_example_file, check.names = FALSE)
+)
+
+knitr::kable(bayesian_example, digits = 2)
+```
+
+For the Bayesian model, `flow_mpd_adjusted_median` and
+`flow_mpd_adjusted_mean` are posterior summaries of the adjusted MPD-derived
+true-flow estimate. The function call sets `flow_adj_summary = "median"`, so
+the returned `flow_adj` equals the posterior median by default; the vignette
+also reports the posterior mean so readers can see whether the posterior is
+skewed. The benchmark column is shown for interpretation and validation, but it
+is not used to fit the Bayesian model. The `flow_mpd_pred_*` columns are the
+corresponding fitted expected flows on the MPD observation scale, before
+removing the coverage offset.
 
 For a richer dataset, use the full multilevel formula in the function call:
 
@@ -692,8 +711,9 @@ adj_multilevel_full |>
   )
 ```
 
-The short sampler settings above are only for vignette rendering. For applied
-analysis, run more iterations and multiple chains and inspect the diagnostics:
+The saved example uses moderate sampler settings for a compact illustration.
+For applied analysis, run enough iterations and chains for your data and inspect
+the diagnostics:
 
 ```{r eval=FALSE}
 adj_multilevel_bayes <- adjust_multilevel_bayes(
@@ -728,26 +748,28 @@ attr(adj_multilevel_bayes, "diagnostics")
 
 You can inspect the metadata to confirm the scenario and formula fitted.
 
-```{r}
-if (!is.null(adj_multilevel)) {
-  attr(adj_multilevel, "result_metadata")[c(
-    "model_engine",
-    "backend",
-    "target_scale",
-    "observation_model",
-    "coverage_scale",
-    "offset_column",
-    "scenario",
-    "repeated_observation",
-    "n_sources",
-    "n_time_periods",
-    "prediction_scope"
-  )]
+```{r echo=FALSE}
+bayesian_metadata_file <- system.file(
+  "extdata",
+  "v06-bayesian-s1-metadata.csv",
+  package = "debiasR"
+)
+
+bayesian_terms_file <- system.file(
+  "extdata",
+  "v06-bayesian-s1-model-terms.csv",
+  package = "debiasR"
+)
+
+if (identical(bayesian_metadata_file, "") || identical(bayesian_terms_file, "")) {
+  stop(
+    "Missing precomputed Bayesian vignette metadata. ",
+    "Regenerate it with scripts/precompute_v06_bayesian_example.R."
+  )
 }
 
-if (!is.null(adj_multilevel)) {
-  attr(adj_multilevel, "model_terms")
-}
+tibble::as_tibble(utils::read.csv(bayesian_metadata_file))
+tibble::as_tibble(utils::read.csv(bayesian_terms_file))
 ```
 
 The output returns the observed MPD flow in `flow`, the fitted MPD-scale
@@ -920,6 +942,16 @@ cat("<div class='method-table-wrap'>", table_html, "</div>")
 ```
 
 <style>
+main table {
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+main table th,
+main table td {
+  vertical-align: top;
+}
+
 .method-table-wrap {
   overflow-x: auto;
   margin: 1.25rem 0 1.75rem 0;
@@ -931,13 +963,10 @@ cat("<div class='method-table-wrap'>", table_html, "</div>")
 
 .method-summary-table {
   min-width: 1650px;
-  font-size: 0.9rem;
-  line-height: 1.45;
 }
 
 .method-summary-table th,
 .method-summary-table td {
-  vertical-align: top;
   padding: 0.75rem;
   white-space: normal;
 }
