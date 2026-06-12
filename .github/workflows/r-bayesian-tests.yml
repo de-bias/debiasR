@@ -26,7 +26,6 @@ jobs:
           extra-packages: |
             any::devtools
             any::testthat
-            any::rstanarm
 
       - name: Run Bayesian tests
         timeout-minutes: 20

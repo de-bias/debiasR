@@ -30,7 +30,7 @@ The staged track below is intended to be implemented one stage per chat window. 
 3. Validate optional Bayesian CI workflow - `1-2h`
 - Fast core GitHub Actions validation passed on merged PR #11.
 - Current branch fast core tests pass locally.
-- Local optional Bayesian smoke checks use `rstanarm`; the remaining workflow check is the manual/optional GitHub Actions lane when broader Bayesian validation is required.
+- Local Bayesian smoke checks use the default `rstanarm` backend; the remaining workflow check is the manual/optional GitHub Actions lane when broader Bayesian validation is required.
 - Confirm the optional/manual Bayesian lane on GitHub Actions when Bayesian-lane validation is required.
 - The Stage-1 Bayesian implementation now supports S1-S4 source/time scenarios;
   the frequentist engine remains available for fast testing and experimentation.
@@ -64,7 +64,7 @@ The staged track below is intended to be implemented one stage per chat window. 
 - `adjust_multilevel_bayes()` is documented as the main methodological innovation.
 - Observed-flow mode remains backward compatible.
 - Complete-grid prediction mode is available for strict square OD matrices and preserves row-status metadata.
-- Full empirical Bayesian rendering remains gated by Bayesian dependencies, runtime, and empirical runtime validation.
+- Full empirical Bayesian rendering remains gated by runtime and empirical validation.
 
 5. Create `debiasRdata` companion package - `complete`
 - Repository: <https://github.com/de-bias/debiasRdata>.

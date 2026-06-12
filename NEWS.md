@@ -60,7 +60,13 @@
 - Added a primary `formula` interface for `adjust_multilevel_bayes()`, with arbitrary area covariates available as `{covariate}_o` and `{covariate}_d`, formula-specified random effects and slopes, and legacy `custom_formula` / `income_col` compatibility retained.
 - Added a frequentist development engine for fast testing of the shared multilevel data contract, complete-grid semantics, and bias-removal algebra; use this engine for quick experimentation and runtime-sensitive method comparison.
 - Added `model_terms` metadata to the multilevel result contract so the resolved default fixed-effect and random-effect structure can be inspected directly.
-- Enabled the Bayesian engine for S2-S4 repeated source/time scenarios, so the same `scenario`, `source_col`, `time_col`, and `repeated_observation` contract now works with either `model_engine = "bayesian"` or `model_engine = "frequentist"`. Optional rstanarm tests now smoke-check the S2-S4 formula contract and an S4 Bayesian fit with source/time-specific coverage offsets.
+- Enabled the Bayesian engine for S2-S4 repeated source/time scenarios, so the same `scenario`, `source_col`, `time_col`, and `repeated_observation` contract now works with either `model_engine = "bayesian"` or `model_engine = "frequentist"`. Bayesian smoke tests now check the S2-S4 formula contract and an S4 Bayesian fit with source/time-specific coverage offsets.
+- Moved `rstanarm` into the default package imports so the standard Bayesian
+  backend is installed with `debiasR`, and simplified the adjustment vignette
+  so the Bayesian example runs directly.
+- Added a precomputed Bayesian vignette result artifact and regeneration script
+  so routine vignette renders include posterior median and mean example output
+  without rerunning MCMC.
 - Expanded fast tests with MSOA-like S1-S4 fixtures that exercise the default frequentist formula contract and complete-grid prediction metadata.
 - Updated workshop/testing vignettes to show a Bayesian coverage-offset example, raw/adjusted/benchmark comparison columns, active-user coverage notation, and parameter guidance for S1-S4 repeated source/time structures.
 
@@ -102,4 +108,4 @@
 ### Migration notes
 
 - Package documentation and onboarding now refer to `adjust_*` functions and the current example-data workflow consistently.
-- `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; empirical Bayesian rendering still requires explicit dependency, runtime, and real-distance validation.
+- `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; empirical Bayesian rendering still requires runtime and real-distance validation.

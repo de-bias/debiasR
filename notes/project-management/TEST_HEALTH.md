@@ -11,7 +11,7 @@ Last updated: 2026-05-21
 - Optional Bayesian runner:
   - `Rscript scripts/run_bayesian_tests.R`
 - The runner loads the package with `devtools::load_all(".")` before executing targeted tests.
-- Full suite still includes a slower Bayesian test file with optional dependencies.
+- Full suite still includes a slower Bayesian test file with MCMC runtime and optional `brms` coverage.
 - Observed behavior today:
   - `Rscript scripts/run_fast_tests.R` passes, most recently on 2026-05-21 after adding MSOA-like frequentist multilevel formula-contract tests and a Bayesian S2-S4 deferral guard.
   - merged PR #11 (`Codex/validation distribution`) passed the GitHub Actions fast deterministic workflow for commit `59705b376c26a4b33ecbbc9cd1063b037fd61572`.
@@ -58,13 +58,13 @@ Last updated: 2026-05-21
 ### Tier 2: Bayesian / slow / dependency-sensitive
 
 - `tests/testthat/test-adjust-multilevel-bayes.R`
-- Requires optional packages and longer runtime.
+- Requires longer runtime; `brms` remains optional for extra model families.
 
 ## Current Known Test Issues
 
 1. Direct `testthat::test_dir("tests/testthat")` without package load context may fail.
-2. Bayesian tests are slower and environment-sensitive because of optional dependencies.
-3. Full package checks that run the optional Bayesian lane may still be slow on machines with `rstanarm` installed.
+2. Bayesian tests are slower and environment-sensitive because of MCMC runtime and optional `brms` support.
+3. Full package checks that run the optional Bayesian lane may still be slow because `rstanarm` is now a default dependency.
 4. Empirical tests that require `debiasRdata` should remain conditional because the companion package is optional.
 5. Some warnings are locale-related (`LC_ALL='C.UTF-8'`) and mostly non-blocking.
 6. The optional tiny-data `lme4` mixed-model smoke path may print a singular-fit message; this is expected for the deliberately small fixture.
@@ -72,7 +72,7 @@ Last updated: 2026-05-21
 ## Recommended CI Strategy
 
 1. Job A (required): fast deterministic tests only.
-2. Job B (manual / optional): Bayesian tests with explicit dependency install.
+2. Job B (manual / optional): Bayesian tests using hard package dependencies plus explicit test runner packages.
 3. Ensure CI runs from package root and loads package context before test execution.
 4. Keep the fast lane lightweight by installing hard dependencies plus the explicit test runner packages rather than the full optional stack.
 

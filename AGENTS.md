@@ -51,6 +51,10 @@ Documentation:
 - Keep adding release/development notes to `NEWS.md`, but do not display the
   changelog in pkgdown previews or deployed vignette sites unless Francisco
   explicitly asks for it.
+- Treat vignettes as user-facing teaching material. Hide setup, helper-loading,
+  cached-artifact, and other plumbing chunks unless the code is something users
+  should learn from or run directly; show the relevant outputs and interpretive
+  text instead.
 - Do not treat older migration notes as the current source of truth when `STATUS.md` or `TASK_BOARD.md` disagree.
 - When asked to preview vignettes, default to a pkgdown-style preview rather than
   standalone `quarto preview` output. Build the site to a temporary directory
