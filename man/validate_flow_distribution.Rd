@@ -8,11 +8,14 @@ validate_flow_distribution(
   adj_df,
   benchmark_od_df,
   flow_col_adj = "flow_adj",
+  flow_col_mpd = "flow",
   flow_col_bench = "flow",
   epsilon = 1e-08,
   method_name = NA_character_,
   weight_by = c("none", "benchmark_origin_total"),
-  return_origin_level = TRUE
+  comparisons = c("adjusted_vs_benchmark"),
+  return_origin_level = TRUE,
+  return_od_level = FALSE
 )
 }
 \arguments{
@@ -24,6 +27,10 @@ and an adjusted flow column (default \code{"flow_adj"}).}
 
 \item{flow_col_adj}{Name of adjusted flow column in \code{adj_df}. Default
 \code{"flow_adj"}.}
+
+\item{flow_col_mpd}{Name of raw MPD flow column in \code{adj_df}. Default
+\code{"flow"}. Required only when \code{comparisons} includes raw MPD
+flows.}
 
 \item{flow_col_bench}{Name of benchmark flow column in
 \code{benchmark_od_df}. Default \code{"flow"}.}
@@ -37,24 +44,35 @@ summary and origin-level outputs.}
 \item{weight_by}{Weighting rule for weighted summary means. Currently
 \code{"none"} or \code{"benchmark_origin_total"}.}
 
+\item{comparisons}{Distribution comparisons to compute. The default
+\code{"adjusted_vs_benchmark"} preserves the original behavior. Use
+\code{"all"} to compute \code{"raw_vs_benchmark"},
+\code{"adjusted_vs_benchmark"}, and \code{"raw_vs_adjusted"}.}
+
 \item{return_origin_level}{Logical, return one row per origin in the output.
 Default \code{TRUE}.}
+
+\item{return_od_level}{Logical, return OD-level share and contribution rows.
+Default \code{FALSE}.}
 }
 \value{
 A list with:
 \itemize{
-\item \code{summary}: one-row tibble with origin count, mean, median, and
-optionally benchmark-total-weighted mean KL and JSD,
+\item \code{summary}: one row per requested comparison with origin count,
+mean, median, and optionally benchmark-total-weighted mean KL and JSD,
 \item \code{origin_level}: origin-level tibble with KL, JSD, destination
-count, benchmark and adjusted origin totals, and zero-total flags when
-\code{return_origin_level = TRUE}.
+count, raw, adjusted, benchmark, reference, and comparison origin totals,
+plus zero-total flags when \code{return_origin_level = TRUE},
+\item \code{od_level}: OD-level share and contribution rows when
+\code{return_od_level = TRUE}.
 }
 }
 \description{
-Compares adjusted OD flows with benchmark OD flows after normalizing each
-origin's destination flows into shares. This reports Kullback-Leibler
-divergence using the benchmark distribution as the reference,
-\code{KL(benchmark || adjusted)}, and Jensen-Shannon divergence as a symmetric
-companion metric. Lower values indicate closer destination-allocation
-fidelity. These metrics assess spatial allocation, not total flow scale.
+Compares OD-flow distributions after normalizing each origin's destination
+flows into shares. By default, the function compares adjusted OD flows with
+benchmark OD flows and reports \code{KL(benchmark || adjusted)} plus
+Jensen-Shannon divergence. It can also compare raw MPD versus benchmark and
+raw MPD versus adjusted flows through \code{comparisons}. Lower values
+indicate closer destination-allocation fidelity. These metrics assess
+spatial allocation, not total flow scale.
 }

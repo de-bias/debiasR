@@ -428,12 +428,13 @@ validate_flow_all <- function(...) {
 
 #' Validate origin-conditioned destination-share distributions
 #'
-#' Compares adjusted OD flows with benchmark OD flows after normalizing each
-#' origin's destination flows into shares. This reports Kullback-Leibler
-#' divergence using the benchmark distribution as the reference,
-#' `KL(benchmark || adjusted)`, and Jensen-Shannon divergence as a symmetric
-#' companion metric. Lower values indicate closer destination-allocation
-#' fidelity. These metrics assess spatial allocation, not total flow scale.
+#' Compares OD-flow distributions after normalizing each origin's destination
+#' flows into shares. By default, the function compares adjusted OD flows with
+#' benchmark OD flows and reports \code{KL(benchmark || adjusted)} plus
+#' Jensen-Shannon divergence. It can also compare raw MPD versus benchmark and
+#' raw MPD versus adjusted flows through \code{comparisons}. Lower values
+#' indicate closer destination-allocation fidelity. These metrics assess
+#' spatial allocation, not total flow scale.
 #'
 #' @param adj_df Data frame with at least \code{origin}, \code{destination},
 #'   and an adjusted flow column (default \code{"flow_adj"}).
@@ -441,6 +442,9 @@ validate_flow_all <- function(...) {
 #'   \code{destination}, and a benchmark flow column (default \code{"flow"}).
 #' @param flow_col_adj Name of adjusted flow column in \code{adj_df}. Default
 #'   \code{"flow_adj"}.
+#' @param flow_col_mpd Name of raw MPD flow column in \code{adj_df}. Default
+#'   \code{"flow"}. Required only when \code{comparisons} includes raw MPD
+#'   flows.
 #' @param flow_col_bench Name of benchmark flow column in
 #'   \code{benchmark_od_df}. Default \code{"flow"}.
 #' @param epsilon Small positive smoothing constant added to benchmark and
@@ -449,34 +453,47 @@ validate_flow_all <- function(...) {
 #'   summary and origin-level outputs.
 #' @param weight_by Weighting rule for weighted summary means. Currently
 #'   \code{"none"} or \code{"benchmark_origin_total"}.
+#' @param comparisons Distribution comparisons to compute. The default
+#'   \code{"adjusted_vs_benchmark"} preserves the original behavior. Use
+#'   \code{"all"} to compute \code{"raw_vs_benchmark"},
+#'   \code{"adjusted_vs_benchmark"}, and \code{"raw_vs_adjusted"}.
 #' @param return_origin_level Logical, return one row per origin in the output.
 #'   Default \code{TRUE}.
+#' @param return_od_level Logical, return OD-level share and contribution rows.
+#'   Default \code{FALSE}.
 #'
 #' @return A list with:
 #' \itemize{
-#'   \item \code{summary}: one-row tibble with origin count, mean, median, and
-#'     optionally benchmark-total-weighted mean KL and JSD,
+#'   \item \code{summary}: one row per requested comparison with origin count,
+#'     mean, median, and optionally benchmark-total-weighted mean KL and JSD,
 #'   \item \code{origin_level}: origin-level tibble with KL, JSD, destination
-#'     count, benchmark and adjusted origin totals, and zero-total flags when
-#'     \code{return_origin_level = TRUE}.
+#'     count, raw, adjusted, benchmark, reference, and comparison origin totals,
+#'     plus zero-total flags when \code{return_origin_level = TRUE},
+#'   \item \code{od_level}: OD-level share and contribution rows when
+#'     \code{return_od_level = TRUE}.
 #' }
 #' @export
 validate_flow_distribution <- function(adj_df,
                                        benchmark_od_df,
                                        flow_col_adj = "flow_adj",
+                                       flow_col_mpd = "flow",
                                        flow_col_bench = "flow",
                                        epsilon = 1e-8,
                                        method_name = NA_character_,
                                        weight_by = c("none", "benchmark_origin_total"),
-                                       return_origin_level = TRUE) {
+                                       comparisons = c("adjusted_vs_benchmark"),
+                                       return_origin_level = TRUE,
+                                       return_od_level = FALSE) {
 
   weight_by <- match.arg(weight_by)
+  comparisons <- .normalise_distribution_comparisons(comparisons)
+  .validate_distribution_epsilon(epsilon)
 
-  if (length(epsilon) != 1L || !is.finite(epsilon) || epsilon <= 0) {
-    stop("`epsilon` must be a single positive finite number.")
-  }
-
+  raw_requested <- any(comparisons %in% c("raw_vs_benchmark", "raw_vs_adjusted"))
   req_adj <- c("origin", "destination", flow_col_adj)
+  if (raw_requested) {
+    req_adj <- unique(c(req_adj, flow_col_mpd))
+  }
   req_bench <- c("origin", "destination", flow_col_bench)
 
   if (!all(req_adj %in% names(adj_df))) {
@@ -486,9 +503,18 @@ validate_flow_distribution <- function(adj_df,
     stop("`benchmark_od_df` must contain: ", paste(req_bench, collapse = ", "))
   }
 
+  adj_select_cols <- unique(c("origin", "destination", flow_col_adj, flow_col_mpd))
+  adj_select_cols <- adj_select_cols[adj_select_cols %in% names(adj_df)]
+
   adj_tbl <- adj_df |>
-    dplyr::select(origin, destination, !!flow_col_adj) |>
-    dplyr::rename(adj_flow = !!flow_col_adj)
+    dplyr::select(dplyr::all_of(adj_select_cols)) |>
+    dplyr::rename(adjusted_flow = dplyr::all_of(flow_col_adj))
+  if (flow_col_mpd %in% names(adj_tbl)) {
+    adj_tbl <- adj_tbl |>
+      dplyr::rename(raw_flow = dplyr::all_of(flow_col_mpd))
+  } else {
+    adj_tbl$raw_flow <- NA_real_
+  }
 
   bench_tbl <- benchmark_od_df |>
     dplyr::select(origin, destination, !!flow_col_bench) |>
@@ -501,44 +527,30 @@ validate_flow_distribution <- function(adj_df,
   ) |>
     dplyr::mutate(
       benchmark_flow = dplyr::coalesce(.data$benchmark_flow, 0),
-      adj_flow = dplyr::coalesce(.data$adj_flow, 0)
+      adjusted_flow = dplyr::coalesce(.data$adjusted_flow, 0),
+      raw_flow = dplyr::coalesce(.data$raw_flow, 0)
     )
 
-  origin_level <- support_tbl |>
-    dplyr::group_by(origin) |>
-    dplyr::mutate(
-      bench_origin_total = sum(.data$benchmark_flow, na.rm = TRUE),
-      adj_origin_total = sum(.data$adj_flow, na.rm = TRUE),
-      p_share_bench = (.data$benchmark_flow + epsilon) /
-        sum(.data$benchmark_flow + epsilon, na.rm = TRUE),
-      q_share_adj = (.data$adj_flow + epsilon) /
-        sum(.data$adj_flow + epsilon, na.rm = TRUE),
-      midpoint_share = 0.5 * (.data$p_share_bench + .data$q_share_adj)
-    ) |>
-    dplyr::summarise(
-      method = method_name,
-      n_destinations = dplyr::n(),
-      bench_origin_total = dplyr::first(.data$bench_origin_total),
-      adj_origin_total = dplyr::first(.data$adj_origin_total),
-      zero_benchmark_total = dplyr::first(.data$bench_origin_total) <= 0,
-      zero_adj_total = dplyr::first(.data$adj_origin_total) <= 0,
-      kl_origin = dplyr::if_else(
-        dplyr::first(.data$zero_benchmark_total),
-        NA_real_,
-        sum(.data$p_share_bench * log(.data$p_share_bench / .data$q_share_adj))
-      ),
-      jsd_origin = dplyr::if_else(
-        dplyr::first(.data$zero_benchmark_total),
-        NA_real_,
-        0.5 * sum(.data$p_share_bench * log(.data$p_share_bench / .data$midpoint_share)) +
-          0.5 * sum(.data$q_share_adj * log(.data$q_share_adj / .data$midpoint_share))
-      ),
-      .groups = "drop"
-    )
+  comparison_outputs <- lapply(
+    comparisons,
+    .compute_flow_distribution_comparison,
+    support_tbl = support_tbl,
+    epsilon = epsilon,
+    method_name = method_name
+  )
+
+  origin_level <- dplyr::bind_rows(
+    lapply(comparison_outputs, `[[`, "origin_level")
+  )
 
   summary_tbl <- origin_level |>
+    dplyr::group_by(
+      .data$method,
+      .data$comparison,
+      .data$reference_distribution,
+      .data$comparison_distribution
+    ) |>
     dplyr::summarise(
-      method = method_name,
       n_origins = dplyr::n(),
       n_origins_used = sum(!is.na(.data$kl_origin)),
       weight_by = weight_by,
@@ -555,14 +567,148 @@ validate_flow_distribution <- function(adj_df,
         weight_by == "benchmark_origin_total",
         .weighted_mean_na(.data$jsd_origin, .data$bench_origin_total),
         NA_real_
-      )
+      ),
+      .groups = "drop"
     )
 
   out <- list(summary = summary_tbl)
   if (return_origin_level) {
     out$origin_level <- origin_level
   }
+  if (isTRUE(return_od_level)) {
+    out$od_level <- dplyr::bind_rows(
+      lapply(comparison_outputs, `[[`, "od_level")
+    )
+  }
   out
+}
+
+.compute_flow_distribution_comparison <- function(comparison,
+                                                  support_tbl,
+                                                  epsilon,
+                                                  method_name) {
+  if (comparison == "raw_vs_benchmark") {
+    reference_col <- "benchmark_flow"
+    comparison_col <- "raw_flow"
+    reference_distribution <- "benchmark"
+    comparison_distribution <- "raw_mpd"
+  } else if (comparison == "adjusted_vs_benchmark") {
+    reference_col <- "benchmark_flow"
+    comparison_col <- "adjusted_flow"
+    reference_distribution <- "benchmark"
+    comparison_distribution <- "adjusted_mpd"
+  } else if (comparison == "raw_vs_adjusted") {
+    reference_col <- "raw_flow"
+    comparison_col <- "adjusted_flow"
+    reference_distribution <- "raw_mpd"
+    comparison_distribution <- "adjusted_mpd"
+  } else {
+    stop("Unsupported distribution comparison.")
+  }
+
+  od_level <- support_tbl |>
+    dplyr::mutate(
+      reference_flow = .data[[reference_col]],
+      comparison_flow = .data[[comparison_col]]
+    ) |>
+    dplyr::group_by(origin) |>
+    dplyr::mutate(
+      bench_origin_total = sum(.data$benchmark_flow, na.rm = TRUE),
+      raw_origin_total = sum(.data$raw_flow, na.rm = TRUE),
+      adjusted_origin_total = sum(.data$adjusted_flow, na.rm = TRUE),
+      adj_origin_total = .data$adjusted_origin_total,
+      reference_origin_total = sum(.data$reference_flow, na.rm = TRUE),
+      comparison_origin_total = sum(.data$comparison_flow, na.rm = TRUE),
+      reference_share = .distribution_shares(.data$reference_flow, epsilon),
+      comparison_share = .distribution_shares(.data$comparison_flow, epsilon),
+      midpoint_share = 0.5 * (.data$reference_share + .data$comparison_share),
+      kl_contribution = .data$reference_share *
+        log(.data$reference_share / .data$comparison_share),
+      jsd_contribution = .distribution_jsd_contributions(
+        .data$reference_share,
+        .data$comparison_share
+      )
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      method = method_name,
+      comparison = comparison,
+      reference_distribution = reference_distribution,
+      comparison_distribution = comparison_distribution,
+      zero_benchmark_total = .data$bench_origin_total <= 0,
+      zero_raw_total = .data$raw_origin_total <= 0,
+      zero_adjusted_total = .data$adjusted_origin_total <= 0,
+      zero_adj_total = .data$zero_adjusted_total,
+      zero_reference_total = .data$reference_origin_total <= 0,
+      zero_comparison_total = .data$comparison_origin_total <= 0
+    ) |>
+    dplyr::select(
+      method,
+      comparison,
+      reference_distribution,
+      comparison_distribution,
+      origin,
+      destination,
+      benchmark_flow,
+      raw_flow,
+      adjusted_flow,
+      reference_flow,
+      comparison_flow,
+      reference_share,
+      comparison_share,
+      midpoint_share,
+      kl_contribution,
+      jsd_contribution,
+      bench_origin_total,
+      raw_origin_total,
+      adjusted_origin_total,
+      adj_origin_total,
+      reference_origin_total,
+      comparison_origin_total,
+      zero_benchmark_total,
+      zero_raw_total,
+      zero_adjusted_total,
+      zero_adj_total,
+      zero_reference_total,
+      zero_comparison_total
+    )
+
+  origin_level <- od_level |>
+    dplyr::group_by(
+      .data$method,
+      .data$comparison,
+      .data$reference_distribution,
+      .data$comparison_distribution,
+      .data$origin
+    ) |>
+    dplyr::summarise(
+      n_destinations = dplyr::n(),
+      bench_origin_total = dplyr::first(.data$bench_origin_total),
+      raw_origin_total = dplyr::first(.data$raw_origin_total),
+      adjusted_origin_total = dplyr::first(.data$adjusted_origin_total),
+      adj_origin_total = dplyr::first(.data$adj_origin_total),
+      reference_origin_total = dplyr::first(.data$reference_origin_total),
+      comparison_origin_total = dplyr::first(.data$comparison_origin_total),
+      zero_benchmark_total = dplyr::first(.data$zero_benchmark_total),
+      zero_raw_total = dplyr::first(.data$zero_raw_total),
+      zero_adjusted_total = dplyr::first(.data$zero_adjusted_total),
+      zero_adj_total = dplyr::first(.data$zero_adj_total),
+      zero_reference_total = dplyr::first(.data$zero_reference_total),
+      zero_comparison_total = dplyr::first(.data$zero_comparison_total),
+      kl_origin = dplyr::if_else(
+        dplyr::first(.data$zero_reference_total),
+        NA_real_,
+        sum(.data$kl_contribution)
+      ),
+      jsd_origin = dplyr::if_else(
+        dplyr::first(.data$zero_reference_total),
+        NA_real_,
+        sum(.data$jsd_contribution)
+      ),
+      .groups = "drop"
+    )
+
+  list(origin_level = origin_level, od_level = od_level)
 }
 
 #' Build richer OD-level residual diagnostics for adjusted versus benchmark flows

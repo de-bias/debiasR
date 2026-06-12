@@ -50,6 +50,89 @@ test_that("prepare helper carries source and time metadata for repeated inputs",
   expect_true(all(is.finite(prep$model_df$bias_e_origin)))
 })
 
+test_that("latent two-level contract creates latent flow identifiers and rejects frequentist engine", {
+  s1_toy <- make_multilevel_scenario_toy()
+  s1_info <- debiasR:::.resolve_multilevel_scenario(
+    s1_toy$mpd_od,
+    scenario = "s1"
+  )
+  s1_prep <- debiasR:::.prepare_multilevel_bayes_data(
+    mpd_od_df = s1_toy$mpd_od,
+    coverage_df = s1_toy$coverage,
+    covariates_df = s1_toy$covariates,
+    distance_df = s1_toy$distance,
+    flow_col = "flow",
+    income_col = "income_norm",
+    pop_col = "population",
+    distance_col = "distance_km",
+    scenario_info = s1_info
+  )
+
+  s1_latent <- suppressWarnings(
+    debiasR:::.prepare_multilevel_latent_state(
+      data = s1_prep$model_df,
+      scenario_info = s1_info,
+      latent_flow_unit = "auto"
+    )
+  )
+
+  expect_equal(s1_latent$latent_flow_unit, "od")
+  expect_true(s1_latent$identifiability$weak_identification_warning)
+  expect_equal(
+    s1_latent$identifiability$min_observations_per_latent_flow,
+    1L
+  )
+
+  toy <- make_multilevel_scenario_toy(sources = c("src1", "src2"))
+  scenario_info <- debiasR:::.resolve_multilevel_scenario(
+    toy$mpd_od,
+    scenario = "s3"
+  )
+  prep <- debiasR:::.prepare_multilevel_bayes_data(
+    mpd_od_df = toy$mpd_od,
+    coverage_df = toy$coverage,
+    covariates_df = toy$covariates,
+    distance_df = toy$distance,
+    flow_col = "flow",
+    income_col = "income_norm",
+    pop_col = "population",
+    distance_col = "distance_km",
+    scenario_info = scenario_info
+  )
+
+  latent <- debiasR:::.prepare_multilevel_latent_state(
+    data = prep$model_df,
+    scenario_info = scenario_info,
+    latent_flow_unit = "auto"
+  )
+
+  expect_equal(latent$latent_flow_unit, "od")
+  expect_true(all(c("latent_flow_id", "latent_flow_unit") %in% names(latent$data)))
+  expect_equal(latent$n_latent_flows, length(unique(paste(prep$model_df$origin, prep$model_df$destination))))
+  expect_false(latent$identifiability$weak_identification_warning)
+
+  fit_formula <- debiasR:::.add_multilevel_latent_random_intercept(
+    flow ~ rural_pct_o + bias_e_origin + offset(log_observation_probability)
+  )
+  expect_match(
+    paste(deparse(fit_formula), collapse = " "),
+    "latent_flow_id"
+  )
+
+  expect_error(
+    adjust_multilevel_bayes(
+      mpd_od_df = toy$mpd_od,
+      coverage_df = toy$coverage,
+      covariates_df = toy$covariates,
+      distance_df = toy$distance,
+      model_engine = "frequentist",
+      target_scale = "true_flow",
+      observation_model = "latent_two_level"
+    ),
+    "requires `model_engine = 'bayesian'`"
+  )
+})
+
 test_that("internal frequentist default formula contract scales across MSOA-like S1-S4 inputs", {
   scenarios <- list(
     s1 = list(
