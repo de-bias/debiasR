@@ -9,7 +9,10 @@ Last updated: 2026-06-12
 - Recommended broad local development runner:
   - `Rscript scripts/run_dev_tests.R`
 - Optional Bayesian runner:
-  - `Rscript scripts/run_bayesian_tests.R`
+  - `Rscript scripts/run_bayesian_tests.R rstanarm-smoke`
+  - `Rscript scripts/run_bayesian_tests.R rstanarm`
+  - `Rscript scripts/run_bayesian_tests.R latent-smoke`
+  - `Rscript scripts/run_bayesian_tests.R all`
 - The runner loads the package with `devtools::load_all(".")` before executing targeted tests.
 - Full suite still includes a slower Bayesian test file with MCMC runtime and optional `brms` coverage.
 - Observed behavior today:
@@ -32,7 +35,7 @@ Last updated: 2026-06-12
   - `validate_bias_residual_structure()` now has a regression test for the documented `population_lm` residual option.
   - `test-adjust-coefficient.R` skips one optional `pscl`-dependent case when `pscl` is not installed.
   - the Bayesian draw-summary names mismatch has been fixed in the optional Bayesian test file.
-  - local optional Bayesian smoke checks completed with `rstanarm` and `rstan` installed, including a tiny `stan_latent` repeated-source fit. The full optional Bayesian file remains slow and should be run through `scripts/run_bayesian_tests.R` before closing #18.
+  - local optional Bayesian smoke checks completed with `rstanarm` and `rstan` installed, including a tiny `stan_latent` repeated-source fit. The optional Bayesian runner is now split into `rstanarm-smoke`, full `rstanarm`, and `latent-smoke` scopes; smoke scopes should pass before opening a ready PR, and full scopes should run before closing #18.
   - running `test_dir()` without loading package can produce false failures (`function not found`, data object not found).
 
 ## Test Tiers (Recommended)
@@ -60,8 +63,11 @@ Last updated: 2026-06-12
 ### Tier 2: Bayesian / slow / dependency-sensitive
 
 - `tests/testthat/test-adjust-multilevel-bayes.R`
-- Requires longer runtime; `rstanarm` and `rstan` are required for the optional
-  Bayesian runner, while `brms` remains optional for extra model families.
+- `tests/testthat/test-adjust-multilevel-bayes-rstanarm-smoke.R`
+- `tests/testthat/test-adjust-multilevel-bayes-latent.R`
+- Requires longer runtime; `rstanarm-smoke` and full `rstanarm` scopes require
+  `rstanarm`, the `latent-smoke` scope requires `rstan`, and `brms` remains
+  optional for extra model families.
 
 ## Current Known Test Issues
 

@@ -197,8 +197,8 @@ where:
 - $q_{ijst}$ is the coverage-derived observation probability.
 - $\lambda^{true}_{g(i,j,t)}$ is the shared latent true-flow intensity for an
   OD or OD-time group.
-- $z_{ijst}\gamma$ represents observation-layer structure such as source
-  effects.
+- $z_{ijst}\gamma$ represents observation-layer structure such as coverage,
+  source and time effects.
 
 In the current experimental backend, `adjust_multilevel_bayes()` represents
 this shared state through `latent_flow_id` and estimates it with the custom
@@ -212,8 +212,7 @@ adj_latent <- adjust_multilevel_bayes(
   coverage_df = coverage_repeated,
   covariates_df = covariates,
   distance_df = distance,
-  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
-    mpd_source + (1 | origin) + (1 | destination),
+  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
   bias_formula = ~ bias_e_origin,
   target_scale = "true_flow",
   observation_model = "latent_two_level",
@@ -238,8 +237,9 @@ adj_latent <- adjust_multilevel_bayes(
 The returned table includes `latent_flow_id`, `latent_flow_unit`,
 `flow_adj_mean`, `flow_adj_median`, and 95% interval columns for the true-flow
 and MPD observation scales. The result metadata also records the custom backend,
-the number of latent states, the true-flow and observation formulas, and
-identifiability notes.
+the number of latent states, the true-flow and observation formulas, latent
+prior/sampler controls, ignored formula random-effect terms, and identifiability
+notes.
 Because this mode relies on repeated observations, it is most informative for
 S3 and S4 designs. In S1 and S2, use it mainly as a sensitivity or compatibility
 check.
@@ -312,6 +312,13 @@ attr(adj_latent, "result_metadata")
 attr(adj_latent, "diagnostics")
 attr(adj_latent, "model_terms")
 ```
+
+For the custom latent backend, `attr(adj_latent, "diagnostics")$convergence`
+reports divergence and treedepth rates, acceptance summaries, effective sample
+size, and R-hat for core model parameters. The `latent_*_prior_scale`,
+`latent_phi_prior_rate`, `latent_adapt_delta`, `latent_max_treedepth`, and
+`latent_rng_eta_max` arguments are available for sensitivity checks when the
+default weakly regularizing settings are not appropriate.
 
 The latent backend should be treated as an advanced sensitivity model until
 larger repeated-source/time examples, stronger prior checks, and richer

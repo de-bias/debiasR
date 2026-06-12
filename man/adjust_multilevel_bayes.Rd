@@ -31,6 +31,16 @@ adjust_multilevel_bayes(
   observation_model = c("reduced_form", "coverage_offset", "latent_two_level"),
   coverage_scale = c("origin", "destination", "both"),
   latent_flow_unit = c("auto", "od", "od_time"),
+  latent_coef_prior_scale = 1,
+  latent_bias_prior_scale = 0.5,
+  latent_intercept_prior_scale = 2.5,
+  latent_state_prior_scale = 0.75,
+  latent_source_prior_scale = 0.5,
+  latent_time_prior_scale = 0.5,
+  latent_phi_prior_rate = 1,
+  latent_adapt_delta = 0.95,
+  latent_max_treedepth = 12,
+  latent_rng_eta_max = 20,
   prediction_scope = c("observed", "complete_grid"),
   iter = 1000,
   chains = 2,
@@ -153,6 +163,32 @@ and source/time-specific MPD observation process.}
 latent flow across source/time observations of an OD pair; \code{"od_time"}
 shares one latent flow across sources within each OD-time cell.
 \code{"auto"} chooses \code{"od_time"} for S2/S4 and \code{"od"} otherwise.}
+
+\item{latent_coef_prior_scale, latent_bias_prior_scale}{Positive prior
+scales used by the custom \code{"stan_latent"} backend for true-flow and
+observation-bias coefficients. These controls are ignored by
+\code{"rstanarm"} and \code{"brms"} backends.}
+
+\item{latent_intercept_prior_scale}{Positive prior scale for the true-flow
+intercept in the custom \code{"stan_latent"} backend.}
+
+\item{latent_state_prior_scale, latent_source_prior_scale, latent_time_prior_scale}{Positive half-normal prior scales used by the custom \code{"stan_latent"}
+backend for latent OD/OD-time, source, and time standard deviations.}
+
+\item{latent_phi_prior_rate}{Positive exponential prior rate for the
+negative-binomial overdispersion parameter in the custom
+\code{"stan_latent"} backend.}
+
+\item{latent_adapt_delta}{Target acceptance probability passed to
+\code{rstan::sampling()} for the custom \code{"stan_latent"} backend.}
+
+\item{latent_max_treedepth}{Maximum tree depth passed to
+\code{rstan::sampling()} for the custom \code{"stan_latent"} backend.}
+
+\item{latent_rng_eta_max}{Upper clamp for generated-quantity log-rate
+exponentiation and RNG calls in the custom \code{"stan_latent"} backend.
+The likelihood and log-likelihood are not clamped; this prevents overflow
+in returned posterior prediction draws and replicated-count RNGs.}
 
 \item{prediction_scope}{Prediction contract. \code{"observed"} preserves the
 original observed-row workflow. \code{"complete_grid"} requires a strict

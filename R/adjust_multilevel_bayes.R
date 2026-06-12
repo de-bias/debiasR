@@ -118,6 +118,26 @@
 #'   latent flow across source/time observations of an OD pair; \code{"od_time"}
 #'   shares one latent flow across sources within each OD-time cell.
 #'   \code{"auto"} chooses \code{"od_time"} for S2/S4 and \code{"od"} otherwise.
+#' @param latent_coef_prior_scale,latent_bias_prior_scale Positive prior
+#'   scales used by the custom \code{"stan_latent"} backend for true-flow and
+#'   observation-bias coefficients. These controls are ignored by
+#'   \code{"rstanarm"} and \code{"brms"} backends.
+#' @param latent_intercept_prior_scale Positive prior scale for the true-flow
+#'   intercept in the custom \code{"stan_latent"} backend.
+#' @param latent_state_prior_scale,latent_source_prior_scale,latent_time_prior_scale
+#'   Positive half-normal prior scales used by the custom \code{"stan_latent"}
+#'   backend for latent OD/OD-time, source, and time standard deviations.
+#' @param latent_phi_prior_rate Positive exponential prior rate for the
+#'   negative-binomial overdispersion parameter in the custom
+#'   \code{"stan_latent"} backend.
+#' @param latent_adapt_delta Target acceptance probability passed to
+#'   \code{rstan::sampling()} for the custom \code{"stan_latent"} backend.
+#' @param latent_max_treedepth Maximum tree depth passed to
+#'   \code{rstan::sampling()} for the custom \code{"stan_latent"} backend.
+#' @param latent_rng_eta_max Upper clamp for generated-quantity log-rate
+#'   exponentiation and RNG calls in the custom \code{"stan_latent"} backend.
+#'   The likelihood and log-likelihood are not clamped; this prevents overflow
+#'   in returned posterior prediction draws and replicated-count RNGs.
 #' @param prediction_scope Prediction contract. \code{"observed"} preserves the
 #'   original observed-row workflow. \code{"complete_grid"} requires a strict
 #'   square OD grid and predicts for all valid rows, while fitting on rows marked
@@ -234,6 +254,16 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                     observation_model = c("reduced_form", "coverage_offset", "latent_two_level"),
                                     coverage_scale = c("origin", "destination", "both"),
                                     latent_flow_unit = c("auto", "od", "od_time"),
+                                    latent_coef_prior_scale = 1,
+                                    latent_bias_prior_scale = 0.5,
+                                    latent_intercept_prior_scale = 2.5,
+                                    latent_state_prior_scale = 0.75,
+                                    latent_source_prior_scale = 0.5,
+                                    latent_time_prior_scale = 0.5,
+                                    latent_phi_prior_rate = 1,
+                                    latent_adapt_delta = 0.95,
+                                    latent_max_treedepth = 12,
+                                    latent_rng_eta_max = 20,
                                     prediction_scope = c("observed", "complete_grid"),
                                     iter = 1000,
                                     chains = 2,
@@ -254,6 +284,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   coverage_scale <- match.arg(coverage_scale)
   latent_flow_unit <- match.arg(latent_flow_unit)
   prediction_scope <- match.arg(prediction_scope)
+  latent_controls <- NULL
   .validate_multilevel_observation_contract(
     target_scale = target_scale,
     observation_model = observation_model,
@@ -440,6 +471,18 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   if (backend == "stan_latent") {
+    latent_controls <- .validate_multilevel_latent_controls(
+      latent_coef_prior_scale = latent_coef_prior_scale,
+      latent_bias_prior_scale = latent_bias_prior_scale,
+      latent_intercept_prior_scale = latent_intercept_prior_scale,
+      latent_state_prior_scale = latent_state_prior_scale,
+      latent_source_prior_scale = latent_source_prior_scale,
+      latent_time_prior_scale = latent_time_prior_scale,
+      latent_phi_prior_rate = latent_phi_prior_rate,
+      latent_adapt_delta = latent_adapt_delta,
+      latent_max_treedepth = latent_max_treedepth,
+      latent_rng_eta_max = latent_rng_eta_max
+    )
     fit <- .fit_multilevel_latent_stan(
       fit_df = fit_df,
       prediction_df = prediction_df,
@@ -448,6 +491,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       include_pop_terms = prep$has_pop_terms,
       scenario_info = scenario_info,
       model_family = model_family,
+      latent_controls = latent_controls,
       iter = iter,
       chains = chains,
       seed = seed,
@@ -698,7 +742,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     latent_observation_formula = if (backend == "stan_latent") fit$stan_data_summary$observation_formula else NA_character_,
     latent_true_terms = if (backend == "stan_latent") fit$stan_data_summary$true_terms else character(),
     latent_observation_terms = if (backend == "stan_latent") fit$stan_data_summary$observation_terms else character(),
+    latent_source_effect_layer = if (backend == "stan_latent") fit$stan_data_summary$source_effect_layer else NA_character_,
+    latent_time_effect_layer = if (backend == "stan_latent") fit$stan_data_summary$time_effect_layer else NA_character_,
+    latent_ignored_random_effect_terms = if (backend == "stan_latent") fit$latent_formula_info$ignored_random_effect_terms else character(),
     latent_backend_contract = if (backend == "stan_latent") "custom_stan_latent_v0.1" else NA_character_,
+    latent_controls = if (backend == "stan_latent") fit$stan_data_summary$latent_controls else NULL,
     od_audit = od_audit
   )
 
@@ -2214,6 +2262,82 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   invisible(TRUE)
 }
 
+.validate_multilevel_latent_controls <- function(latent_coef_prior_scale,
+                                                 latent_bias_prior_scale,
+                                                 latent_intercept_prior_scale,
+                                                 latent_state_prior_scale,
+                                                 latent_source_prior_scale,
+                                                 latent_time_prior_scale,
+                                                 latent_phi_prior_rate,
+                                                 latent_adapt_delta,
+                                                 latent_max_treedepth,
+                                                 latent_rng_eta_max) {
+  out <- list(
+    latent_coef_prior_scale = .validate_positive_finite_scalar(
+      latent_coef_prior_scale,
+      "latent_coef_prior_scale"
+    ),
+    latent_bias_prior_scale = .validate_positive_finite_scalar(
+      latent_bias_prior_scale,
+      "latent_bias_prior_scale"
+    ),
+    latent_intercept_prior_scale = .validate_positive_finite_scalar(
+      latent_intercept_prior_scale,
+      "latent_intercept_prior_scale"
+    ),
+    latent_state_prior_scale = .validate_positive_finite_scalar(
+      latent_state_prior_scale,
+      "latent_state_prior_scale"
+    ),
+    latent_source_prior_scale = .validate_positive_finite_scalar(
+      latent_source_prior_scale,
+      "latent_source_prior_scale"
+    ),
+    latent_time_prior_scale = .validate_positive_finite_scalar(
+      latent_time_prior_scale,
+      "latent_time_prior_scale"
+    ),
+    latent_phi_prior_rate = .validate_positive_finite_scalar(
+      latent_phi_prior_rate,
+      "latent_phi_prior_rate"
+    ),
+    latent_adapt_delta = .validate_probability_open_scalar(
+      latent_adapt_delta,
+      "latent_adapt_delta"
+    ),
+    latent_max_treedepth = .validate_positive_integer_scalar(
+      latent_max_treedepth,
+      "latent_max_treedepth"
+    ),
+    latent_rng_eta_max = .validate_positive_finite_scalar(
+      latent_rng_eta_max,
+      "latent_rng_eta_max"
+    )
+  )
+  out
+}
+
+.validate_positive_finite_scalar <- function(value, name) {
+  if (!is.numeric(value) || length(value) != 1L || !is.finite(value) || value <= 0) {
+    stop("`", name, "` must be a single positive finite number.")
+  }
+  as.numeric(value)
+}
+
+.validate_probability_open_scalar <- function(value, name) {
+  if (!is.numeric(value) || length(value) != 1L || !is.finite(value) || value <= 0 || value >= 1) {
+    stop("`", name, "` must be a single finite number between 0 and 1.")
+  }
+  as.numeric(value)
+}
+
+.validate_positive_integer_scalar <- function(value, name) {
+  if (!is.numeric(value) || length(value) != 1L || !is.finite(value) || value < 1 || value != as.integer(value)) {
+    stop("`", name, "` must be a single positive integer.")
+  }
+  as.integer(value)
+}
+
 .fit_multilevel_latent_stan <- function(fit_df,
                                         prediction_df,
                                         formula_info,
@@ -2221,6 +2345,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                         include_pop_terms,
                                         scenario_info,
                                         model_family,
+                                        latent_controls,
                                         iter,
                                         chains,
                                         seed,
@@ -2244,7 +2369,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     prediction_df = prediction_df,
     latent_formula_info = latent_formula_info,
     scenario_info = scenario_info,
-    model_family = model_family
+    model_family = model_family,
+    latent_controls = latent_controls
   )
 
   stanfit <- rstan::sampling(
@@ -2253,7 +2379,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     iter = iter,
     chains = chains,
     seed = seed,
-    refresh = refresh
+    refresh = refresh,
+    control = list(
+      adapt_delta = latent_controls$latent_adapt_delta,
+      max_treedepth = latent_controls$latent_max_treedepth
+    )
   )
 
   flow_true_pred_draws <- .extract_latent_stan_draw_matrix(
@@ -2293,6 +2423,17 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   if (identical(formula_info$interface, "split")) {
+    ignored_random_effect_terms <- unique(c(
+      .formula_random_effect_terms(formula_info$mobility_formula),
+      .formula_random_effect_terms(formula_info$bias_formula)
+    ))
+    if (length(ignored_random_effect_terms) > 0L) {
+      warning(
+        "Random-effect terms in `mobility_formula` or `bias_formula` are ignored ",
+        "by `observation_model = 'latent_two_level'`. The custom Stan backend ",
+        "uses its own latent OD/OD-time, source, and time effects."
+      )
+    }
     true_formula <- .one_sided_fixed_formula(formula_info$mobility_formula)
     observation_formula <- .one_sided_fixed_formula(
       formula_info$bias_formula,
@@ -2303,6 +2444,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       observation_formula = observation_formula,
       mobility_variables = .formula_fixed_effect_vars(formula_info$mobility_formula),
       bias_variables = .formula_fixed_effect_vars(formula_info$bias_formula),
+      ignored_random_effect_terms = ignored_random_effect_terms,
       source = formula_info$source,
       interface = "split"
     ))
@@ -2327,6 +2469,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     observation_formula = stats::as.formula("~ 0 + bias_e_origin"),
     mobility_variables = true_terms,
     bias_variables = "bias_e_origin",
+    ignored_random_effect_terms = character(),
     source = "default",
     interface = "default"
   )
@@ -2345,7 +2488,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                                prediction_df,
                                                latent_formula_info,
                                                scenario_info,
-                                               model_family) {
+                                               model_family,
+                                               latent_controls) {
   .validate_multilevel_latent_stan_counts(fit_df)
 
   true_mm <- .paired_model_matrix(
@@ -2419,7 +2563,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     use_negbin = as.integer(model_family == "negbin"),
     true_intercept_col = as.integer(true_intercept_col[[1]]),
     intercept_loc = log(max(median_true_scale, 1e-8)),
-    intercept_scale = 2.5
+    intercept_scale = latent_controls$latent_intercept_prior_scale,
+    prior_coef_scale = latent_controls$latent_coef_prior_scale,
+    prior_bias_scale = latent_controls$latent_bias_prior_scale,
+    prior_latent_state_scale = latent_controls$latent_state_prior_scale,
+    prior_source_scale = latent_controls$latent_source_prior_scale,
+    prior_time_scale = latent_controls$latent_time_prior_scale,
+    phi_prior_rate = latent_controls$latent_phi_prior_rate,
+    max_rng_eta = latent_controls$latent_rng_eta_max
   )
 
   list(
@@ -2432,6 +2583,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       latent_levels = latent_levels,
       source_levels = source_levels,
       time_levels = time_levels,
+      source_effect_layer = "observation",
+      time_effect_layer = if (length(time_levels) > 1L) "observation" else "none",
+      latent_controls = latent_controls,
       n_unobserved_latent_flows = sum(obs_count == 0L),
       min_observations_per_latent_flow = if (length(obs_count) > 0L) min(obs_count) else NA_integer_,
       max_observations_per_latent_flow = if (length(obs_count) > 0L) max(obs_count) else NA_integer_
@@ -2504,7 +2658,11 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   if (length(missing) > 0L) {
     stop("Could not extract expected Stan generated quantity: ", missing[[1]])
   }
-  draws[, expected, drop = FALSE]
+  out <- draws[, expected, drop = FALSE]
+  if (any(!is.finite(out))) {
+    stop("Stan generated quantity `", par, "` contains non-finite draws.")
+  }
+  out
 }
 
 .coef_summary_latent_stan <- function(fit, data_info, probs = c(0.025, 0.975)) {
@@ -2539,6 +2697,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
 .collect_latent_stan_diagnostics <- function(fit, data_info) {
   sampler_params <- rstan::get_sampler_params(fit, inc_warmup = FALSE)
+  latent_controls <- data_info$summary$latent_controls
+  max_treedepth <- latent_controls$latent_max_treedepth
   divergences <- sum(vapply(
     sampler_params,
     function(x) sum(x[, "divergent__"], na.rm = TRUE),
@@ -2548,27 +2708,62 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     sampler_params,
     function(x) {
       if (!"treedepth__" %in% colnames(x)) return(0)
-      sum(x[, "treedepth__"] >= max(x[, "treedepth__"], na.rm = TRUE), na.rm = TRUE)
+      sum(x[, "treedepth__"] >= max_treedepth, na.rm = TRUE)
     },
     numeric(1)
   ))
+  n_post_warmup_draws <- sum(vapply(sampler_params, nrow, integer(1)))
+  treedepth_values <- unlist(lapply(
+    sampler_params,
+    function(x) if ("treedepth__" %in% colnames(x)) x[, "treedepth__"] else numeric()
+  ))
+  accept_stat_values <- unlist(lapply(
+    sampler_params,
+    function(x) if ("accept_stat__" %in% colnames(x)) x[, "accept_stat__"] else numeric()
+  ))
+  energy_values_by_chain <- lapply(
+    sampler_params,
+    function(x) if ("energy__" %in% colnames(x)) x[, "energy__"] else numeric()
+  )
+  ebfmi <- vapply(
+    energy_values_by_chain,
+    function(x) {
+      if (length(x) < 3L || !is.finite(stats::var(x)) || stats::var(x) <= 0) {
+        return(NA_real_)
+      }
+      mean(diff(x)^2, na.rm = TRUE) / stats::var(x, na.rm = TRUE)
+    },
+    numeric(1)
+  )
   summary_tbl <- as.data.frame(rstan::summary(fit)$summary)
-  rhat <- summary_tbl$Rhat
-  n_eff <- summary_tbl$n_eff
+  parameter_rows <- !grepl("^(flow_true_pred|mu_mpd_pred|log_lik|y_rep_obs)\\[", rownames(summary_tbl))
+  parameter_summary <- summary_tbl[parameter_rows, , drop = FALSE]
+  rhat <- parameter_summary$Rhat
+  n_eff <- parameter_summary$n_eff
 
   list(
     backend = "stan_latent",
     has_bias_term = any(data_info$summary$observation_terms != "no_observation_bias_terms"),
     convergence = list(
       status = "available",
+      n_post_warmup_draws = n_post_warmup_draws,
       divergences = divergences,
+      divergence_rate = if (n_post_warmup_draws > 0L) divergences / n_post_warmup_draws else NA_real_,
       treedepth_hits = treedepth_hits,
+      treedepth_hit_rate = if (n_post_warmup_draws > 0L) treedepth_hits / n_post_warmup_draws else NA_real_,
+      treedepth_max = if (length(treedepth_values) > 0L) max(treedepth_values, na.rm = TRUE) else NA_real_,
+      max_treedepth = max_treedepth,
+      adapt_delta = latent_controls$latent_adapt_delta,
+      accept_stat_mean = if (length(accept_stat_values) > 0L) mean(accept_stat_values, na.rm = TRUE) else NA_real_,
+      accept_stat_min = if (length(accept_stat_values) > 0L) min(accept_stat_values, na.rm = TRUE) else NA_real_,
+      ebfmi_min = if (any(is.finite(ebfmi))) min(ebfmi[is.finite(ebfmi)]) else NA_real_,
       rhat_max = if (any(is.finite(rhat))) max(rhat[is.finite(rhat)]) else NA_real_,
       n_eff_min = if (any(is.finite(n_eff))) min(n_eff[is.finite(n_eff)]) else NA_real_
     ),
     posterior_predictive = list(
       status = "available",
-      generated_quantity = "y_rep_obs"
+      generated_quantity = "y_rep_obs",
+      rng_eta_max = latent_controls$latent_rng_eta_max
     ),
     latent_state = data_info$summary
   )

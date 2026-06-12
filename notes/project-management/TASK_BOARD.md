@@ -26,9 +26,12 @@ The staged track below is intended to be implemented one stage per chat window. 
 - The backend creates `latent_flow_id` states, estimates source-invariant OD or
   OD-time true-flow intensities, and models MPD source/time rows as
   coverage-scaled noisy observations of those latent states.
-- Remaining work is to harden priors, source-time observation-layer effects,
-  posterior predictive diagnostics, and larger S3/S4 empirical workflows before
-  promoting the latent backend beyond experimental status.
+- The branch now exposes latent prior and sampler controls, records richer
+  sampler diagnostics, and splits optional Bayesian validation into standard
+  `rstanarm-smoke`, full `rstanarm`, and latent-Stan scopes.
+- Remaining work is to run hosted/manual Bayesian validation and larger S3/S4
+  empirical stress tests before promoting the latent backend beyond
+  experimental status.
 
 3. Validate optional Bayesian CI workflow - `1-2h`
 - Fast core GitHub Actions validation passed on merged PR #11.
@@ -57,9 +60,9 @@ The staged track below is intended to be implemented one stage per chat window. 
   first custom Stan latent backend; empirical and diagnostic hardening remains
   in Now.
 - Vignettes and project notes were updated to explain the new package-level
-  functions and the latent prototype status. The main adjustment vignette now
+  functions and the latent backend status. The main adjustment vignette now
   teaches the default coverage-offset Bayesian implementation, while the
-  advanced Bayesian adjustment vignette carries the latent prototype,
+  advanced Bayesian adjustment vignette carries the experimental latent backend,
   reduced-form compatibility, S1-S4 source/time, and diagnostics material.
 
 1. Make repository public on GitHub - `complete`

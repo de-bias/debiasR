@@ -16,6 +16,9 @@
   availability errors.
 - Updated the optional Bayesian test runner and workflow to include `rstan`
   for the custom latent backend.
+- Added explicit latent prior and sampler controls, richer Stan diagnostics,
+  generated-quantity overflow guards, and split optional Bayesian test scopes
+  for `rstanarm` smoke/full checks and latent Stan checks.
 
 # debiasR 0.0.0.9001
 

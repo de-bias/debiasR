@@ -91,10 +91,13 @@ test_that("latent formula partitioning separates true-flow and observation layer
     mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance + (1 | origin),
     bias_formula = ~ bias_e_origin + (1 | mpd_source)
   )
-  latent_formula <- debiasR:::.build_multilevel_latent_formula_info(
-    formula_info = info,
-    default_covariate_col = NULL,
-    include_pop_terms = FALSE
+  expect_warning(
+    latent_formula <- debiasR:::.build_multilevel_latent_formula_info(
+      formula_info = info,
+      default_covariate_col = NULL,
+      include_pop_terms = FALSE
+    ),
+    "Random-effect terms"
   )
 
   expect_equal(
@@ -110,6 +113,10 @@ test_that("latent formula partitioning separates true-flow and observation layer
     c("rural_pct_o", "rural_pct_d", "log_distance")
   )
   expect_equal(latent_formula$bias_variables, "bias_e_origin")
+  expect_equal(
+    latent_formula$ignored_random_effect_terms,
+    c("(1 | origin)", "(1 | mpd_source)")
+  )
 
   combined <- debiasR:::.resolve_multilevel_user_formula(
     formula = flow ~ rural_pct_o + bias_e_origin
@@ -165,7 +172,19 @@ test_that("latent Stan data contract records state, formula, and prediction dime
     prediction_df = prediction_df,
     latent_formula_info = latent_formula,
     scenario_info = scenario_info,
-    model_family = "poisson"
+    model_family = "poisson",
+    latent_controls = debiasR:::.validate_multilevel_latent_controls(
+      latent_coef_prior_scale = 1,
+      latent_bias_prior_scale = 0.5,
+      latent_intercept_prior_scale = 2.5,
+      latent_state_prior_scale = 0.75,
+      latent_source_prior_scale = 0.5,
+      latent_time_prior_scale = 0.5,
+      latent_phi_prior_rate = 1,
+      latent_adapt_delta = 0.95,
+      latent_max_treedepth = 12,
+      latent_rng_eta_max = 20
+    )
   )
 
   expect_equal(stan_data$data$N_obs, 35L)
@@ -174,11 +193,113 @@ test_that("latent Stan data contract records state, formula, and prediction dime
   expect_equal(stan_data$data$S, 2L)
   expect_equal(stan_data$data$T, 2L)
   expect_equal(stan_data$data$use_time_effect, 1L)
+  expect_equal(stan_data$data$prior_coef_scale, 1)
+  expect_equal(stan_data$data$prior_bias_scale, 0.5)
+  expect_equal(stan_data$data$intercept_scale, 2.5)
+  expect_equal(stan_data$data$prior_latent_state_scale, 0.75)
+  expect_equal(stan_data$data$prior_source_scale, 0.5)
+  expect_equal(stan_data$data$prior_time_scale, 0.5)
+  expect_equal(stan_data$data$phi_prior_rate, 1)
+  expect_equal(stan_data$data$max_rng_eta, 20)
+  expect_equal(stan_data$summary$latent_controls$latent_adapt_delta, 0.95)
   expect_equal(stan_data$summary$n_unobserved_latent_flows, 0L)
   expect_equal(stan_data$summary$true_formula, "~rural_pct_o + rural_pct_d + log_distance")
   expect_equal(stan_data$summary$observation_formula, "~bias_e_origin - 1")
+  expect_equal(stan_data$summary$source_effect_layer, "observation")
+  expect_equal(stan_data$summary$time_effect_layer, "observation")
   expect_true(all(stan_data$data$latent_id_obs %in% seq_len(stan_data$data$L)))
   expect_true(all(stan_data$data$source_id_pred %in% seq_len(stan_data$data$S)))
+})
+
+test_that("latent Stan controls validate scalar inputs", {
+  controls <- debiasR:::.validate_multilevel_latent_controls(
+    latent_coef_prior_scale = 2,
+    latent_bias_prior_scale = 0.75,
+    latent_intercept_prior_scale = 2.25,
+    latent_state_prior_scale = 1,
+    latent_source_prior_scale = 0.6,
+    latent_time_prior_scale = 0.4,
+    latent_phi_prior_rate = 1.2,
+    latent_adapt_delta = 0.9,
+    latent_max_treedepth = 11,
+    latent_rng_eta_max = 18
+  )
+
+  expect_equal(controls$latent_coef_prior_scale, 2)
+  expect_equal(controls$latent_intercept_prior_scale, 2.25)
+  expect_equal(controls$latent_phi_prior_rate, 1.2)
+  expect_equal(controls$latent_max_treedepth, 11L)
+  expect_error(
+    debiasR:::.validate_multilevel_latent_controls(
+      latent_coef_prior_scale = 0,
+      latent_bias_prior_scale = 0.75,
+      latent_intercept_prior_scale = 2.25,
+      latent_state_prior_scale = 1,
+      latent_source_prior_scale = 0.6,
+      latent_time_prior_scale = 0.4,
+      latent_phi_prior_rate = 1.2,
+      latent_adapt_delta = 0.9,
+      latent_max_treedepth = 11,
+      latent_rng_eta_max = 18
+    ),
+    "latent_coef_prior_scale"
+  )
+  expect_error(
+    debiasR:::.validate_multilevel_latent_controls(
+      latent_coef_prior_scale = 2,
+      latent_bias_prior_scale = 0.75,
+      latent_intercept_prior_scale = 2.25,
+      latent_state_prior_scale = 1,
+      latent_source_prior_scale = 0.6,
+      latent_time_prior_scale = 0.4,
+      latent_phi_prior_rate = 1.2,
+      latent_adapt_delta = 1,
+      latent_max_treedepth = 11,
+      latent_rng_eta_max = 18
+    ),
+    "latent_adapt_delta"
+  )
+  expect_error(
+    debiasR:::.validate_multilevel_latent_controls(
+      latent_coef_prior_scale = 2,
+      latent_bias_prior_scale = 0.75,
+      latent_intercept_prior_scale = 2.25,
+      latent_state_prior_scale = 1,
+      latent_source_prior_scale = 0.6,
+      latent_time_prior_scale = 0.4,
+      latent_phi_prior_rate = 1.2,
+      latent_adapt_delta = 0.9,
+      latent_max_treedepth = 11.5,
+      latent_rng_eta_max = 18
+    ),
+    "latent_max_treedepth"
+  )
+})
+
+test_that("latent Stan controls are ignored outside the latent Stan backend", {
+  toy <- make_multilevel_scenario_toy(
+    sources = "src1",
+    periods = "t1"
+  )
+
+  res <- suppressWarnings(
+    adjust_multilevel_bayes(
+      mpd_od_df = toy$mpd_od,
+      coverage_df = toy$coverage,
+      covariates_df = toy$covariates,
+      distance_df = toy$distance,
+      model_engine = "frequentist",
+      scenario = "s1",
+      target_scale = "true_flow",
+      observation_model = "coverage_offset",
+      random_intercept = "none",
+      model_family = "poisson",
+      latent_coef_prior_scale = 0
+    )
+  )
+
+  expect_equal(attr(res, "model_engine"), "frequentist")
+  expect_equal(attr(res, "observation_model"), "coverage_offset")
 })
 
 test_that("latent backend availability errors before model fitting", {

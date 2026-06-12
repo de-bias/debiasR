@@ -24,6 +24,13 @@ data {
   int<lower=0, upper=K_true> true_intercept_col;
   real intercept_loc;
   real<lower=0> intercept_scale;
+  real<lower=0> prior_coef_scale;
+  real<lower=0> prior_bias_scale;
+  real<lower=0> prior_latent_state_scale;
+  real<lower=0> prior_source_scale;
+  real<lower=0> prior_time_scale;
+  real<lower=0> phi_prior_rate;
+  real<lower=0> max_rng_eta;
 }
 parameters {
   vector[K_true] beta_true_raw;
@@ -48,24 +55,24 @@ transformed parameters {
   }
 }
 model {
-  beta_true_raw ~ normal(0, 1);
-  beta_bias ~ normal(0, 0.5);
+  beta_true_raw ~ normal(0, prior_coef_scale);
+  beta_bias ~ normal(0, prior_bias_scale);
   z_latent ~ normal(0, 1);
-  sigma_latent ~ normal(0, 0.75);
+  sigma_latent ~ normal(0, prior_latent_state_scale);
   z_source ~ normal(0, 1);
-  sigma_source ~ normal(0, 0.5);
+  sigma_source ~ normal(0, prior_source_scale);
   z_time ~ normal(0, 1);
-  sigma_time ~ normal(0, 0.5);
-  phi ~ exponential(1);
+  sigma_time ~ normal(0, prior_time_scale);
+  phi ~ exponential(phi_prior_rate);
 
   for (n in 1:N_obs) {
     real eta_true = X_true_obs[n] * beta_true +
-      latent_effect[latent_id_obs[n]] +
-      use_time_effect * time_effect[time_id_obs[n]];
+      latent_effect[latent_id_obs[n]];
     real eta_obs = eta_true +
       log_q_obs[n] +
       X_bias_obs[n] * beta_bias +
-      source_effect[source_id_obs[n]];
+      source_effect[source_id_obs[n]] +
+      use_time_effect * time_effect[time_id_obs[n]];
 
     if (use_negbin == 1) {
       y[n] ~ neg_binomial_2_log(eta_obs, phi);
@@ -82,30 +89,30 @@ generated quantities {
 
   for (n in 1:N_pred) {
     real eta_true = X_true_pred[n] * beta_true +
-      latent_effect[latent_id_pred[n]] +
-      use_time_effect * time_effect[time_id_pred[n]];
+      latent_effect[latent_id_pred[n]];
     real eta_obs = eta_true +
       log_q_pred[n] +
       X_bias_pred[n] * beta_bias +
-      source_effect[source_id_pred[n]];
-    flow_true_pred[n] = exp(eta_true);
-    mu_mpd_pred[n] = exp(eta_obs);
+      source_effect[source_id_pred[n]] +
+      use_time_effect * time_effect[time_id_pred[n]];
+    flow_true_pred[n] = exp(fmin(eta_true, max_rng_eta));
+    mu_mpd_pred[n] = exp(fmin(eta_obs, max_rng_eta));
   }
 
   for (n in 1:N_obs) {
     real eta_true = X_true_obs[n] * beta_true +
-      latent_effect[latent_id_obs[n]] +
-      use_time_effect * time_effect[time_id_obs[n]];
+      latent_effect[latent_id_obs[n]];
     real eta_obs = eta_true +
       log_q_obs[n] +
       X_bias_obs[n] * beta_bias +
-      source_effect[source_id_obs[n]];
+      source_effect[source_id_obs[n]] +
+      use_time_effect * time_effect[time_id_obs[n]];
     if (use_negbin == 1) {
       log_lik[n] = neg_binomial_2_log_lpmf(y[n] | eta_obs, phi);
-      y_rep_obs[n] = neg_binomial_2_log_rng(eta_obs, phi);
+      y_rep_obs[n] = neg_binomial_2_log_rng(fmin(eta_obs, max_rng_eta), phi);
     } else {
       log_lik[n] = poisson_log_lpmf(y[n] | eta_obs);
-      y_rep_obs[n] = poisson_log_rng(eta_obs);
+      y_rep_obs[n] = poisson_log_rng(fmin(eta_obs, max_rng_eta));
     }
   }
 }
