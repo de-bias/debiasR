@@ -1,3 +1,91 @@
+.flow_overall_metric_row <- function(data, comparison, method_name) {
+  spec <- .flow_comparison_spec(comparison)
+  empty_row <- tibble::tibble(
+    method = method_name,
+    comparison = comparison,
+    comparison_label = spec$comparison_label,
+    x_series = spec$x_series,
+    y_series = spec$y_series,
+    signed_residual = spec$signed_residual,
+    n = 0L,
+    sum_x = 0,
+    sum_y = 0,
+    sum_adj = 0,
+    sum_bench = 0,
+    sum_mpd = 0,
+    mean_error = NA_real_,
+    pearson_r = NA_real_,
+    spearman_rho = NA_real_,
+    rmse = NA_real_,
+    mae = NA_real_,
+    mape = NA_real_,
+    ols_intercept = NA_real_,
+    ols_slope = NA_real_,
+    r_squared = NA_real_
+  )
+
+  if (nrow(data) == 0L) {
+    return(empty_row)
+  }
+
+  x <- data$x_flow
+  y <- data$y_flow
+  residual <- y - x
+  denom <- ifelse(y == 0, NA_real_, y)
+  x_sd <- stats::sd(x, na.rm = TRUE)
+  y_sd <- stats::sd(y, na.rm = TRUE)
+  can_cor <- length(x) >= 2L &&
+    is.finite(x_sd) &&
+    x_sd > 0 &&
+    is.finite(y_sd) &&
+    y_sd > 0
+  can_lm <- can_cor && all(is.finite(x + y))
+
+  if (can_lm) {
+    fit <- stats::lm(y ~ x)
+    coefs <- stats::coef(fit)
+    ols_intercept <- unname(coefs[1])
+    ols_slope <- unname(coefs[2])
+    r_squared <- unname(summary(fit)$r.squared)
+  } else {
+    ols_intercept <- NA_real_
+    ols_slope <- NA_real_
+    r_squared <- NA_real_
+  }
+
+  tibble::tibble(
+    method = method_name,
+    comparison = comparison,
+    comparison_label = spec$comparison_label,
+    x_series = spec$x_series,
+    y_series = spec$y_series,
+    signed_residual = spec$signed_residual,
+    n = length(x),
+    sum_x = sum(x, na.rm = TRUE),
+    sum_y = sum(y, na.rm = TRUE),
+    sum_adj = sum(data$flow_adj, na.rm = TRUE),
+    sum_bench = sum(data$flow_bench, na.rm = TRUE),
+    sum_mpd = sum(data$mpd_flow, na.rm = TRUE),
+    mean_error = mean(residual, na.rm = TRUE),
+    pearson_r = if (can_cor) {
+      suppressWarnings(stats::cor(x, y, method = "pearson"))
+    } else {
+      NA_real_
+    },
+    spearman_rho = if (can_cor) {
+      suppressWarnings(stats::cor(x, y, method = "spearman"))
+    } else {
+      NA_real_
+    },
+    rmse = sqrt(mean(residual^2)),
+    mae = mean(abs(residual)),
+    mape = mean(abs(residual / denom), na.rm = TRUE),
+    ols_intercept = ols_intercept,
+    ols_slope = ols_slope,
+    r_squared = r_squared
+  )
+}
+
 #' Validate adjusted OD flows against a benchmark overall
 #'
 #' Compares bias-adjusted MPD flows to benchmark (e.g., census) OD flows.
@@ -20,14 +108,24 @@
 #' @param return_joined Logical, return the joined row-level data in the result list. Default TRUE.
 #' @param method_name Optional label for the adjustment method (e.g. "adjust_inverse_penetration",
 #'   "adjust_selection_rate"). Stored in the output for comparison workflows.
+#' @param comparisons Flow comparison(s) to compute. The package convention is
+#'   that the first series in the ID is the x-axis/baseline, the second series
+#'   is the y-axis/reference, and signed residuals are \code{Y - X}. Default
+#'   \code{"adjusted_vs_benchmark"}. Use \code{"all"} for all supported
+#'   comparisons.
+#' @param flow_col_mpd Name of raw MPD flow column in \code{adj_df}. Default
+#'   \code{"flow"}. Required only when \code{comparisons} includes raw MPD
+#'   flows.
 #'
 #' @return A list with:
 #'   \itemize{
 #'     \item method (if provided)
-#'     \item n, sum_adj, sum_bench
+#'     \item comparison metadata, n, sum_x, sum_y, sum_adj, sum_bench
 #'     \item pearson_r, spearman_rho
 #'     \item rmse, mae, mape
 #'     \item ols_intercept, ols_slope, r_squared (from lm(y ~ x))
+#'     \item (optional) summary: a tibble of metric rows when more than one
+#'       comparison is requested
 #'     \item (optional) by_source: a tibble of per-source metrics when by_source = TRUE
 #'     \item (optional) data: the joined tibble used for the calculations
 #'   }
@@ -40,10 +138,18 @@ validate_flow_overall <- function(adj_df,
                                   na_rm          = TRUE,
                                   by_source      = FALSE,
                                   return_joined  = TRUE,
-                                  method_name    = NA_character_) {
+                                  method_name    = NA_character_,
+                                  comparisons    = "adjusted_vs_benchmark",
+                                  flow_col_mpd   = "flow") {
+
+  comparisons <- .normalise_flow_comparisons(comparisons)
+  raw_requested <- any(comparisons %in% c("raw_vs_benchmark", "raw_vs_adjusted"))
 
   # --- Required columns
   req_adj   <- c("origin", "destination", flow_col_adj)
+  if (raw_requested) {
+    req_adj <- unique(c(req_adj, flow_col_mpd))
+  }
   req_bench <- c("origin", "destination", flow_col_bench)
   if (!all(req_adj %in% names(adj_df))) {
     stop("`adj_df` must contain: ", paste(req_adj, collapse = ", "))
@@ -53,132 +159,107 @@ validate_flow_overall <- function(adj_df,
   }
 
   # --- Prepare joined data
-  joined <- adj_df |>
-    dplyr::select(dplyr::any_of(c("mpd_source")), origin, destination, !!flow_col_adj) |>
-    dplyr::rename(flow_adj = !!flow_col_adj) |>
+  adj_select_cols <- unique(c("mpd_source", "origin", "destination", flow_col_adj))
+  if (flow_col_mpd %in% names(adj_df)) {
+    adj_select_cols <- unique(c(adj_select_cols, flow_col_mpd))
+  }
+  joined <- tibble::as_tibble(adj_df) |>
+    dplyr::select(dplyr::any_of(adj_select_cols)) |>
+    dplyr::rename(flow_adj = dplyr::all_of(flow_col_adj))
+  if (flow_col_mpd %in% names(joined)) {
+    joined <- joined |>
+      dplyr::rename(mpd_flow = dplyr::all_of(flow_col_mpd))
+  } else {
+    joined$mpd_flow <- NA_real_
+  }
+  joined <- joined |>
     dplyr::inner_join(
       benchmark_od_df |>
         dplyr::select(origin, destination, !!flow_col_bench) |>
         dplyr::rename(flow_bench = !!flow_col_bench),
       by = c("origin", "destination")
+    ) |>
+    dplyr::mutate(
+      adj_flow = .data$flow_adj,
+      benchmark_flow = .data$flow_bench
     )
+
+  comparison_data <- dplyr::bind_rows(lapply(comparisons, function(comparison) {
+    spec <- .flow_comparison_spec(comparison)
+    comparison_tbl <- joined
+    comparison_tbl$x_flow <- .flow_comparison_x(comparison_tbl, comparison)
+    comparison_tbl$y_flow <- .flow_comparison_y(comparison_tbl, comparison)
+    comparison_tbl$residual <- .flow_comparison_residual(comparison_tbl, comparison)
+    comparison_tbl |>
+      dplyr::mutate(
+        comparison = comparison,
+        comparison_label = spec$comparison_label,
+        x_series = spec$x_series,
+        y_series = spec$y_series,
+        signed_residual = spec$signed_residual
+      )
+  }))
 
   # --- Clean rows
   if (na_rm) {
-    joined <- dplyr::filter(joined,
-                            is.finite(.data$flow_adj),
-                            is.finite(.data$flow_bench))
+    comparison_data <- dplyr::filter(
+      comparison_data,
+      is.finite(.data$x_flow),
+      is.finite(.data$y_flow)
+    )
   }
   if (drop_zeros) {
-    joined <- dplyr::filter(joined,
-                            .data$flow_adj > 0,
-                            .data$flow_bench > 0)
-  }
-
-  # --- Empty guard
-  if (nrow(joined) == 0L) {
-    res <- list(
-      method        = method_name,
-      n             = 0L,
-      sum_adj       = 0,
-      sum_bench     = 0,
-      pearson_r     = NA_real_,
-      spearman_rho  = NA_real_,
-      rmse          = NA_real_,
-      mae           = NA_real_,
-      mape          = NA_real_,
-      ols_intercept = NA_real_,
-      ols_slope     = NA_real_,
-      r_squared     = NA_real_
+    comparison_data <- dplyr::filter(
+      comparison_data,
+      .data$x_flow > 0,
+      .data$y_flow > 0
     )
-    if (by_source && "mpd_source" %in% names(joined)) {
-      res$by_source <- dplyr::tibble()
-    }
-    if (return_joined) res$data <- joined
-    return(res)
   }
 
-  # --- Core metrics (x = adjusted; y = benchmark)
-  x <- joined$flow_adj
-  y <- joined$flow_bench
-
-  sum_adj   <- sum(x, na.rm = TRUE)
-  sum_bench <- sum(y, na.rm = TRUE)
-
-  pearson_r    <- suppressWarnings(stats::cor(x, y, method = "pearson"))
-  spearman_rho <- suppressWarnings(stats::cor(x, y, method = "spearman"))
-
-  rmse  <- sqrt(mean((y - x)^2))
-  mae   <- mean(abs(y - x))
-  denom <- ifelse(y == 0, NA_real_, y)
-  mape  <- mean(abs((y - x) / denom), na.rm = TRUE)
-
-  fit <- stats::lm(y ~ x)
-  coefs <- stats::coef(fit)
-  ols_intercept <- unname(coefs[1])
-  ols_slope     <- unname(coefs[2])
-  r_squared     <- unname(summary(fit)$r.squared)
-
-  # --- Package result
-  out <- list(
-    method        = method_name,
-    n             = nrow(joined),
-    sum_adj       = sum_adj,
-    sum_bench     = sum_bench,
-    pearson_r     = pearson_r,
-    spearman_rho  = spearman_rho,
-    rmse          = rmse,
-    mae           = mae,
-    mape          = mape,
-    ols_intercept = ols_intercept,
-    ols_slope     = ols_slope,
-    r_squared     = r_squared
-  )
+  metric_rows <- dplyr::bind_rows(lapply(comparisons, function(comparison) {
+    .flow_overall_metric_row(
+      comparison_data[comparison_data$comparison == comparison, , drop = FALSE],
+      comparison = comparison,
+      method_name = method_name
+    )
+  }))
 
   # --- Optional: per-source metrics
-  if (by_source && "mpd_source" %in% names(joined)) {
-    metrics_fun <- function(df) {
-      xx <- df$flow_adj
-      yy <- df$flow_bench
-      data.frame(
-        n = length(xx),
-        sum_adj = sum(xx),
-        sum_bench = sum(yy),
-        pearson_r = suppressWarnings(stats::cor(xx, yy, method = "pearson")),
-        spearman_rho = suppressWarnings(stats::cor(xx, yy, method = "spearman")),
-        rmse = sqrt(mean((yy - xx)^2)),
-        mae  = mean(abs(yy - xx)),
-        mape = {
-          dd <- ifelse(yy == 0, NA_real_, yy)
-          mean(abs((yy - xx) / dd), na.rm = TRUE)
-        },
-        ols_intercept = {
-          if (length(xx) >= 2 && all(is.finite(xx + yy))) {
-            unname(stats::coef(stats::lm(yy ~ xx))[1])
-          } else NA_real_
-        },
-        ols_slope = {
-          if (length(xx) >= 2 && all(is.finite(xx + yy))) {
-            unname(stats::coef(stats::lm(yy ~ xx))[2])
-          } else NA_real_
-        },
-        r_squared = {
-          if (length(xx) >= 2 && all(is.finite(xx + yy))) {
-            unname(summary(stats::lm(yy ~ xx))$r.squared)
-          } else NA_real_
-        }
-      )
-    }
-
-    by_src <- joined |>
-      dplyr::group_by(mpd_source) |>
-      dplyr::group_modify(~ tibble::as_tibble(metrics_fun(.x))) |>
-      dplyr::ungroup()
-
-    out$by_source <- by_src
+  by_src <- NULL
+  if (by_source && "mpd_source" %in% names(comparison_data)) {
+    by_src <- dplyr::bind_rows(lapply(
+      split(
+        comparison_data,
+        list(comparison_data$comparison, comparison_data$mpd_source),
+        drop = TRUE
+      ),
+      function(data) {
+        row <- .flow_overall_metric_row(
+          data,
+          comparison = data$comparison[1],
+          method_name = method_name
+        )
+        row$mpd_source <- data$mpd_source[1]
+        row
+      }
+    ))
   }
 
-  if (return_joined) out$data <- joined
+  if (length(comparisons) == 1L) {
+    out <- as.list(metric_rows[1, , drop = FALSE])
+  } else {
+    out <- list(
+      method = method_name,
+      summary = metric_rows
+    )
+  }
+
+  if (!is.null(by_src)) {
+    out$by_source <- by_src
+  }
+  if (return_joined) {
+    out$data <- comparison_data
+  }
   out
 }
 
@@ -229,7 +310,10 @@ validate_flow_benchmark <- function(...) {
     dplyr::mutate(
       diff_mpd_benchmark = .data$mpd_flow - .data$benchmark_flow,
       diff_mpd_adj = .data$mpd_flow - .data$adj_flow,
-      diff_adj_benchmark = .data$adj_flow - .data$benchmark_flow
+      diff_adj_benchmark = .data$adj_flow - .data$benchmark_flow,
+      signed_residual_adjusted_vs_benchmark = .data$benchmark_flow - .data$adj_flow,
+      signed_residual_raw_vs_benchmark = .data$benchmark_flow - .data$mpd_flow,
+      signed_residual_raw_vs_adjusted = .data$adj_flow - .data$mpd_flow
     )
 
   tibble::as_tibble(out)
@@ -238,9 +322,10 @@ validate_flow_benchmark <- function(...) {
 #' Build an OD-pair validation table for MPD, adjusted, and benchmark flows
 #'
 #' Joins adjusted-flow output to benchmark OD flows and returns a tidy table with
-#' original MPD flow, adjusted flow, benchmark flow, and residual-style
-#' difference columns. This complements \code{validate_flow_overall()}, which
-#' summarizes method-level fit, by exposing OD-level differences directly.
+#' original MPD flow, adjusted flow, benchmark flow, legacy first-minus-second
+#' difference columns, and canonical signed residual columns. This complements
+#' \code{validate_flow_overall()}, which summarizes method-level fit, by
+#' exposing OD-level differences directly.
 #' For richer residual diagnostics (absolute residuals, percentage residuals,
 #' improvement flags, and a top-worst table), use
 #' \code{validate_flow_residuals()}.
@@ -263,7 +348,10 @@ validate_flow_benchmark <- function(...) {
 #'   \item \code{adj_flow},
 #'   \item \code{diff_mpd_benchmark = mpd_flow - benchmark_flow},
 #'   \item \code{diff_mpd_adj = mpd_flow - adj_flow},
-#'   \item \code{diff_adj_benchmark = adj_flow - benchmark_flow}.
+#'   \item \code{diff_adj_benchmark = adj_flow - benchmark_flow},
+#'   \item \code{signed_residual_adjusted_vs_benchmark = benchmark_flow - adj_flow},
+#'   \item \code{signed_residual_raw_vs_benchmark = benchmark_flow - mpd_flow},
+#'   \item \code{signed_residual_raw_vs_adjusted = adj_flow - mpd_flow}.
 #' }
 #' @export
 validate_flow_pairs <- function(adj_df,
@@ -539,6 +627,7 @@ validate_flow_all <- function(...) {
       area,
       method,
       residual_type,
+      dplyr::any_of(c("comparison", "comparison_label")),
       spatial_role,
       residual_aggregation,
       selected_residual
@@ -731,7 +820,10 @@ validate_flow_all <- function(...) {
 #' magnitudes. By default, the function compares adjusted OD flows with
 #' benchmark OD flows and reports \code{KL(benchmark || adjusted)} plus
 #' Jensen-Shannon divergence. It can also compare raw MPD versus benchmark and
-#' raw MPD versus adjusted flows through \code{comparisons}. Lower values
+#' raw MPD versus adjusted flows through \code{comparisons}. For each
+#' comparison ID, the first series is the x/baseline distribution, the second
+#' series is the y/reference distribution, and directional KL is
+#' \code{KL(Y || X)}. Lower values
 #' indicate closer destination-allocation fidelity. These metrics assess
 #' spatial allocation, not total flow scale or individual OD-pair residual size.
 #'
@@ -754,8 +846,8 @@ validate_flow_all <- function(...) {
 #'   \code{"none"} or \code{"benchmark_origin_total"}.
 #' @param comparisons Distribution comparisons to compute. The default
 #'   \code{"adjusted_vs_benchmark"} preserves the original behavior. Use
-#'   \code{"all"} to compute \code{"raw_vs_benchmark"},
-#'   \code{"adjusted_vs_benchmark"}, and \code{"raw_vs_adjusted"}.
+#'   \code{"all"} to compute \code{"adjusted_vs_benchmark"},
+#'   \code{"raw_vs_benchmark"}, and \code{"raw_vs_adjusted"}.
 #' @param return_origin_level Logical, return one row per origin in the output.
 #'   Default \code{TRUE}.
 #' @param return_od_level Logical, return OD-level share and contribution rows.
@@ -846,6 +938,9 @@ validate_flow_distribution <- function(adj_df,
     dplyr::group_by(
       .data$method,
       .data$comparison,
+      .data$comparison_label,
+      .data$x_distribution,
+      .data$y_distribution,
       .data$reference_distribution,
       .data$comparison_distribution
     ) |>
@@ -868,7 +963,8 @@ validate_flow_distribution <- function(adj_df,
         NA_real_
       ),
       .groups = "drop"
-    )
+    ) |>
+    dplyr::arrange(match(.data$comparison, comparisons))
 
   out <- list(summary = summary_tbl)
   if (return_origin_level) {
@@ -897,13 +993,14 @@ validate_flow_distribution <- function(adj_df,
     reference_distribution <- "benchmark"
     comparison_distribution <- "adjusted_mpd"
   } else if (comparison == "raw_vs_adjusted") {
-    reference_col <- "raw_flow"
-    comparison_col <- "adjusted_flow"
-    reference_distribution <- "raw_mpd"
-    comparison_distribution <- "adjusted_mpd"
+    reference_col <- "adjusted_flow"
+    comparison_col <- "raw_flow"
+    reference_distribution <- "adjusted_mpd"
+    comparison_distribution <- "raw_mpd"
   } else {
     stop("Unsupported distribution comparison.")
   }
+  spec <- .flow_comparison_spec(comparison)
 
   od_level <- support_tbl |>
     dplyr::mutate(
@@ -932,6 +1029,9 @@ validate_flow_distribution <- function(adj_df,
     dplyr::mutate(
       method = method_name,
       comparison = comparison,
+      comparison_label = spec$comparison_label,
+      x_distribution = spec$x_series,
+      y_distribution = spec$y_series,
       reference_distribution = reference_distribution,
       comparison_distribution = comparison_distribution,
       zero_benchmark_total = .data$bench_origin_total <= 0,
@@ -944,6 +1044,9 @@ validate_flow_distribution <- function(adj_df,
     dplyr::select(
       method,
       comparison,
+      comparison_label,
+      x_distribution,
+      y_distribution,
       reference_distribution,
       comparison_distribution,
       origin,
@@ -976,6 +1079,9 @@ validate_flow_distribution <- function(adj_df,
     dplyr::group_by(
       .data$method,
       .data$comparison,
+      .data$comparison_label,
+      .data$x_distribution,
+      .data$y_distribution,
       .data$reference_distribution,
       .data$comparison_distribution,
       .data$origin
@@ -1039,20 +1145,24 @@ validate_flow_distribution <- function(adj_df,
 #'     signed and absolute residual-reduction summaries, shares improved,
 #'     worsened, unchanged, and MPD versus adjusted residual shares above 1,
 #'     2, and 3 standard deviations,
-#'   \item \code{data}: OD-level tibble containing original and adjusted residuals,
-#'     benchmark-minus residuals, signed residual movement, absolute residual
-#'     reduction, percentage residuals, standard-deviation diagnostics for MPD
-#'     and adjusted residuals, and an \code{improvement_flag},
+#'   \item \code{data}: OD-level tibble containing original and adjusted signed
+#'     residuals using the package convention \code{Y - X}, signed residual
+#'     movement, absolute residual reduction, percentage residuals,
+#'     standard-deviation diagnostics for MPD and adjusted residuals, and an
+#'     \code{improvement_flag},
 #'   \item \code{top_worst}: the \code{top_n} OD pairs with the largest absolute
 #'     residual remaining after adjustment.
 #' }
 #'
-#' The exact signed movement requested by the Stage 2 validation plan is stored
-#' as \code{signed_residual_reduction = (benchmark - mpd) - (benchmark - adjusted)}.
-#' Algebraically this equals \code{adjusted - mpd}: positive values mean the
-#' adjustment moved the OD flow upward relative to the observed MPD flow. For a
-#' direction-free "positive means less benchmark error" comparison, use
-#' \code{abs_residual_reduction} or \code{improvement_flag}.
+#' Signed residuals use the shared comparison convention:
+#' \code{adjusted_vs_benchmark} is \code{benchmark - adjusted},
+#' \code{raw_vs_benchmark} is \code{benchmark - raw}, and
+#' \code{raw_vs_adjusted} is \code{adjusted - raw}. The exact signed movement
+#' requested by the Stage 2 validation plan is stored as
+#' \code{signed_residual_reduction}; algebraically this equals
+#' \code{adjusted - raw}. For a direction-free "positive means less benchmark
+#' error" comparison, use \code{abs_residual_reduction} or
+#' \code{improvement_flag}.
 #'
 #' @export
 validate_flow_residuals <- function(adj_df,
@@ -1082,12 +1192,12 @@ validate_flow_residuals <- function(adj_df,
   residuals <- audit_tbl |>
     dplyr::mutate(
       method = method_name,
-      residual_mpd_benchmark = .data$diff_mpd_benchmark,
-      residual_adj_benchmark = .data$diff_adj_benchmark,
-      residual_mpd_adj = .data$diff_mpd_adj,
-      benchmark_minus_mpd = .data$benchmark_flow - .data$mpd_flow,
-      benchmark_minus_adj = .data$benchmark_flow - .data$adj_flow,
-      signed_residual_reduction = .data$benchmark_minus_mpd - .data$benchmark_minus_adj,
+      residual_mpd_benchmark = .data$signed_residual_raw_vs_benchmark,
+      residual_adj_benchmark = .data$signed_residual_adjusted_vs_benchmark,
+      residual_mpd_adj = .data$signed_residual_raw_vs_adjusted,
+      benchmark_minus_mpd = .data$residual_mpd_benchmark,
+      benchmark_minus_adj = .data$residual_adj_benchmark,
+      signed_residual_reduction = .data$residual_mpd_adj,
       abs_residual_mpd_benchmark = abs(.data$residual_mpd_benchmark),
       abs_residual_adj_benchmark = abs(.data$residual_adj_benchmark),
       abs_residual_mpd_adj = abs(.data$residual_mpd_adj),
@@ -1181,8 +1291,8 @@ validate_flow_residuals <- function(adj_df,
 
 #' Validate residual structure and randomness diagnostics
 #'
-#' Builds residual-structure diagnostics for adjusted OD flows against benchmark
-#' OD flows. The helper reports residual correlation with benchmark flow,
+#' Builds residual-structure diagnostics for a selected flow comparison. The
+#' function reports residual correlation with benchmark flow,
 #' aggregates residuals to origin or destination areas for map-ready output,
 #' optionally computes global Moran's I from a user-supplied neighbour table,
 #' and optionally relates area-level residuals to a selected covariate.
@@ -1197,9 +1307,14 @@ validate_flow_residuals <- function(adj_df,
 #' @param flow_col_bench Name of benchmark flow column in \code{benchmark_od_df}.
 #'   Default \code{"flow"}.
 #' @param method_name Optional label for the adjustment method. Stored in outputs.
-#' @param residual_type Residual series to diagnose: \code{"adjusted"} uses
-#'   adjusted-minus-benchmark residuals, while \code{"mpd"} uses
-#'   MPD-minus-benchmark residuals.
+#' @param residual_type Legacy residual-series shortcut. \code{"adjusted"} maps
+#'   to \code{comparison = "adjusted_vs_benchmark"}, \code{"mpd"} maps to
+#'   \code{comparison = "raw_vs_benchmark"}, and \code{"adjustment"} maps to
+#'   \code{comparison = "raw_vs_adjusted"}.
+#' @param comparison Flow comparison to diagnose. The first series in the ID is
+#'   the x-axis/baseline, the second series is the y-axis/reference, and signed
+#'   residuals are \code{Y - X}. If \code{NULL}, \code{residual_type} is used
+#'   for backward compatibility. Default \code{NULL}.
 #' @param spatial_role Area role used for area-level residual summaries:
 #'   \code{"origin"} or \code{"destination"}.
 #' @param residual_aggregation How OD residuals are aggregated to area level:
@@ -1263,7 +1378,8 @@ validate_flow_residual_structure <- function(adj_df,
                                              flow_col_adj   = "flow_adj",
                                              flow_col_bench = "flow",
                                              method_name    = NA_character_,
-                                             residual_type  = c("adjusted", "mpd"),
+                                             residual_type  = c("adjusted", "mpd", "adjustment"),
+                                             comparison     = NULL,
                                              spatial_role   = c("origin", "destination"),
                                              residual_aggregation = c("mean", "sum"),
                                              area_neighbors = NULL,
@@ -1285,9 +1401,28 @@ validate_flow_residual_structure <- function(adj_df,
                                              make_plots     = FALSE) {
 
   residual_type <- match.arg(residual_type)
+  if (is.null(comparison)) {
+    comparison <- switch(
+      residual_type,
+      adjusted = "adjusted_vs_benchmark",
+      mpd = "raw_vs_benchmark",
+      adjustment = "raw_vs_adjusted"
+    )
+  } else {
+    comparison <- .normalise_flow_comparisons(comparison)
+    if (length(comparison) != 1L) {
+      stop("`comparison` must select exactly one flow comparison.", call. = FALSE)
+    }
+  }
+  comparison_spec <- .flow_comparison_spec(comparison)
   spatial_role <- match.arg(spatial_role)
   residual_aggregation <- match.arg(residual_aggregation)
-  residual_type_label <- residual_type
+  residual_type_label <- switch(
+    comparison,
+    adjusted_vs_benchmark = "adjusted",
+    raw_vs_benchmark = "mpd",
+    raw_vs_adjusted = "adjustment"
+  )
   spatial_role_label <- spatial_role
   residual_aggregation_label <- residual_aggregation
 
@@ -1318,22 +1453,30 @@ validate_flow_residual_structure <- function(adj_df,
     method_name = method_name
   )
 
-  residual_col <- if (residual_type_label == "adjusted") {
-    "residual_adj_benchmark"
-  } else {
-    "residual_mpd_benchmark"
-  }
+  residual_col <- switch(
+    comparison,
+    adjusted_vs_benchmark = "residual_adj_benchmark",
+    raw_vs_benchmark = "residual_mpd_benchmark",
+    raw_vs_adjusted = "residual_mpd_adj"
+  )
 
   od_level <- residual_result$data |>
     dplyr::mutate(
       selected_residual = .data[[residual_col]],
-      residual_type = residual_type_label
+      residual_type = residual_type_label,
+      comparison = comparison,
+      comparison_label = comparison_spec$comparison_label,
+      x_series = comparison_spec$x_series,
+      y_series = comparison_spec$y_series,
+      signed_residual = comparison_spec$signed_residual
     )
 
   flow_correlation <- tibble::tibble(
     method = method_name,
     residual_type = residual_type_label,
-    comparison = "benchmark_flow",
+    comparison = comparison,
+    comparison_label = comparison_spec$comparison_label,
+    benchmark_comparison = "benchmark_flow",
     n = sum(is.finite(od_level$selected_residual) & is.finite(od_level$benchmark_flow)),
     pearson_r = .safe_pearson(od_level$selected_residual, od_level$benchmark_flow)
   )
@@ -1344,6 +1487,8 @@ validate_flow_residual_structure <- function(adj_df,
     dplyr::summarise(
       method = method_name,
       residual_type = residual_type_label,
+      comparison = dplyr::first(.data$comparison),
+      comparison_label = dplyr::first(.data$comparison_label),
       spatial_role = spatial_role_label,
       residual_aggregation = residual_aggregation_label,
       n_od_pairs = dplyr::n(),
@@ -1376,6 +1521,8 @@ validate_flow_residual_structure <- function(adj_df,
   moran_tbl <- tibble::tibble(
     method = method_name,
     residual_type = residual_type_label,
+    comparison = comparison,
+    comparison_label = comparison_spec$comparison_label,
     spatial_role = spatial_role_label,
     residual_aggregation = residual_aggregation_label,
     n_areas_used = moran_stats$n_areas_used,
@@ -1388,6 +1535,8 @@ validate_flow_residual_structure <- function(adj_df,
   covariate_correlation <- tibble::tibble(
     method = method_name,
     residual_type = residual_type_label,
+    comparison = comparison,
+    comparison_label = comparison_spec$comparison_label,
     spatial_role = spatial_role_label,
     covariate = NA_character_,
     n = NA_integer_,
@@ -1410,6 +1559,8 @@ validate_flow_residual_structure <- function(adj_df,
     covariate_correlation <- tibble::tibble(
       method = method_name,
       residual_type = residual_type_label,
+      comparison = comparison,
+      comparison_label = comparison_spec$comparison_label,
       spatial_role = spatial_role_label,
       covariate = covariate_col,
       n = sum(is.finite(covariate_data$selected_residual) & is.finite(covariate_data$covariate_value)),
@@ -1468,6 +1619,8 @@ validate_flow_residual_structure <- function(adj_df,
   summary_tbl <- tibble::tibble(
     method = method_name,
     residual_type = residual_type_label,
+    comparison = comparison,
+    comparison_label = comparison_spec$comparison_label,
     spatial_role = spatial_role_label,
     residual_aggregation = residual_aggregation_label,
     n_od_pairs = nrow(od_level),
@@ -1512,7 +1665,7 @@ validate_flow_residual_structure <- function(adj_df,
         ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "#D95F0E") +
         ggplot2::labs(
           x = "Benchmark OD flow",
-          y = paste(residual_type_label, "residual"),
+          y = paste0(comparison_spec$comparison_label, " residual"),
           title = "Residuals versus benchmark flow"
         )
     )
@@ -1527,7 +1680,7 @@ validate_flow_residual_structure <- function(adj_df,
         ggplot2::geom_hline(yintercept = 0, linetype = "dashed", color = "#D95F0E") +
         ggplot2::labs(
           x = covariate_col,
-          y = paste(residual_type_label, "area residual"),
+          y = paste0(comparison_spec$comparison_label, " area residual"),
           title = "Area residuals versus covariate"
         )
     }

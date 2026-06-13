@@ -37,6 +37,7 @@ Suggests:
     tidyr,
     readr,
     stringr,
+    sf,
     purrr,
     patchwork,
     testthat (>= 3.2.0)

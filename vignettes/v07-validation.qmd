@@ -57,7 +57,7 @@ remain after adjustment.
 destinations in a similar way to the benchmark, after converting OD flows into
 destination-share distributions.
 
-**Level 5** checks whether adjusted-minus-benchmark residuals still show
+**Level 5** checks whether benchmark-minus-adjusted residuals still show
 structure after adjustment, such as dependence on flow size, global or local
 spatial clustering across neighbouring areas, or association with known area
 covariates.
@@ -195,7 +195,7 @@ flow_comparison <- validation_build_flow_comparison(
 
 ## Level 1: Overall validation
 
-This level provides a single number summary metric for the whole system of origin-destination flows. Each row in the output table reports a measure for one method and one data-type comparison (e.g. adjusted vs benchmark flows or raw vs adjusted flows).
+This level provides a single number summary metric for the whole system of origin-destination flows. Each row in the output table reports a measure for one method and one data-type comparison (for example, adjusted versus benchmark flows or raw MPD versus adjusted flows).
 
 The main results are the adjusted-versus-benchmark rows. These rows indicate
 whether the adjusted flows are close to the benchmark flows. The
@@ -252,7 +252,7 @@ marginal_metrics |>
   validation_display_metrics()
 ```
 
-We can use scatterplots to explore the data underpinning the results. We plotted the three sets of comparisons described at the start of this vignette: adjusted vs benchmark, raw vs benchmark, and raw vs adjusted flows.
+We can use scatterplots to explore the data underpinning the results. We plotted the three sets of comparisons described at the start of this vignette: adjusted versus benchmark, raw MPD versus benchmark, and raw MPD versus adjusted flows.
 Each point represents an area total of inflows or outflows. Points near the dashed line have similar flow values. Points above the line are larger in the
 flow dataset on the vertical axis. Points below the line are smaller in that
 same dataset.
@@ -281,8 +281,8 @@ area_names <- covariates_validation |>
 marginal_patterns <- marginal_comparison |>
   dplyr::left_join(area_names, by = "area") |>
   dplyr::mutate(
-    raw_residual = flow_mpd - flow_bench,
-    adjusted_residual = flow_adj - flow_bench,
+    raw_residual = flow_bench - flow_mpd,
+    adjusted_residual = flow_bench - flow_adj,
     abs_adjusted_residual = abs(adjusted_residual),
     abs_error_reduction = abs(raw_residual) - abs(adjusted_residual)
   )
@@ -352,8 +352,9 @@ validation_plot_od_scatter(flow_comparison)
 *Largest residuals and heatmap*
 
 We can also rank individual origin-destination pairs by the largest remaining
-adjusted-minus-benchmark residuals. Positive values mean the adjusted estimate
-is larger than the benchmark. Negative values mean it is smaller.
+benchmark-minus-adjusted residuals. Positive values mean the benchmark is
+larger than the adjusted estimate. Negative values mean the adjusted estimate
+is larger than the benchmark.
 
 ```{r}
 validation_rank_largest_residuals(flow_comparison, n = 12)
@@ -361,8 +362,8 @@ validation_rank_largest_residuals(flow_comparison, n = 12)
 
 More usefully, we can create a compact heatmap to understand and summarise the full set of origin-destination pair residuals by standard
 deviation (SD) bands. The residual for each adjustment method is the
-adjusted-minus-benchmark difference, $F^{adj}_{ij} - F^{bench}_{ij}$. The SD
-bands are defined from the pooled adjusted-minus-benchmark residuals across
+benchmark-minus-adjusted difference, $F^{bench}_{ij} - F^{adj}_{ij}$. The SD
+bands are defined from the pooled benchmark-minus-adjusted residuals across
 the two adjustment methods, so a band means the same thing in each column.
 
 Each cell is the percentage of origin-destination pairs in that residual band. For example, a value of 0.16 means that 0.16% of origin-destination pairs in
@@ -375,8 +376,8 @@ validation_plot_residual_heatmap(residual_heatmap)
 ```
 
 The heatmap also includes the unadjusted raw MPD as a baseline. This baseline uses
-the raw-minus-benchmark difference, $F^{mpd}_{ij} - F^{bench}_{ij}$, and is
-classified using the same adjusted-residual SD bands. The heatmap offers a way to enable visual
+the benchmark-minus-raw difference, $F^{bench}_{ij} - F^{mpd}_{ij}$, and is
+classified using the same benchmark-minus-adjusted SD bands. The heatmap offers a way to enable visual
 comparison. If an adjustment reduces the share of flows above 2, 3 or 4
 standard deviations, it contributes to reducing the number of large origin-destination-pair errors.
 
@@ -473,8 +474,9 @@ clustered across neighbouring areas globally or locally, or linked to known area
 characteristics. These checks do not prove that residuals are random, but they
 help identify patterns that may need further model development or local review.
 
-`validate_flow_residual_structure()` uses the adjusted-minus-benchmark
-residual by default. It also needs a choice about whether area-level residuals
+`validate_flow_residual_structure()` uses the adjusted-versus-benchmark
+comparison by default, with signed residuals defined as benchmark minus
+adjusted. It also needs a choice about whether area-level residuals
 should be summarised by origin or by destination. The example below uses origin
 areas and mean residuals. For the optional Moran's I diagnostic, users supply a
 plain neighbour-link table. The optional Local Moran's I diagnostics use the

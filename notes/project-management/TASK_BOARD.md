@@ -36,13 +36,29 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Recently Completed
 
+1. Add validation visual prototype functions - `complete`
+- Completed on 2026-06-13.
+- Added exported prototype `plot_validation_*()` functions for overall metric
+  matrices, residual violin plots, pairwise flow scatterplots,
+  standard-deviation and quantile residual outlier stacked bars,
+  distributional allocation heatmaps, pairwise divergence matrices, and
+  residual-structure diagnostic summaries, plus optional LISA cluster maps from
+  user-supplied `sf` boundaries.
+- The visual functions use the shared flow-comparison convention, default to
+  `adjusted_vs_benchmark`, and expose `error_measures`, `comparisons`, and
+  `methods` selectors.
+- Added a short visual review notebook at
+  `notes/project-management/VALIDATION_VISUAL_PROTOTYPES.qmd` using
+  deterministic simulated package data so the chart designs can be iterated
+  before promotion into the public validation vignette.
+
 1. Add Local Moran/LISA residual diagnostics - `complete`
 - Completed on 2026-06-13.
 - `validate_flow_residual_structure()` now has optional Local Moran's I and
   LISA cluster diagnostics for area-level residuals using the existing
   user-supplied neighbour-link interface.
-- The implementation keeps dependencies light by using base-R permutation
-  pseudo p-values and avoiding `sf`, `spdep`, or cartographic dependencies.
+- The validator keeps dependencies light by using base-R permutation pseudo
+  p-values and avoiding mandatory `sf`, `spdep`, or cartographic dependencies.
 - The validation vignette keeps this as part of Level 5 spatial/residual
   structure diagnostics, not a new validation level.
 
@@ -196,8 +212,8 @@ Tasks:
 - Implemented residual-versus-user-selected-covariate Pearson correlation and optional scatter plot.
 - Decision: covariates are passed as a plain area-level data frame plus explicit area and covariate column names.
 - Maintainer review decision: treat `validate_flow_residual_structure()` as stable public API immediately.
-- Maintainer review decision: keep optional diagnostic plots inside the helper for now because they are dependency-light and useful for review; split plotting into separate helpers later only if the plotting surface grows.
-- Maintainer review decision: keep `sf`-aware cartographic support outside the package for now.
+- Maintainer review decision: keep optional diagnostic plots inside the helper for now because they are dependency-light and useful for review; split plotting into separate helpers later only if the plotting surface grows. The current visual prototype now begins that split with package-level `plot_validation_*()` functions.
+- Updated visual-prototype decision: expose LISA cluster mapping separately through `plot_validation_lisa_map()`, requiring users to provide `sf` boundaries rather than bundling or inferring geometries.
 
 5. Add distributional allocation diagnostics.
 - Implemented destination-share distributions by origin for benchmark and adjusted flows.
@@ -242,7 +258,7 @@ Deliverables:
 Decision gate:
 
 - Do we have a validation layer that compares methods on fit, residual structure, and spatial allocation fidelity, and do we know whether the Zenodo-based data can be used in-package?
-- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside validation helpers for now; `sf`-aware cartographic support is deferred; empirical examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
+- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; the current visual prototype adds separate package-level plotting functions, including optional LISA mapping from user-supplied `sf` boundaries; empirical examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
 
 ### Stage 3: Measure Bias
 

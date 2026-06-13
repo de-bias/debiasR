@@ -119,11 +119,21 @@ Last updated: 2026-06-13
   origin-conditioned destination-share allocation.
 - `validate_flow_residual_structure()` now optionally computes Local Moran's I
   and LISA cluster diagnostics for area-level residuals using the same
-  user-supplied neighbour-link interface as global Moran's I. The implementation
-  uses base-R permutation pseudo p-values and does not add `sf`, `spdep`, or
+  user-supplied neighbour-link interface as global Moran's I. The validator uses
+  base-R permutation pseudo p-values and does not require `sf`, `spdep`, or
   other spatial dependencies.
+- Prototype validation plotting functions are now exported through
+  `plot_validation_*()` functions for metric matrices, residual violin plots,
+  pairwise flow scatterplots, standard-deviation and quantile residual-band
+  stacked bars, distributional allocation heatmaps, pairwise divergence
+  matrices, residual-structure diagnostic summaries, and optional LISA cluster
+  maps from user-supplied `sf` boundaries. They use the shared flow-comparison
+  convention, default to `adjusted_vs_benchmark`, and expose
+  `error_measures`, `comparisons`, and `methods` selectors. A short visual review notebook in
+  `notes/project-management/VALIDATION_VISUAL_PROTOTYPES.qmd` illustrates the
+  designs using deterministic simulated package data.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
-- Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside the validation helpers for now; `sf`-aware mapping remains outside the package; the optional `debiasRdata` companion package is the empirical data source.
+- Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional scalar diagnostics remain dependency-light, while LISA cluster mapping is exposed separately through `plot_validation_lisa_map()` and requires user-supplied `sf` boundaries; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.
 - Stage 3 maintainer review is complete: `validate_bias_residual_structure()` is stable public API; optional diagnostic plots remain inside the helper for now; a simple population-only linear-regression residual is included as a descriptive diagnostic.
 - The Zenodo data gate is documented in `DATA_REDISTRIBUTION_DECISION.md`: do not bundle the full record in `debiasR`; use the separate optional `debiasRdata` package for empirical travel-to-work examples and keep simulated data as lightweight test fixtures.
@@ -223,7 +233,7 @@ Last updated: 2026-06-13
   during the build.
 - Result: pass. The rendered validation article and reference page show the
   optional Local Moran/LISA diagnostics, hidden setup chunks remain hidden, and
-  no new spatial dependencies were added.
+  no new mandatory spatial dependencies were added.
 
 ## Current Risks / Blockers
 
@@ -232,7 +242,7 @@ Last updated: 2026-06-13
 3. Test suite reliability still depends on using the curated runner rather than raw `test_dir()` calls.
 4. Bayesian tests are slower and environment-sensitive due to MCMC runtime and optional `brms` support; run them manually when Bayesian-lane validation is needed.
 5. CI has been scaffolded and the fast core workflow passed on merged PR #11; the current branch head still needs live validation on the next PR or push.
-6. Full cartographic residual maps remain user-supplied because the package deliberately avoids adding an `sf` dependency at this stage.
+6. Full cartographic residual maps remain user-supplied. The optional LISA map helper uses `sf` boundaries supplied by the user rather than bundling or inferring geometries.
 7. The default LAD empirical route now has selected-area distance support through `lad_centroids`; MSOA distance-aware examples still require a future `msoa_OD_distance` or `msoa_centroids` asset if `geography = "msoa"` is needed.
 
 ## Immediate Priorities

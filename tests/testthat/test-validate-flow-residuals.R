@@ -22,6 +22,9 @@ test_that("validate_flow_residuals returns richer diagnostics and top worst rows
   expect_true(all(c("summary", "data", "top_worst") %in% names(res)))
   expect_true(all(c(
     "method",
+    "signed_residual_adjusted_vs_benchmark",
+    "signed_residual_raw_vs_benchmark",
+    "signed_residual_raw_vs_adjusted",
     "residual_mpd_benchmark",
     "residual_adj_benchmark",
     "benchmark_minus_mpd",
@@ -54,8 +57,9 @@ test_that("validate_flow_residuals returns richer diagnostics and top worst rows
   expect_equal(unique(res$data$method), "demo_method")
   expect_equal(unique(res$top_worst$method), "demo_method")
 
-  expect_equal(res$data$residual_mpd_benchmark, c(20, -30, -10))
-  expect_equal(res$data$residual_adj_benchmark, c(10, -40, 10))
+  expect_equal(res$data$residual_mpd_benchmark, c(-20, 30, 10))
+  expect_equal(res$data$residual_adj_benchmark, c(-10, 40, -10))
+  expect_equal(res$data$residual_mpd_adj, c(-10, -10, 20))
   expect_equal(res$data$benchmark_minus_mpd, c(-20, 30, 10))
   expect_equal(res$data$benchmark_minus_adj, c(-10, 40, -10))
   expect_equal(res$data$signed_residual_reduction, c(-10, -10, 20))
@@ -66,8 +70,8 @@ test_that("validate_flow_residuals returns richer diagnostics and top worst rows
   expect_equal(res$data$moved_in_benchmark_direction, c(TRUE, FALSE, TRUE))
   expect_equal(res$data$improvement_flag, c("improved", "worsened", "unchanged"))
 
-  expect_equal(round(res$data$pct_residual_mpd_benchmark, 1), c(25.0, -37.5, -50.0))
-  expect_equal(round(res$data$pct_residual_adj_benchmark, 1), c(12.5, -50.0, 50.0))
+  expect_equal(round(res$data$pct_residual_mpd_benchmark, 1), c(-25.0, 37.5, 50.0))
+  expect_equal(round(res$data$pct_residual_adj_benchmark, 1), c(-12.5, 50.0, -50.0))
   expect_equal(round(res$data$pct_residual_improvement, 1), c(50.0, -33.3, 0.0))
   expect_equal(round(res$data$residual_sd_mpd_benchmark, 3), rep(25.166, 3))
   expect_equal(round(res$data$abs_residual_mpd_benchmark_sd_score, 3), c(0.795, 1.192, 0.397))

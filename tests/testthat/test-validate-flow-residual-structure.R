@@ -43,13 +43,40 @@ test_that("validate_flow_residual_structure returns correlations and Morans I", 
   ) %in% names(res)))
 
   expect_equal(res$summary$method, "demo_method")
+  expect_equal(res$summary$comparison, "adjusted_vs_benchmark")
+  expect_equal(res$summary$comparison_label, "Adjusted vs benchmark")
   expect_equal(res$summary$n_od_pairs, 8)
   expect_equal(res$summary$n_areas, 4)
   expect_equal(res$area_level$n_od_pairs, c(2, 2, 2, 2))
-  expect_equal(res$area_level$selected_residual, c(0.5, 0.5, -0.5, -0.5))
+  expect_equal(res$area_level$selected_residual, c(-0.5, -0.5, 0.5, 0.5))
   expect_equal(res$moran_i$moran_i, 1)
-  expect_equal(round(res$flow_correlation$pearson_r, 4), -0.6325)
-  expect_equal(round(res$covariate_correlation$pearson_r, 4), -0.8944)
+  expect_equal(round(res$flow_correlation$pearson_r, 4), 0.6325)
+  expect_equal(round(res$covariate_correlation$pearson_r, 4), 0.8944)
+})
+
+test_that("validate_flow_residual_structure supports comparison selection", {
+  adj_df <- data.frame(
+    origin = c("A", "B"),
+    destination = "X",
+    flow = c(10, 20),
+    flow_adj = c(12, 18)
+  )
+
+  benchmark_od_df <- data.frame(
+    origin = c("A", "B"),
+    destination = "X",
+    flow = c(11, 19)
+  )
+
+  res <- validate_flow_residual_structure(
+    adj_df,
+    benchmark_od_df,
+    comparison = "raw_vs_adjusted"
+  )
+
+  expect_equal(res$summary$comparison, "raw_vs_adjusted")
+  expect_equal(res$summary$residual_type, "adjustment")
+  expect_equal(res$od_level$selected_residual, c(2, -2))
 })
 
 test_that("validate_flow_residual_structure can return ggplot diagnostics", {
@@ -174,12 +201,12 @@ test_that("validate_flow_residual_structure returns Local Moran and LISA cluster
   expect_true("local_moran" %in% names(res))
   expect_true("lisa_cluster" %in% names(res$map_data))
   expect_equal(res$local_moran$area, c("A", "B", "C", "D", "E"))
-  expect_equal(round(res$local_moran$residual_z, 3), c(1.118, 1.118, -1.118, -1.118, 0))
-  expect_equal(round(res$local_moran$spatial_lag_z, 3), c(1.118, 1.118, -1.118, -1.118, NA))
+  expect_equal(round(res$local_moran$residual_z, 3), c(-1.118, -1.118, 1.118, 1.118, 0))
+  expect_equal(round(res$local_moran$spatial_lag_z, 3), c(-1.118, -1.118, 1.118, 1.118, NA))
   expect_equal(res$local_moran$local_moran_i, c(1.25, 1.25, 1.25, 1.25, NA))
   expect_equal(
     res$local_moran$lisa_cluster,
-    c("high-high", "high-high", "low-low", "low-low", "no neighbours")
+    c("low-low", "low-low", "high-high", "high-high", "no neighbours")
   )
 })
 
@@ -287,8 +314,8 @@ test_that("validate_flow_residual_structure Local Moran supports weighted links"
 
   expect_equal(a_row$n_neighbors_used, 2L)
   expect_equal(a_row$local_weight_sum, 4)
-  expect_equal(a_row$neighbor_lag_mean, -1.5)
-  expect_equal(round(a_row$spatial_lag_z, 3), -0.919)
+  expect_equal(a_row$neighbor_lag_mean, 1.5)
+  expect_equal(round(a_row$spatial_lag_z, 3), 0.919)
   expect_equal(a_row$local_moran_i, -4.5)
 })
 

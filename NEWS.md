@@ -2,6 +2,15 @@
 
 ### Validation documentation
 
+- Added prototype `plot_validation_*()` functions for validation metric
+  matrices, residual violin plots, pairwise flow scatterplots,
+  standard-deviation and quantile residual-band stacked bars, distributional
+  allocation heatmaps, residual-structure diagnostics, and optional LISA cluster
+  maps from user-supplied `sf` boundaries. The functions now use the shared
+  flow-comparison convention, default to `adjusted_vs_benchmark`, and expose
+  `error_measures`, `comparisons`, and `methods` selectors for visual
+  iteration. The longer `plot_validate_flow_*()` names remain available as
+  compatibility aliases.
 - Added a concise metadata description to the validation vignette so article
   listings and previews describe the full validation workflow.
 - Added a new optional flow-visualisation vignette showing how to prepare LAD
@@ -14,11 +23,11 @@
 - Extended `validate_flow_residual_structure()` with optional Local Moran's I
   and LISA cluster diagnostics, including permutation pseudo p-values, while
   reusing the existing user-supplied neighbour-link interface and avoiding new
-  spatial dependencies.
+  mandatory spatial dependencies.
 - Clarified the validation hierarchy so distributional allocation validation
   remains focused on origin-conditioned destination-share distributions, while
   spatial/residual structure diagnostics focus on remaining
-  adjusted-minus-benchmark residual patterns.
+  benchmark-minus-adjusted residual patterns.
 
 ### Bayesian adjustment documentation
 

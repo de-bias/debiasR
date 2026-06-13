@@ -160,8 +160,12 @@ test_that("validate_flow_distribution computes all requested pairwise comparison
   )
 
   expect_equal(
-    sort(res$summary$comparison),
-    sort(c("raw_vs_benchmark", "adjusted_vs_benchmark", "raw_vs_adjusted"))
+    res$summary$comparison,
+    c("adjusted_vs_benchmark", "raw_vs_benchmark", "raw_vs_adjusted")
+  )
+  expect_equal(
+    res$summary$comparison_label,
+    c("Adjusted vs benchmark", "Raw MPD vs benchmark", "Raw MPD vs adjusted")
   )
   expect_equal(nrow(res$summary), 3)
   expect_equal(nrow(res$origin_level), 6)
@@ -178,6 +182,15 @@ test_that("validate_flow_distribution computes all requested pairwise comparison
   ]
   expect_gt(raw_summary$kl_mean, 0)
   expect_gt(raw_summary$jsd_mean, 0)
+
+  adjustment_summary <- res$summary[
+    res$summary$comparison == "raw_vs_adjusted",
+  ]
+  expect_equal(adjustment_summary$reference_distribution, "adjusted_mpd")
+  expect_equal(adjustment_summary$comparison_distribution, "raw_mpd")
+  expect_equal(adjustment_summary$x_distribution, "raw_mpd")
+  expect_equal(adjustment_summary$y_distribution, "adjusted")
+  expect_gt(adjustment_summary$kl_mean, 0)
 })
 
 test_that("validate_flow_distribution requires raw MPD flow only for raw comparisons", {

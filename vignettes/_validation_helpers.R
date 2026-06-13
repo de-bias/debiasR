@@ -5,14 +5,14 @@ validation_method_labels <- c(
 
 validation_comparison_labels <- c(
   adjusted_vs_benchmark = "Adjusted vs benchmark",
-  raw_vs_benchmark = "Raw vs benchmark",
-  raw_vs_adjusted = "Raw vs adjusted"
+  raw_vs_benchmark = "Raw MPD vs benchmark",
+  raw_vs_adjusted = "Raw MPD vs adjusted"
 )
 
 validation_comparison_palette <- c(
   "Adjusted vs benchmark" = "#2B8CBE",
-  "Raw vs benchmark" = "#756BB1",
-  "Raw vs adjusted" = "#636363"
+  "Raw MPD vs benchmark" = "#756BB1",
+  "Raw MPD vs adjusted" = "#636363"
 )
 
 validation_reference_line_colour <- "#D95F0E"
@@ -94,7 +94,7 @@ validation_flow_metric_row <- function(data,
     ))
   }
 
-  error <- x - y
+  error <- y - x
   denom <- ifelse(y == 0, NA_real_, y)
   mape <- 100 * mean(abs(error / denom), na.rm = TRUE)
   if (is.nan(mape)) {
@@ -141,8 +141,8 @@ validation_comparison_metric_rows <- function(data, level, method_name) {
       level = level,
       method_name = method_name,
       comparison = "raw_vs_adjusted",
-      estimate_col = "flow_adj",
-      reference_col = "flow_mpd"
+      estimate_col = "flow_mpd",
+      reference_col = "flow_adj"
     )
   )
 }
@@ -462,49 +462,51 @@ validation_build_pair_scatter <- function(data) {
         method_label,
         level,
         comparison = "Adjusted vs benchmark",
-        comparison_axis_label = "adjusted (Y) vs\nbenchmark (X)",
-        reference_flow = flow_bench,
-        compared_flow = flow_adj,
-        difference = flow_adj - flow_bench
+        comparison_axis_label = "adjusted (X) vs\nbenchmark (Y)",
+        x_flow = flow_adj,
+        y_flow = flow_bench,
+        difference = flow_bench - flow_adj
       ),
     data |>
       dplyr::transmute(
         method,
         method_label,
         level,
-        comparison = "Raw vs benchmark",
-        comparison_axis_label = "raw (Y) vs\nbenchmark (X)",
-        reference_flow = flow_bench,
-        compared_flow = flow_mpd,
-        difference = flow_mpd - flow_bench
+        comparison = "Raw MPD vs benchmark",
+        comparison_axis_label = "raw MPD (X) vs\nbenchmark (Y)",
+        x_flow = flow_mpd,
+        y_flow = flow_bench,
+        difference = flow_bench - flow_mpd
       ),
     data |>
       dplyr::transmute(
         method,
         method_label,
         level,
-        comparison = "Raw vs adjusted",
-        comparison_axis_label = "raw (Y) vs\nadjusted (X)",
-        reference_flow = flow_adj,
-        compared_flow = flow_mpd,
-        difference = flow_mpd - flow_adj
+        comparison = "Raw MPD vs adjusted",
+        comparison_axis_label = "raw MPD (X) vs\nadjusted (Y)",
+        x_flow = flow_mpd,
+        y_flow = flow_adj,
+        difference = flow_adj - flow_mpd
       )
   ) |>
     dplyr::mutate(
+      reference_flow = y_flow,
+      compared_flow = x_flow,
       comparison = factor(
         comparison,
         levels = c(
           "Adjusted vs benchmark",
-          "Raw vs benchmark",
-          "Raw vs adjusted"
+          "Raw MPD vs benchmark",
+          "Raw MPD vs adjusted"
         )
       ),
       comparison_axis_label = factor(
         comparison_axis_label,
         levels = c(
-          "adjusted (Y) vs\nbenchmark (X)",
-          "raw (Y) vs\nbenchmark (X)",
-          "raw (Y) vs\nadjusted (X)"
+          "adjusted (X) vs\nbenchmark (Y)",
+          "raw MPD (X) vs\nbenchmark (Y)",
+          "raw MPD (X) vs\nadjusted (Y)"
         )
       )
     )
@@ -579,8 +581,8 @@ validation_plot_margin_scatter <- function(marginal_comparison, level = NULL) {
   plot_data |>
     ggplot2::ggplot(
       ggplot2::aes(
-        x = reference_flow,
-        y = compared_flow,
+        x = x_flow,
+        y = y_flow,
         colour = difference
       )
     ) +
@@ -597,8 +599,8 @@ validation_plot_margin_scatter <- function(marginal_comparison, level = NULL) {
     ggplot2::scale_y_continuous(labels = validation_flow_axis_label) +
     ggplot2::labs(
       title = margin_plot_title,
-      x = "X-axis marginal total",
-      y = "Y-axis marginal total"
+      x = "Number of people",
+      y = "Number of people"
     ) +
     validation_theme() +
     ggplot2::theme(
@@ -626,8 +628,8 @@ validation_plot_od_scatter <- function(flow_comparison) {
   plot_data |>
     ggplot2::ggplot(
       ggplot2::aes(
-        x = reference_flow,
-        y = compared_flow,
+        x = x_flow,
+        y = y_flow,
         colour = difference
       )
     ) +
@@ -643,19 +645,19 @@ validation_plot_od_scatter <- function(flow_comparison) {
     ggplot2::scale_x_continuous(labels = validation_flow_axis_label) +
     ggplot2::scale_y_continuous(labels = validation_flow_axis_label) +
     ggplot2::labs(
-      x = "X-axis flow",
-      y = "Y-axis flow"
+      x = "Number of people",
+      y = "Number of people"
     ) +
     validation_theme()
 }
 
 validation_plot_residual_outliers <- function(flow_comparison) {
   flow_comparison |>
-    dplyr::mutate(adjusted_residual = flow_adj - flow_bench) |>
+    dplyr::mutate(adjusted_residual = flow_bench - flow_adj) |>
     ggplot2::ggplot(
       ggplot2::aes(
-        x = flow_bench,
-        y = flow_adj,
+        x = flow_adj,
+        y = flow_bench,
         colour = adjusted_residual
       )
     ) +
@@ -673,13 +675,13 @@ validation_plot_residual_outliers <- function(flow_comparison) {
       high = "#B2182B",
       midpoint = 0,
       labels = validation_flow_axis_label,
-      name = "Adjusted -\nbenchmark"
+      name = "Benchmark -\nadjusted"
     ) +
     ggplot2::scale_x_continuous(labels = validation_flow_axis_label) +
     ggplot2::scale_y_continuous(labels = validation_flow_axis_label) +
     ggplot2::labs(
-      x = "Benchmark flow",
-      y = "Adjusted flow"
+      x = "Adjusted flow",
+      y = "Benchmark flow"
     ) +
     validation_theme()
 }
@@ -687,8 +689,8 @@ validation_plot_residual_outliers <- function(flow_comparison) {
 validation_rank_largest_residuals <- function(flow_comparison, n = 10) {
   flow_comparison |>
     dplyr::mutate(
-      raw_residual = flow_mpd - flow_bench,
-      adjusted_residual = flow_adj - flow_bench,
+      raw_residual = flow_bench - flow_mpd,
+      adjusted_residual = flow_bench - flow_adj,
       adjustment = flow_adj - flow_mpd,
       abs_error_reduction = abs(raw_residual) - abs(adjusted_residual),
       movement = dplyr::case_when(
@@ -719,7 +721,7 @@ validation_build_residual_heatmap <- function(flow_comparison) {
     dplyr::distinct()
 
   adjusted_reference_sd <- flow_comparison |>
-    dplyr::mutate(residual = flow_adj - flow_bench) |>
+    dplyr::mutate(residual = flow_bench - flow_adj) |>
     dplyr::pull(residual) |>
     stats::sd(na.rm = TRUE)
   if (!is.finite(adjusted_reference_sd) || adjusted_reference_sd <= 0) {
@@ -730,14 +732,14 @@ validation_build_residual_heatmap <- function(flow_comparison) {
     raw_reference |>
       dplyr::transmute(
         method_label = "Unadjusted",
-        residual_source = "Raw MPD - benchmark",
-        residual = flow_mpd - flow_bench
+        residual_source = "Benchmark - raw MPD",
+        residual = flow_bench - flow_mpd
       ),
     flow_comparison |>
       dplyr::transmute(
         method_label,
-        residual_source = "Adjusted - benchmark",
-        residual = flow_adj - flow_bench
+        residual_source = "Benchmark - adjusted",
+        residual = flow_bench - flow_adj
       )
   ) |>
     dplyr::mutate(

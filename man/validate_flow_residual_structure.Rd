@@ -11,7 +11,8 @@ validate_flow_residual_structure(
   flow_col_adj = "flow_adj",
   flow_col_bench = "flow",
   method_name = NA_character_,
-  residual_type = c("adjusted", "mpd"),
+  residual_type = c("adjusted", "mpd", "adjustment"),
+  comparison = NULL,
   spatial_role = c("origin", "destination"),
   residual_aggregation = c("mean", "sum"),
   area_neighbors = NULL,
@@ -50,9 +51,15 @@ Default \code{"flow"}.}
 
 \item{method_name}{Optional label for the adjustment method. Stored in outputs.}
 
-\item{residual_type}{Residual series to diagnose: \code{"adjusted"} uses
-adjusted-minus-benchmark residuals, while \code{"mpd"} uses
-MPD-minus-benchmark residuals.}
+\item{residual_type}{Legacy residual-series shortcut. \code{"adjusted"} maps
+to \code{comparison = "adjusted_vs_benchmark"}, \code{"mpd"} maps to
+\code{comparison = "raw_vs_benchmark"}, and \code{"adjustment"} maps to
+\code{comparison = "raw_vs_adjusted"}.}
+
+\item{comparison}{Flow comparison to diagnose. The first series in the ID is
+the x-axis/baseline, the second series is the y-axis/reference, and signed
+residuals are \code{Y - X}. If \code{NULL}, \code{residual_type} is used
+for backward compatibility. Default \code{NULL}.}
 
 \item{spatial_role}{Area role used for area-level residual summaries:
 \code{"origin"} or \code{"destination"}.}
@@ -131,8 +138,8 @@ when supplied,
 }
 }
 \description{
-Builds residual-structure diagnostics for adjusted OD flows against benchmark
-OD flows. The helper reports residual correlation with benchmark flow,
+Builds residual-structure diagnostics for a selected flow comparison. The
+function reports residual correlation with benchmark flow,
 aggregates residuals to origin or destination areas for map-ready output,
 optionally computes global Moran's I from a user-supplied neighbour table,
 and optionally relates area-level residuals to a selected covariate.

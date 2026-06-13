@@ -24,7 +24,10 @@ test_that("validate_flow_pairs returns requested columns and differences", {
     "adj_flow",
     "diff_mpd_benchmark",
     "diff_mpd_adj",
-    "diff_adj_benchmark"
+    "diff_adj_benchmark",
+    "signed_residual_adjusted_vs_benchmark",
+    "signed_residual_raw_vs_benchmark",
+    "signed_residual_raw_vs_adjusted"
   ) %in% names(res)))
 
   expect_equal(res$mpd_flow, c(100, 80, 40))
@@ -33,6 +36,9 @@ test_that("validate_flow_pairs returns requested columns and differences", {
   expect_equal(res$diff_mpd_benchmark, c(5, 10, -15))
   expect_equal(res$diff_mpd_adj, c(10, 5, -10))
   expect_equal(res$diff_adj_benchmark, c(-5, 5, -5))
+  expect_equal(res$signed_residual_adjusted_vs_benchmark, c(5, -5, 5))
+  expect_equal(res$signed_residual_raw_vs_benchmark, c(-5, -10, 15))
+  expect_equal(res$signed_residual_raw_vs_adjusted, c(-10, -5, 10))
 })
 
 test_that("validate_flow_pairs supports custom flow column names", {
@@ -62,6 +68,9 @@ test_that("validate_flow_pairs supports custom flow column names", {
   expect_equal(res$diff_mpd_benchmark, -1)
   expect_equal(res$diff_mpd_adj, -2)
   expect_equal(res$diff_adj_benchmark, 1)
+  expect_equal(res$signed_residual_adjusted_vs_benchmark, -1)
+  expect_equal(res$signed_residual_raw_vs_benchmark, 1)
+  expect_equal(res$signed_residual_raw_vs_adjusted, 2)
 })
 
 test_that("validate_flow_pairs errors on missing required columns", {
