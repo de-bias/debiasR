@@ -1,9 +1,9 @@
-# 🌟 Contributing Guidelines
+# Contributing guidelines
 
-Thank you for your interest in contributing to this project! We welcome all kinds of contributions—code, documentation, ideas, and more. This guide will help you get started.
+Thank you for your interest in contributing to this project! We welcome all kinds of contributions—code, documentation, ideas and more. This guide will help you get started.
 
 
-## 🚀 How to Contribute
+## How to contribute
 
 All changes to `main` must come through pull requests. Direct pushes to `main`
 are not part of the project workflow, including for maintainers and automation
@@ -51,24 +51,25 @@ review and merge accepted pull requests.
 
 ---
 
-## 💡 Using Issue & PR Templates
+## Using issue & PR templates
 
 - When reporting a bug or requesting a feature, please use the issue template in `.github/ISSUE_TEMPLATE/`.
 - When submitting a pull request, fill out the PR template to describe your changes and link related issues.
 
-## 🧭 Naming Guide
+## Naming guide
 
-- Use the current exported API in examples and docs: `adjust_*`, `validate_flow_overall()`, `validate_flow_pairs()`, and `simulated_*`.
+- Use the current exported API in examples and docs: `adjust_*`, `validate_flow_overall()`, `validate_flow_pairs()` and `simulated_*`.
 - If you need to mention older names for migration context, keep them in [notes/project-management/MIGRATION_MAP.md](notes/project-management/MIGRATION_MAP.md) rather than in user-facing instructions.
 - Prefer the current vignette/file naming too, for example `adjust-inverse-penetration` rather than legacy `debias-method1`.
 
 
-## ✨ Acknowledging Contributors with All Contributors Bot
+## Acknowledging contributors with All Contributors Bot
 
-We celebrate all contributions! 🎉  
-We use the [All Contributors Bot](https://allcontributors.org/) to recognize everyone’s work—code, docs, ideas, design, and more.
+We celebrate all contributions! 
 
-### How to Get Acknowledged
+We use the [All Contributors Bot](https://allcontributors.org/) to recognise everyone’s work—code, docs, ideas and design.
+
+### How to get acknowledged
 
 - After your PR is merged, comment on an issue or PR:
   ```
@@ -79,9 +80,9 @@ We use the [All Contributors Bot](https://allcontributors.org/) to recognize eve
 - The bot will open a PR to update the contributors table in the README.  
 - Review and merge that PR to see your avatar and contributions appear!
 
-### Contribution Types
+### Contribution types
 
-See the [emoji key](https://allcontributors.org/docs/en/emoji-key) for all the ways you can be recognized.
+See the [emoji key](https://allcontributors.org/docs/en/emoji-key) for all the ways you can be recognised.
 
 
 
