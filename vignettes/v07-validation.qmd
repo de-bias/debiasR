@@ -28,32 +28,62 @@ execute:
 
 ## Aim
 
-This vignette describes the range of validation methods included in `debiasR`, to assess our adjusted mobile-phone-derived flow estimates against a set of target benchmark flows.
+This vignette shows how to validate adjusted origin-destination (OD) flows. In
+the previous vignette, we used `debiasR` adjustment methods to move from raw
+mobile-phone-derived flows, $F^{mpd}_{ij}$, to adjusted flows,
+$F^{adj}_{ij}$. Here, we check whether those adjusted flows better align with a
+trusted benchmark, $F^{bench}_{ij}$.
 
-The methods assess differences between adjusted *versus* benchmark flows, to evaluate the final adjustment.
+The main validation comparison is adjusted versus benchmark flows. This tells us
+whether an adjustment method makes the digital-trace-derived OD measurements closer to
+the target OD table.
 
-It also enables comparisons between:
-- raw mobile-phone-derived *versus* benchmark flows, to evaluate the
-  extent of bias before adjustment.
-- raw *versus* adjusted flows, to evaluate the extent of adjustment made to the raw data.
+The same validation tools can also compare:
 
-The validation methods included in `debiasR` allow the assessment of adjustment outputs at five levels: overall, OD marginal, individual OD-pair, distributional allocation, and spatial/residual structure validation. The main assessment tools are error metrics, correlation coefficients, visual tools, distributional allocation metrics and residual-structure diagnostics. The allocation metrics use KL divergence and Jensen-Shannon divergence for origin-conditioned destination-share distributions. The residual-structure diagnostics check whether remaining errors retain scale, global or local spatial clustering, or covariate-linked patterns. These diagnostics provide flexibility to assess particular dimensions of the data which may vary depending on the target use of the adjusted flows.
+- raw mobile-phone-derived versus benchmark flows, to describe the starting
+  point before adjustment
+- raw versus adjusted flows, to describe how much the adjustment changed the raw
+  data
+
+The validation functions in `debiasR` assess adjustment outputs at several
+levels: the whole OD system, origin and destination marginals, individual OD
+pairs, origin-conditioned destination allocations, and spatial/residual
+structure. These checks help users understand whether an adjustment improves
+overall fit, reduces local errors, preserves the structure of movement between
+places, and leaves fewer systematic residual patterns.
 
 ## Intuition
 
 A practical way to think of assessing the output of the various adjustment methods is to adopt an overall system-wide perspective of the flow system, move to an intermediate marginal perspective, then to individual origin-destination pairs, then to the allocation of destinations within each origin, and finally to the structure of the remaining residuals. We use five levels.
 
-The **Level 1** summarises the performance of flow adjustment methods across the whole origin-destination system.
+**Level 1** summarises the performance of adjustment methods across the whole
+OD system.
 
-The **Level 2** assesses the performance of flow adjustment methods by origin and destination totals.
+**Level 2** compares origin and destination totals. This checks whether adjusted
+flows reproduce total outflows from each origin and total inflows to each
+destination.
 
-The **Level 3** provides the performance of flow adjustment methods between individual origin-destination pairs.
+**Level 3** compares individual OD pairs. This shows where large local errors
+remain after adjustment.
 
-The **Level 4** assesses whether each origin allocates its flows across destinations in a similar way to the benchmark, after converting OD flows into destination-share distributions.
+**Level 4** assesses whether each origin allocates its flows across
+destinations in a similar way to the benchmark, after converting OD flows into
+destination-share distributions.
 
-The **Level 5** checks whether adjusted-minus-benchmark residuals still show structure after adjustment, such as dependence on flow size, global or local spatial clustering across neighbouring areas, or association with known area covariates.
+**Level 5** checks whether adjusted-minus-benchmark residuals still show
+structure after adjustment, such as dependence on flow size, global or local
+spatial clustering across neighbouring areas, or association with known area
+covariates.
 
-Correlation coefficients offer a measure of correspondence between, for example, adjusted and benchmark flows, and they are better interpreted as a general measure. Error measures provide a measure of the level of difference between these sets of flows. They provide a general measure to assess the precision of the flow adjustment across the whole network of flows, but they also offer a way to measure and assess the precision of the flow adjustment for individual origin-destination pairs. Distributional allocation metrics answer a different question: whether the relative allocation of destinations from each origin is preserved, regardless of total scale. Residual-structure diagnostics ask whether the remaining errors look systematic after adjustment.
+Correlation coefficients measure correspondence between two sets of flows, such
+as adjusted and benchmark flows. They are useful for checking whether large
+flows in one table tend to be large in the other. Error metrics measure
+difference in scale. Both are needed: a method can preserve the broad pattern of
+movement while still producing flows that are too large or too small.
+Distributional allocation metrics answer a different question: whether the
+relative allocation of destinations from each origin is preserved, regardless
+of total scale. Residual-structure diagnostics ask whether the remaining errors
+look systematic after adjustment.
 
 ## Validation measures
 
@@ -89,17 +119,13 @@ table uses adjusted-versus-benchmark notation.[^validation-measure-reuse]
 ## Getting ready
 
 The README shows how to install `debiasR` and the companion `debiasRdata`
-package from GitHub. We start by loading those packages.
+package from GitHub. We start by loading the packages used in this vignette.
 
 ```{r load-packages}
 library(debiasR)
 library(debiasRdata)
+library(dplyr)
 ```
-
-This vignette also uses validation helper functions defined in
-`vignettes/_validation_helpers.R` to format tables and plots. When working from
-the package source, you can load them with
-`source("vignettes/_validation_helpers.R")`.
 
 ```{r load-validation-helpers, include=FALSE}
 helper_candidates <- c(
@@ -118,33 +144,55 @@ if (is.na(helper_file)) {
 source(helper_file)
 ```
 
-Finally, we load a small LAD travel-to-work example from `debiasRdata` through
-the exported `debiasR_example_data()` helper.
+We use the same empirical LAD travel-to-work example introduced in the earlier
+vignettes. First, we identify the main data objects directly from `debiasRdata`.
+
+```{r}
+OD_travel2work <- debiasRdata::lad_OD_travel2work
+census_OD_travel2work <- debiasRdata::census_lad_OD_travel2work
+coverage <- debiasRdata::coverage_lad |>
+  dplyr::rename(area = code)
+covariates <- debiasRdata::lad_covariates
+centroids <- debiasRdata::lad_centroids
+```
+
+```{r}
+head(OD_travel2work)
+head(census_OD_travel2work)
+head(coverage)
+```
+
+For the validation examples, we use `debiasR::debiasR_example_data()` to prepare
+a small, aligned version of these data. This gives us raw MPD flows, benchmark
+flows, coverage data, covariates and distances on the same selected set of LADs.
 
 ```{r load-validation-data}
-example_data <- debiasR_example_data(
+example_data <- debiasR::debiasR_example_data(
   n_areas = 25,
   complete_grid = TRUE
 )
 ```
 
-In this vignette, we will illustrate the validation methods in `debiasR` comparing the two adjustment methods. We compare the inverse penetration and selection rate II methods. First,
-we separately organise the raw mobile-phone-derived data and benchmark data. We then apply inverse penetration and selection rate II, and
-join the raw, adjusted and benchmark flows into one data frame for comparison.
+We compare two adjustment methods: inverse penetration weighting and selection
+rate II. First, we organise the raw mobile-phone-derived flows, benchmark flows
+and coverage table. We then apply the two adjustment methods and join the raw,
+adjusted and benchmark flows into one data frame for validation.
 
 ```{r}
 mpd_od <- example_data$mpd_od
 benchmark_od <- example_data$benchmark_od
+coverage_validation <- example_data$coverage
+covariates_validation <- example_data$covariates
 
 method_results <- list(
   inverse_penetration = debiasR::adjust_inverse_penetration(
     mpd_od_df = mpd_od,
-    coverage_df = example_data$coverage,
+    coverage_df = coverage_validation,
     weight_by = "both"
   ),
   selection_rate2 = debiasR::adjust_selection_rate2(
     mpd_od_df = mpd_od,
-    coverage_df = example_data$coverage,
+    coverage_df = coverage_validation,
     weight_by = "origin",
     benchmark_od_df = benchmark_od,
     calibration_aggregate = "origin"
@@ -240,7 +288,7 @@ We can also use the resulting assessment metrics to identify the largest (*remai
 if the remaining error is concentrated in a small number of areas.
 
 ```{r}
-area_names <- example_data$covariates |>
+area_names <- covariates_validation |>
   dplyr::select(area, name)
 
 marginal_patterns <- marginal_comparison |>
@@ -377,11 +425,11 @@ allocation check, because it evaluates the destination-share distribution within
 each origin. This is useful because a method can improve total flow scale while
 still allocating an origin's flows to the wrong destinations.
 
-`validate_flow_distribution()` computes origin-conditioned destination-share
-metrics. For each origin, the function converts flows to destination shares and
-then reports KL divergence and Jensen-Shannon divergence. The table below asks
-for all three comparisons: raw versus benchmark, adjusted versus benchmark, and
-raw versus adjusted.
+`debiasR::validate_flow_distribution()` computes origin-conditioned
+destination-share metrics. For each origin, the function converts flows to
+destination shares and then reports KL divergence and Jensen-Shannon divergence.
+The table below asks for all three comparisons: raw versus benchmark, adjusted
+versus benchmark, and raw versus adjusted.
 
 ```{r}
 distribution_summaries <- lapply(
