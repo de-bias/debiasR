@@ -1,3 +1,19 @@
+# debiasR 0.0.0.9004
+
+### Bayesian adjustment documentation
+
+- Expanded the adjustment vignette advanced section so it is the practical
+  user-facing guide to `adjust_multilevel_bayes()`, including the default
+  coverage-offset true-flow model, the role of active-user coverage as a fixed
+  observation offset, and why `F_true` is a posterior prediction rather than a
+  random intercept.
+- Added compact input, option, output-column, and diagnostics guides for the
+  Bayesian adjustment example, while continuing to use precomputed posterior
+  median and mean summaries so routine vignette renders do not rerun MCMC.
+- Added a short S2-S4 repeated source/time callout for the experimental
+  `observation_model = "latent_two_level"` backend and kept the advanced
+  Bayesian vignette as the deeper companion reference.
+
 # debiasR 0.0.0.9003
 
 ### Latent Bayesian hardening

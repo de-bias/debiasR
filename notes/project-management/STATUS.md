@@ -4,7 +4,7 @@ Last updated: 2026-06-13
 
 ## Snapshot
 
-- Project stage: active development (`0.0.0.9003`)
+- Project stage: active development (`0.0.0.9004`)
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
@@ -103,6 +103,14 @@ Last updated: 2026-06-13
   maintainers can regenerate it explicitly with
   `Rscript scripts/precompute_v06_bayesian_example.R` when the model or data
   change.
+- Issue #58 updated the adjustment vignette advanced section into the practical
+  user-facing guide for `adjust_multilevel_bayes()`: it now explains the
+  default coverage-offset true-flow model, clarifies that active-user coverage
+  enters as a fixed observation offset rather than a fitted bias coefficient,
+  maps rendered Bayesian example columns to returned object columns, and gives
+  a short S2-S4 repeated source/time callout for the experimental
+  `latent_two_level` backend. The advanced Bayesian adjustment vignette remains
+  the deeper companion reference for formulas, backend choices, and diagnostics.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
 - Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside the validation helpers for now; `sf`-aware mapping remains outside the package; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.

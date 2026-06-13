@@ -36,6 +36,19 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Recently Completed
 
+1. Document Bayesian adjustment options in the adjustment vignette - `complete`
+- Completed on 2026-06-13 for issue #58.
+- The advanced section of `vignettes/v06-adjusting-biases.qmd` is now the
+  practical user-facing guide to `adjust_multilevel_bayes()`, with compact
+  guides for option choice, required inputs, returned output columns and
+  diagnostics.
+- The section explains the default coverage-offset true-flow model, including
+  why active-user coverage enters as a fixed observation offset and why the
+  estimated true flow is a posterior prediction rather than a random intercept.
+- The vignette keeps the S1 Bayesian example precomputed so routine renders do
+  not rerun MCMC, and it points readers to the advanced Bayesian adjustment
+  vignette for deeper S2-S4, reduced-form and latent-backend details.
+
 1. Post-public repository hygiene pass - `complete`
 - Completed on 2026-06-12.
 - Reviewed public-facing docs, pkgdown article exposure, repository metadata,
