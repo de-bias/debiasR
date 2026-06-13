@@ -152,6 +152,15 @@ mapgl::maplibre(
   )
 ```
 
+```{r mapgl-unavailable-note, eval=!mapgl_available, echo=FALSE}
+cat(
+  "The interactive map is not shown because the experimental `mapgl` ",
+  "flow-map branch is not installed in this rendering environment. ",
+  "Install it with `pak::pak(\"e-kotov/mapgl@flowmap\")` and render the ",
+  "vignette again to display the map."
+)
+```
+
 The map highlights major benchmark travel-to-work corridors. This kind of
 visualisation is useful for checking whether a small number of corridors
 dominate the OD system, identifying flows that may deserve closer inspection
