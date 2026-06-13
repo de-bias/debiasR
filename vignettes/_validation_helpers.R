@@ -318,6 +318,66 @@ validation_display_residual_structure_areas <- function(structure_results,
     )
 }
 
+validation_display_local_moran <- function(structure_results,
+                                           area_names = NULL,
+                                           n = 8) {
+  local_moran <- dplyr::bind_rows(
+    lapply(
+      names(structure_results),
+      function(method_name) {
+        if (!"local_moran" %in% names(structure_results[[method_name]])) {
+          return(NULL)
+        }
+
+        structure_results[[method_name]]$local_moran |>
+          dplyr::mutate(
+            method = method_name,
+            method_label = dplyr::coalesce(
+              unname(validation_method_labels[method_name]),
+              method_name
+            )
+          )
+      }
+    )
+  )
+
+  if (nrow(local_moran) == 0L) {
+    stop("No Local Moran results were found in `structure_results`.")
+  }
+
+  if (!is.null(area_names)) {
+    local_moran <- local_moran |>
+      dplyr::left_join(area_names, by = "area")
+  } else {
+    local_moran <- local_moran |>
+      dplyr::mutate(name = area)
+  }
+
+  local_moran |>
+    dplyr::filter(is.finite(local_moran_i)) |>
+    dplyr::arrange(
+      dplyr::desc(lisa_cluster != "not significant"),
+      dplyr::desc(abs(local_moran_i))
+    ) |>
+    dplyr::slice_head(n = n) |>
+    dplyr::transmute(
+      Method = method_label,
+      Area = name,
+      `Mean residual` = round(selected_residual, 2),
+      `Local Moran's I` = round(local_moran_i, 3),
+      `Pseudo p` = round(p_value, 3),
+      `Adjusted p` = round(p_adjusted, 3),
+      Quadrant = lisa_quadrant,
+      Cluster = lisa_cluster
+    ) |>
+    knitr::kable(
+      format = "html",
+      row.names = FALSE,
+      align = c("l", "l", rep("r", 4), "l", "l"),
+      table.attr = 'class="table table-sm"'
+    )
+}
+
 validation_build_flow_comparison <- function(method_results,
                                              mpd_df,
                                              benchmark_df) {

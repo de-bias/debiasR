@@ -36,6 +36,16 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Recently Completed
 
+1. Add Local Moran/LISA residual diagnostics - `complete`
+- Completed on 2026-06-13.
+- `validate_flow_residual_structure()` now has optional Local Moran's I and
+  LISA cluster diagnostics for area-level residuals using the existing
+  user-supplied neighbour-link interface.
+- The implementation keeps dependencies light by using base-R permutation
+  pseudo p-values and avoiding `sf`, `spdep`, or cartographic dependencies.
+- The validation vignette keeps this as part of Level 5 spatial/residual
+  structure diagnostics, not a new validation level.
+
 1. Add spatial/residual structure diagnostics to the validation vignette - `complete`
 - Completed on 2026-06-13 for issue #56.
 - The validation vignette now presents `validate_flow_residual_structure()` as

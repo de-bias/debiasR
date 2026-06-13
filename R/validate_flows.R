@@ -342,12 +342,10 @@ validate_flow_all <- function(...) {
   mean(x, na.rm = TRUE)
 }
 
-.compute_moran_i <- function(area_level,
-                             area_neighbors,
-                             area_col,
-                             neighbor_col,
-                             weight_col) {
-
+.prepare_neighbor_links <- function(area_neighbors,
+                                    area_col,
+                                    neighbor_col,
+                                    weight_col) {
   req_neighbors <- c(area_col, neighbor_col)
   if (!all(req_neighbors %in% names(area_neighbors))) {
     stop("`area_neighbors` must contain: ", paste(req_neighbors, collapse = ", "))
@@ -368,6 +366,23 @@ validate_flow_all <- function(...) {
   } else {
     neighbor_tbl <- dplyr::rename(neighbor_tbl, weight = dplyr::all_of(weight_col))
   }
+
+  neighbor_tbl |>
+    dplyr::filter(is.finite(.data$weight), .data$weight > 0)
+}
+
+.compute_moran_i <- function(area_level,
+                             area_neighbors,
+                             area_col,
+                             neighbor_col,
+                             weight_col) {
+
+  neighbor_tbl <- .prepare_neighbor_links(
+    area_neighbors = area_neighbors,
+    area_col = area_col,
+    neighbor_col = neighbor_col,
+    weight_col = weight_col
+  )
 
   values <- area_level |>
     dplyr::select(dplyr::all_of(c("area", "selected_residual"))) |>
@@ -424,6 +439,287 @@ validate_flow_all <- function(...) {
     n_links_used = n_links_used,
     weight_sum = weight_sum
   )
+}
+
+.validate_local_moran_args <- function(local_moran_nsim,
+                                       local_moran_alpha,
+                                       local_moran_p_adjust,
+                                       local_moran_seed) {
+  if (!is.numeric(local_moran_nsim) ||
+      length(local_moran_nsim) != 1L ||
+      is.na(local_moran_nsim) ||
+      local_moran_nsim < 1L) {
+    stop("`local_moran_nsim` must be a positive whole number.")
+  }
+  if (local_moran_nsim != as.integer(local_moran_nsim)) {
+    stop("`local_moran_nsim` must be a positive whole number.")
+  }
+  if (!is.numeric(local_moran_alpha) ||
+      length(local_moran_alpha) != 1L ||
+      !is.finite(local_moran_alpha) ||
+      local_moran_alpha < 0 ||
+      local_moran_alpha > 1) {
+    stop("`local_moran_alpha` must be a number between 0 and 1.")
+  }
+  if (!is.character(local_moran_p_adjust) ||
+      length(local_moran_p_adjust) != 1L ||
+      !local_moran_p_adjust %in% stats::p.adjust.methods) {
+    stop("`local_moran_p_adjust` must be one of `stats::p.adjust.methods`.")
+  }
+  if (!is.null(local_moran_seed) &&
+      (!is.numeric(local_moran_seed) ||
+       length(local_moran_seed) != 1L ||
+       !is.finite(local_moran_seed))) {
+    stop("`local_moran_seed` must be `NULL` or a single finite number.")
+  }
+}
+
+.with_seed <- function(seed, code) {
+  if (is.null(seed)) {
+    return(force(code))
+  }
+
+  had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  old_seed <- if (had_seed) {
+    get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  } else {
+    NULL
+  }
+  on.exit({
+    if (had_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
+  set.seed(seed)
+  force(code)
+}
+
+.local_moran_quadrant <- function(centered_residual,
+                                  neighbor_lag_mean,
+                                  has_neighbors,
+                                  defined) {
+  dplyr::case_when(
+    !has_neighbors ~ "no neighbours",
+    !defined ~ "undefined",
+    centered_residual > 0 & neighbor_lag_mean > 0 ~ "high-high",
+    centered_residual < 0 & neighbor_lag_mean < 0 ~ "low-low",
+    centered_residual > 0 & neighbor_lag_mean < 0 ~ "high-low",
+    centered_residual < 0 & neighbor_lag_mean > 0 ~ "low-high",
+    TRUE ~ "undefined"
+  )
+}
+
+.local_moran_cluster <- function(lisa_quadrant,
+                                 significant,
+                                 has_neighbors,
+                                 defined) {
+  dplyr::case_when(
+    !has_neighbors ~ "no neighbours",
+    !defined ~ "undefined",
+    is.na(significant) | !significant ~ "not significant",
+    TRUE ~ lisa_quadrant
+  )
+}
+
+.compute_local_moran <- function(area_level,
+                                 area_neighbors,
+                                 area_col,
+                                 neighbor_col,
+                                 weight_col,
+                                 nsim,
+                                 alpha,
+                                 p_adjust,
+                                 seed) {
+
+  local_base <- area_level |>
+    dplyr::select(
+      area,
+      method,
+      residual_type,
+      spatial_role,
+      residual_aggregation,
+      selected_residual
+    )
+
+  if (is.null(area_neighbors)) {
+    return(local_base |>
+      dplyr::mutate(
+        centered_residual = NA_real_,
+        residual_z = NA_real_,
+        neighbor_lag_sum = NA_real_,
+        neighbor_lag_mean = NA_real_,
+        spatial_lag_z = NA_real_,
+        n_neighbors_used = 0L,
+        local_weight_sum = NA_real_,
+        local_moran_i = NA_real_,
+        lisa_quadrant = "no neighbours",
+        p_value = NA_real_,
+        p_adjusted = NA_real_,
+        significant = NA,
+        lisa_cluster = "no neighbours"
+      ))
+  }
+
+  neighbor_tbl <- .prepare_neighbor_links(
+    area_neighbors = area_neighbors,
+    area_col = area_col,
+    neighbor_col = neighbor_col,
+    weight_col = weight_col
+  )
+
+  values <- local_base |>
+    dplyr::filter(is.finite(.data$selected_residual))
+
+  n_areas_used <- nrow(values)
+  residual_sd <- stats::sd(values$selected_residual)
+  residual_mean <- mean(values$selected_residual)
+  centered_denominator <- sum((values$selected_residual - residual_mean)^2)
+  if (n_areas_used < 2L ||
+      !is.finite(residual_sd) ||
+      residual_sd <= 0 ||
+      !is.finite(centered_denominator) ||
+      centered_denominator <= 0) {
+    return(local_base |>
+      dplyr::mutate(
+        centered_residual = NA_real_,
+        residual_z = NA_real_,
+        neighbor_lag_sum = NA_real_,
+        neighbor_lag_mean = NA_real_,
+        spatial_lag_z = NA_real_,
+        n_neighbors_used = 0L,
+        local_weight_sum = NA_real_,
+        local_moran_i = NA_real_,
+        lisa_quadrant = "undefined",
+        p_value = NA_real_,
+        p_adjusted = NA_real_,
+        significant = NA,
+        lisa_cluster = "undefined"
+      ))
+  }
+
+  values <- values |>
+    dplyr::mutate(
+      centered_residual = .data$selected_residual - residual_mean,
+      residual_z = .data$centered_residual / sqrt(centered_denominator / n_areas_used)
+    )
+
+  links <- neighbor_tbl |>
+    dplyr::inner_join(
+      values |> dplyr::select(area, centered_residual, residual_z),
+      by = "area"
+    ) |>
+    dplyr::rename(
+      area_centered_residual = dplyr::all_of("centered_residual"),
+      area_residual_z = dplyr::all_of("residual_z")
+    ) |>
+    dplyr::inner_join(
+      values |>
+        dplyr::select(area, centered_residual, residual_z) |>
+        dplyr::rename(
+          neighbor = dplyr::all_of("area"),
+          neighbor_centered_residual = dplyr::all_of("centered_residual"),
+          neighbor_residual_z = dplyr::all_of("residual_z")
+        ),
+      by = "neighbor"
+    )
+
+  neighbor_summary <- links |>
+    dplyr::group_by(.data$area) |>
+    dplyr::summarise(
+      n_neighbors_used = dplyr::n(),
+      local_weight_sum = sum(.data$weight, na.rm = TRUE),
+      neighbor_lag_sum = sum(.data$weight * .data$neighbor_centered_residual, na.rm = TRUE),
+      neighbor_lag_mean = sum(.data$weight * .data$neighbor_centered_residual, na.rm = TRUE) /
+        sum(.data$weight, na.rm = TRUE),
+      spatial_lag_z = sum(.data$weight * .data$neighbor_residual_z, na.rm = TRUE) /
+        sum(.data$weight, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  local_tbl <- local_base |>
+    dplyr::left_join(
+      values |> dplyr::select(area, centered_residual, residual_z),
+      by = "area"
+    ) |>
+    dplyr::left_join(neighbor_summary, by = "area") |>
+    dplyr::mutate(
+      n_neighbors_used = dplyr::if_else(
+        is.na(.data$n_neighbors_used),
+        0L,
+        .data$n_neighbors_used
+      ),
+      local_moran_i = (.data$centered_residual * .data$neighbor_lag_sum) /
+        (centered_denominator / n_areas_used)
+    )
+
+  has_neighbors <- local_tbl$n_neighbors_used > 0L &
+    is.finite(local_tbl$local_moran_i) &
+    is.finite(local_tbl$centered_residual) &
+    is.finite(local_tbl$neighbor_lag_mean)
+  observed_i <- local_tbl$local_moran_i
+
+  p_value <- rep(NA_real_, nrow(local_tbl))
+  if (any(has_neighbors)) {
+    link_index <- match(links$area, local_tbl$area)
+    neighbor_index <- match(links$neighbor, local_tbl$area)
+    weight <- links$weight
+    finite_residual_index <- which(is.finite(local_tbl$centered_residual))
+    centered_residual <- local_tbl$centered_residual
+
+    simulated_i <- .with_seed(seed, {
+      simulation_matrix <- matrix(NA_real_, nrow = nrow(local_tbl), ncol = nsim)
+      for (focal_idx in which(has_neighbors)) {
+        other_idx <- setdiff(finite_residual_index, focal_idx)
+        for (sim_idx in seq_len(nsim)) {
+          permuted_centered <- centered_residual
+          permuted_centered[other_idx] <- sample(centered_residual[other_idx])
+          focal_links <- link_index == focal_idx
+          neighbor_lag_sum <- sum(
+            weight[focal_links] * permuted_centered[neighbor_index[focal_links]],
+            na.rm = TRUE
+          )
+          simulation_matrix[focal_idx, sim_idx] <-
+            centered_residual[focal_idx] * neighbor_lag_sum /
+            (centered_denominator / n_areas_used)
+        }
+      }
+      simulation_matrix
+    })
+
+    for (idx in which(has_neighbors)) {
+      p_value[idx] <- (sum(abs(simulated_i[idx, ]) >= abs(observed_i[idx]), na.rm = TRUE) + 1) /
+        (nsim + 1)
+    }
+  }
+
+  p_adjusted <- rep(NA_real_, length(p_value))
+  finite_p <- is.finite(p_value)
+  if (any(finite_p)) {
+    p_adjusted[finite_p] <- stats::p.adjust(p_value[finite_p], method = p_adjust)
+  }
+  significant <- finite_p & p_adjusted <= alpha
+
+  local_tbl |>
+    dplyr::mutate(
+      lisa_quadrant = .local_moran_quadrant(
+        centered_residual = .data$centered_residual,
+        neighbor_lag_mean = .data$neighbor_lag_mean,
+        has_neighbors = .data$n_neighbors_used > 0L,
+        defined = is.finite(.data$local_moran_i)
+      ),
+      p_value = p_value,
+      p_adjusted = p_adjusted,
+      significant = dplyr::if_else(finite_p, significant, NA),
+      lisa_cluster = .local_moran_cluster(
+        lisa_quadrant = .data$lisa_quadrant,
+        significant = .data$significant,
+        has_neighbors = .data$n_neighbors_used > 0L,
+        defined = is.finite(.data$local_moran_i)
+      )
+    )
 }
 
 #' Validate origin-conditioned destination-share distributions
@@ -915,6 +1211,17 @@ validate_flow_residuals <- function(adj_df,
 #'   area. Default \code{"neighbor"}.
 #' @param weight_col Optional positive numeric weight column in
 #'   \code{area_neighbors}. If \code{NULL}, all neighbour links receive weight 1.
+#' @param local_moran Logical. If \code{TRUE}, compute Local Moran's I and LISA
+#'   cluster classes from the selected area-level residuals and
+#'   \code{area_neighbors}. Default \code{FALSE}.
+#' @param local_moran_nsim Positive whole number of random permutations used for
+#'   Local Moran pseudo p-values. Default \code{999}.
+#' @param local_moran_alpha Significance threshold used to classify LISA
+#'   clusters after p-value adjustment. Default \code{0.05}.
+#' @param local_moran_p_adjust P-value adjustment method passed to
+#'   \code{stats::p.adjust()}. Default \code{"BH"}.
+#' @param local_moran_seed Optional random seed for Local Moran permutation
+#'   p-values. Default \code{NULL}.
 #' @param covariate_df Optional area-level covariate table.
 #' @param covariate_col Optional covariate column to correlate with area-level
 #'   residuals. Requires \code{covariate_df}.
@@ -939,6 +1246,8 @@ validate_flow_residuals <- function(adj_df,
 #'     residuals and benchmark OD flows,
 #'   \item \code{moran_i}: Moran's I summary from the neighbour table, or
 #'     \code{NA} when no neighbour table is supplied,
+#'   \item \code{local_moran}: optional Local Moran's I and LISA cluster table
+#'     when \code{local_moran = TRUE},
 #'   \item \code{covariate_correlation}: optional Pearson correlation between
 #'     area-level residuals and the selected covariate,
 #'   \item \code{od_level}: OD-level residual table,
@@ -961,6 +1270,11 @@ validate_flow_residual_structure <- function(adj_df,
                                              area_col       = "area",
                                              neighbor_col   = "neighbor",
                                              weight_col     = NULL,
+                                             local_moran    = FALSE,
+                                             local_moran_nsim = 999,
+                                             local_moran_alpha = 0.05,
+                                             local_moran_p_adjust = "BH",
+                                             local_moran_seed = NULL,
                                              covariate_df   = NULL,
                                              covariate_col  = NULL,
                                              covariate_area_col = "area",
@@ -982,6 +1296,17 @@ validate_flow_residual_structure <- function(adj_df,
   }
   if (!is.null(covariate_col) && is.null(covariate_df)) {
     stop("`covariate_df` is required when `covariate_col` is supplied.")
+  }
+  if (!is.logical(local_moran) || length(local_moran) != 1L || is.na(local_moran)) {
+    stop("`local_moran` must be `TRUE` or `FALSE`.")
+  }
+  if (local_moran) {
+    .validate_local_moran_args(
+      local_moran_nsim = local_moran_nsim,
+      local_moran_alpha = local_moran_alpha,
+      local_moran_p_adjust = local_moran_p_adjust,
+      local_moran_seed = local_moran_seed
+    )
   }
 
   residual_result <- validate_flow_residuals(
@@ -1103,6 +1428,43 @@ validate_flow_residual_structure <- function(adj_df,
       dplyr::left_join(geometry_tbl, by = "area")
   }
 
+  local_moran_tbl <- NULL
+  if (local_moran) {
+    local_moran_tbl <- .compute_local_moran(
+      area_level = area_level,
+      area_neighbors = area_neighbors,
+      area_col = area_col,
+      neighbor_col = neighbor_col,
+      weight_col = weight_col,
+      nsim = as.integer(local_moran_nsim),
+      alpha = local_moran_alpha,
+      p_adjust = local_moran_p_adjust,
+      seed = local_moran_seed
+    )
+
+    map_data <- map_data |>
+      dplyr::left_join(
+        local_moran_tbl |>
+          dplyr::select(
+            area,
+            centered_residual,
+            residual_z,
+            neighbor_lag_sum,
+            neighbor_lag_mean,
+            spatial_lag_z,
+            n_neighbors_used,
+            local_weight_sum,
+            local_moran_i,
+            lisa_quadrant,
+            p_value,
+            p_adjusted,
+            significant,
+            lisa_cluster
+          ),
+        by = "area"
+      )
+  }
+
   summary_tbl <- tibble::tibble(
     method = method_name,
     residual_type = residual_type_label,
@@ -1127,6 +1489,10 @@ validate_flow_residual_structure <- function(adj_df,
 
   if (!is.null(covariate_data)) {
     out$covariate_data <- covariate_data
+  }
+
+  if (!is.null(local_moran_tbl)) {
+    out$local_moran <- local_moran_tbl
   }
 
   if (make_plots) {
