@@ -28,29 +28,16 @@ execute:
 
 ## Aim
 
-This vignette shows how to validate adjusted origin-destination (OD) flows. In
-the previous vignette, we used `debiasR` adjustment methods to move from raw
-mobile-phone-derived flows, $F^{mpd}_{ij}$, to adjusted flows,
-$F^{adj}_{ij}$. Here, we check whether those adjusted flows better align with a
-trusted benchmark, $F^{bench}_{ij}$.
+This vignette describes the range of validation methods included in `debiasR`, to assess our adjusted mobile-phone-derived flow estimates against a set of target benchmark flows.
 
-The main validation comparison is adjusted versus benchmark flows. This tells us
-whether an adjustment method makes the digital-trace-derived OD measurements closer to
-the target OD table.
+The methods assess differences between adjusted *versus* benchmark flows, to evaluate the final adjustment.
 
-The same validation tools can also compare:
+It also enables comparisons between:
+- raw mobile-phone-derived *versus* benchmark flows, to evaluate the
+  extent of bias before adjustment.
+- raw *versus* adjusted flows, to evaluate the extent of adjustment made to the raw data.
 
-- raw mobile-phone-derived versus benchmark flows, to describe the starting
-  point before adjustment
-- raw versus adjusted flows, to describe how much the adjustment changed the raw
-  data
-
-The validation functions in `debiasR` assess adjustment outputs at several
-levels: the whole OD system, origin and destination marginals, individual OD
-pairs, origin-conditioned destination allocations, and spatial/residual
-structure. These checks help users understand whether an adjustment improves
-overall fit, reduces local errors, preserves the structure of movement between
-places, and leaves fewer systematic residual patterns.
+The validation methods included in `debiasR` allow the assessment of adjustment outputs at five levels: (1) overall, (2) origin-destination (OD) marginal, (3) individual OD-pair, distributional allocation, and spatial/residual structure validation. The main assessment tools are error metrics, correlation coefficients, visual tools, distributional allocation metrics and residual-structure diagnostics. The allocation metrics use KL divergence and Jensen-Shannon divergence for origin-conditioned destination-share distributions. The residual-structure diagnostics check whether remaining errors retain scale, global or local spatial clustering, or covariate-linked patterns. These diagnostics provide flexibility to assess particular dimensions of the data which may vary depending on the target use of the adjusted flows.
 
 ## Intuition
 
