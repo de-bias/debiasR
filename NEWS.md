@@ -6,6 +6,10 @@
   the validation vignette, demonstrating `validate_flow_residual_structure()`
   with residual-versus-benchmark-flow correlation, optional Moran's I, and
   residual-versus-covariate correlation.
+- Extended `validate_flow_residual_structure()` with optional Local Moran's I
+  and LISA cluster diagnostics, including permutation pseudo p-values, while
+  reusing the existing user-supplied neighbour-link interface and avoiding new
+  spatial dependencies.
 - Clarified the validation hierarchy so distributional allocation validation
   remains focused on origin-conditioned destination-share distributions, while
   spatial/residual structure diagnostics focus on remaining

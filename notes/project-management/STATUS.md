@@ -117,6 +117,11 @@ Last updated: 2026-06-13
   correlation, optional Moran's I from user-supplied neighbour links, and
   residual-versus-covariate correlation, while keeping Level 4 focused on
   origin-conditioned destination-share allocation.
+- `validate_flow_residual_structure()` now optionally computes Local Moran's I
+  and LISA cluster diagnostics for area-level residuals using the same
+  user-supplied neighbour-link interface as global Moran's I. The implementation
+  uses base-R permutation pseudo p-values and does not add `sf`, `spdep`, or
+  other spatial dependencies.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
 - Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside the validation helpers for now; `sf`-aware mapping remains outside the package; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.
@@ -209,6 +214,16 @@ Last updated: 2026-06-13
 - Result: pass. The rendered validation article includes Level 5 spatial/residual
   structure diagnostics and keeps Level 4 framed as distributional allocation
   validation.
+- Verified Local Moran/LISA residual diagnostics locally on 2026-06-13 with the
+  targeted residual-structure test file, `git diff --check`,
+  `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_fast_tests.R`,
+  a standalone render of `vignettes/v07-validation.qmd` to
+  `/private/tmp/debiasr-v07-render-local-moran`, and a pkgdown-style preview to
+  `/private/tmp/debiasr-pkgdown-preview-local-moran` with `NEWS.md` hidden
+  during the build.
+- Result: pass. The rendered validation article and reference page show the
+  optional Local Moran/LISA diagnostics, hidden setup chunks remain hidden, and
+  no new spatial dependencies were added.
 
 ## Current Risks / Blockers
 
