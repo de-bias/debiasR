@@ -27,11 +27,15 @@ navbar:
       menu:
       - text: Adjusting origin-destination flows
         href: articles/v06-adjusting-biases.html
+      - text: Advanced Bayesian adjustment
+        href: articles/v09-advanced-bayesian-adjustment.html
     validate:
       text: Validate
       menu:
       - text: Validation workflow
         href: articles/v07-validation.html
+      - text: Visualising flows
+        href: articles/v08-visualising-flows.html
     articles:
       text: All articles
       href: articles/index.html
@@ -51,13 +55,12 @@ articles:
   navbar: Adjust flows
   contents:
   - v06-adjusting-biases
+  - v09-advanced-bayesian-adjustment
 - title: Validate flows
   navbar: Validate
   contents:
   - v07-validation
-- title: internal
-  contents:
-  - v08-data
+  - v08-visualising-flows
 
 reference:
 - title: Example data

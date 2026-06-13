@@ -1,10 +1,10 @@
 # Project Status
 
-Last updated: 2026-06-12
+Last updated: 2026-06-13
 
 ## Snapshot
 
-- Project stage: active development (`0.0.0.9001`)
+- Project stage: active development (`0.0.0.9004`)
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
@@ -38,7 +38,7 @@ Last updated: 2026-06-12
   - row-status metadata distinguishes observed MPD rows from zero-filled source-missing cells
   - scenario metadata now distinguishes S1 single-source/single-time, S2 single-source/multiple-time, S3 multiple-source/single-time, and S4 multiple-source/multiple-time inputs
   - S1-S4 repeated source/time scenarios can now be fitted with `model_engine = "bayesian"` or `model_engine = "frequentist"`
-  - `observation_model = "latent_two_level"` is available as an experimental Bayesian prototype for repeated source/time structures; it creates `latent_flow_id` states and records latent-state metadata and identifiability notes
+  - `observation_model = "latent_two_level"` is available as an experimental Bayesian backend for repeated source/time structures; it creates `latent_flow_id` states, estimates latent true-flow intensities with a custom Stan backend, and records latent-state metadata and identifiability notes
   - `model_terms` metadata records the resolved default fixed-effect and random-effect structure for the shared S1-S4 scenario contract
   - `model_engine = "frequentist"` remains useful for fast testing, experimentation, and method comparison before committing to Bayesian runtime
   - performance and dependency footprint are heavy relative to fixed-rule adjustment methods
@@ -70,27 +70,58 @@ Last updated: 2026-06-12
   `bias_formula` inputs. The package combines them internally for the current
   reduced-form fit, while metadata records the conceptual true-flow and
   observation-bias components separately.
-- Enhancement issue #18 records the planned genuinely latent two-level
-  Bayesian model, where `F_true_ij` is estimated explicitly rather than
-  recovered only through a zero-bias counterfactual prediction. The current
-  branch includes a first experimental `latent_two_level` prototype using a
-  shared latent-state random intercept; a fuller custom latent backend remains
-  future hardening work.
+- Enhancement issue #18 records the genuinely latent two-level Bayesian model,
+  where `F_true_ij` is estimated explicitly rather than recovered only through
+  a zero-bias counterfactual prediction. The current branch includes a first
+  experimental custom Stan `latent_two_level` backend that estimates OD or
+  OD-time latent true-flow intensities. The backend now exposes latent prior
+  and sampler controls, records richer diagnostics, and splits optional
+  Bayesian tests into `rstanarm-smoke`, full `rstanarm`, and latent-Stan
+  scopes; empirical stress tests remain future hardening work.
 - `validate_flow_distribution()` now supports `comparisons = "all"` so raw
   MPD, adjusted MPD-derived, and benchmark OD-flow allocation distributions can
   be compared through the same KL/JSD contract.
+- The validation vignette now classifies this destination-share diagnostic as
+  Level 4 distributional allocation validation, keeping Level 3 focused on
+  individual origin-destination pair magnitudes, residuals, and outliers.
+- A post-public repository hygiene pass reviewed public docs, pkgdown exposure,
+  repository metadata, workflow deployment controls, tracked assets, and
+  sensitive-content patterns. It removed a tracked workshop `.docx` with
+  embedded Word metadata/comments, cleaned absolute local-path links, updated
+  GitHub-owned Actions pins, restricted manual pkgdown deployments to `main`,
+  clarified conduct-reporting and non-code licensing text, and removed stale
+  public docs scaffolding.
 - The default S1-S4 formula contract is documented for both engines: S1 uses the base OD/covariate/bias terms, S2 adds `mpd_time`, S3 adds `mpd_source`, and S4 adds `mpd_source + mpd_time`; S4 source-time interaction remains deferred.
 - The adjustment vignette now keeps the Bayesian walkthrough focused on the
   default coverage-offset example with constant source/time columns and
   raw/adjusted/benchmark comparison columns.
 - The advanced Bayesian adjustment vignette now explains S1-S4 source/time
-  structures, the experimental `latent_two_level` prototype, reduced-form
+  structures, the experimental `latent_two_level` backend, reduced-form
   compatibility mode, and Bayesian diagnostics.
 - The adjustment vignette now reads its compact Bayesian example output from a
   precomputed package artifact reporting posterior median and mean summaries;
   maintainers can regenerate it explicitly with
   `Rscript scripts/precompute_v06_bayesian_example.R` when the model or data
   change.
+- Issue #58 updated the adjustment vignette advanced section into the practical
+  user-facing guide for `adjust_multilevel_bayes()`: it now explains the
+  default coverage-offset true-flow model, clarifies that active-user coverage
+  enters as a fixed observation offset rather than a fitted bias coefficient,
+  maps rendered Bayesian example columns to returned object columns, and gives
+  a short S2-S4 repeated source/time callout for the experimental
+  `latent_two_level` backend. The advanced Bayesian adjustment vignette remains
+  the deeper companion reference for formulas, backend choices, and diagnostics.
+- Issue #56 added a distinct Level 5 spatial/residual structure diagnostics
+  layer to the validation vignette. The new section demonstrates
+  `validate_flow_residual_structure()` with residual-versus-benchmark-flow
+  correlation, optional Moran's I from user-supplied neighbour links, and
+  residual-versus-covariate correlation, while keeping Level 4 focused on
+  origin-conditioned destination-share allocation.
+- `validate_flow_residual_structure()` now optionally computes Local Moran's I
+  and LISA cluster diagnostics for area-level residuals using the same
+  user-supplied neighbour-link interface as global Moran's I. The implementation
+  uses base-R permutation pseudo p-values and does not add `sf`, `spdep`, or
+  other spatial dependencies.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
 - Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside the validation helpers for now; `sf`-aware mapping remains outside the package; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.
@@ -154,9 +185,45 @@ Last updated: 2026-06-12
 - Fast deterministic validation on 2026-06-12 passed with
   `Rscript scripts/run_fast_tests.R`. The tier now covers
   `measure_bias_distribution()`, extended `validate_flow_distribution()`
-  comparisons, and the latent two-level prototype metadata/data-contract path.
-  The current vignette split still needs a pkgdown render after the advanced
-  Bayesian article is added.
+  comparisons, and the latent two-level backend metadata/data-contract path.
+  The `0.0.0.9002` latent backend work adds a custom Stan contract and split
+  smoke scopes that should pass before opening a ready PR; full optional
+  Bayesian scopes should run before closing #18.
+- Latent Bayesian hardening on 2026-06-13 adds an optional
+  `Rscript scripts/run_bayesian_tests.R latent-stress` scope. The scope fits
+  larger S3 repeated-source and S4 source-time complete-grid synthetic
+  fixtures with the custom `stan_latent` backend and checks latent true-flow
+  invariance, observation-scale variation, zero-filled prediction rows, and
+  sampler diagnostics. It also corrects the custom Stan intercept prior scale.
+  Hosted/manual `latent-stress` results still need to be run and recorded
+  before promoting `latent_two_level` beyond experimental status.
+- Verified locally on 2026-06-13 with
+  `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_fast_tests.R`,
+  `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_bayesian_tests.R latent-stress`,
+  and no-argument
+  `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_bayesian_tests.R`
+  after changing the default Bayesian scope to `smoke`.
+- Result: pass. The local latent-stress run used R 4.5.2, `testthat` 3.3.2,
+  `rstanarm` 2.32.2, and `rstan` 2.32.7, and completed in about 58 seconds.
+- Verified issue #56 locally on 2026-06-13 with `git diff --check`, a
+  standalone Quarto render of `vignettes/v07-validation.qmd` to
+  `/private/tmp/debiasr-v07-render-issue56`, a pkgdown-style preview to
+  `/private/tmp/debiasr-pkgdown-preview-issue56` with `NEWS.md` hidden during
+  the build, targeted HTML checks for the Level 5 section and hidden setup, and
+  `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_fast_tests.R`.
+- Result: pass. The rendered validation article includes Level 5 spatial/residual
+  structure diagnostics and keeps Level 4 framed as distributional allocation
+  validation.
+- Verified Local Moran/LISA residual diagnostics locally on 2026-06-13 with the
+  targeted residual-structure test file, `git diff --check`,
+  `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_fast_tests.R`,
+  a standalone render of `vignettes/v07-validation.qmd` to
+  `/private/tmp/debiasr-v07-render-local-moran`, and a pkgdown-style preview to
+  `/private/tmp/debiasr-pkgdown-preview-local-moran` with `NEWS.md` hidden
+  during the build.
+- Result: pass. The rendered validation article and reference page show the
+  optional Local Moran/LISA diagnostics, hidden setup chunks remain hidden, and
+  no new spatial dependencies were added.
 
 ## Current Risks / Blockers
 
@@ -172,10 +239,13 @@ Last updated: 2026-06-12
 
 1. Review public-facing docs, pkgdown pages, repository metadata, and tracked assets after the 2026-06-04 visibility change.
 2. Validate the current branch head with local tests and the next GitHub Actions run.
-3. Validate the optional/manual Bayesian workflow behavior on GitHub Actions when Bayesian-lane validation is needed; the local optional Bayesian test file now passes.
+3. Validate the optional/manual Bayesian workflow behavior on GitHub Actions
+   when Bayesian-lane validation is needed; the runner now supports separate
+   `rstanarm-smoke`, full `rstanarm`, `latent-smoke`, and `latent-stress`
+   scopes.
 4. Keep top-level docs synchronized with exported API (`NAMESPACE`).
 5. Record feasible LAD empirical grid sizes and runtime expectations before promoting Bayesian examples beyond prototype guidance.
-6. Harden enhancement issue #18 beyond the current `latent_two_level`
-   prototype when a custom latent backend, prior controls, and richer
-   diagnostics are ready.
+6. Harden enhancement issue #18 beyond the current experimental
+   `latent_two_level` backend with hosted/manual S3/S4 stress runs and prior
+   sensitivity notes.
 7. Use MSOA-scale inputs for software/runtime stress tests and LAD-scale inputs for vignettes and teaching material as the S1-S4 scenario work develops.

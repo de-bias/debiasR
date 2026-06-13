@@ -18,6 +18,11 @@ validate_flow_residual_structure(
   area_col = "area",
   neighbor_col = "neighbor",
   weight_col = NULL,
+  local_moran = FALSE,
+  local_moran_nsim = 999,
+  local_moran_alpha = 0.05,
+  local_moran_p_adjust = "BH",
+  local_moran_seed = NULL,
   covariate_df = NULL,
   covariate_col = NULL,
   covariate_area_col = "area",
@@ -66,6 +71,22 @@ area. Default \code{"neighbor"}.}
 \item{weight_col}{Optional positive numeric weight column in
 \code{area_neighbors}. If \code{NULL}, all neighbour links receive weight 1.}
 
+\item{local_moran}{Logical. If \code{TRUE}, compute Local Moran's I and LISA
+cluster classes from the selected area-level residuals and
+\code{area_neighbors}. Default \code{FALSE}.}
+
+\item{local_moran_nsim}{Positive whole number of random permutations used for
+Local Moran pseudo p-values. Default \code{999}.}
+
+\item{local_moran_alpha}{Significance threshold used to classify LISA
+clusters after p-value adjustment. Default \code{0.05}.}
+
+\item{local_moran_p_adjust}{P-value adjustment method passed to
+\code{stats::p.adjust()}. Default \code{"BH"}.}
+
+\item{local_moran_seed}{Optional random seed for Local Moran permutation
+p-values. Default \code{NULL}.}
+
 \item{covariate_df}{Optional area-level covariate table.}
 
 \item{covariate_col}{Optional covariate column to correlate with area-level
@@ -98,6 +119,8 @@ available, and covariate correlation when requested,
 residuals and benchmark OD flows,
 \item \code{moran_i}: Moran's I summary from the neighbour table, or
 \code{NA} when no neighbour table is supplied,
+\item \code{local_moran}: optional Local Moran's I and LISA cluster table
+when \code{local_moran = TRUE},
 \item \code{covariate_correlation}: optional Pearson correlation between
 area-level residuals and the selected covariate,
 \item \code{od_level}: OD-level residual table,

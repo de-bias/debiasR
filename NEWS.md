@@ -1,3 +1,85 @@
+# debiasR 0.0.0.9004
+
+### Validation documentation
+
+- Added a concise metadata description to the validation vignette so article
+  listings and previews describe the full validation workflow.
+- Added a new optional flow-visualisation vignette showing how to prepare LAD
+  OD flows and centroids for interactive flow maps using the experimental
+  `mapgl` flow-map branch when available.
+- Added a distinct Level 5 spatial/residual structure diagnostics section to
+  the validation vignette, demonstrating `validate_flow_residual_structure()`
+  with residual-versus-benchmark-flow correlation, optional Moran's I, and
+  residual-versus-covariate correlation.
+- Extended `validate_flow_residual_structure()` with optional Local Moran's I
+  and LISA cluster diagnostics, including permutation pseudo p-values, while
+  reusing the existing user-supplied neighbour-link interface and avoiding new
+  spatial dependencies.
+- Clarified the validation hierarchy so distributional allocation validation
+  remains focused on origin-conditioned destination-share distributions, while
+  spatial/residual structure diagnostics focus on remaining
+  adjusted-minus-benchmark residual patterns.
+
+### Bayesian adjustment documentation
+
+- Expanded the adjustment vignette advanced section so it is the practical
+  user-facing guide to `adjust_multilevel_bayes()`, including the default
+  coverage-offset true-flow model, the role of active-user coverage as a fixed
+  observation offset, and why `F_true` is a posterior prediction rather than a
+  random intercept.
+- Added compact input, option, output-column, and diagnostics guides for the
+  Bayesian adjustment example, while continuing to use precomputed posterior
+  median and mean summaries so routine vignette renders do not rerun MCMC.
+- Added a short S2-S4 repeated source/time callout for the experimental
+  `observation_model = "latent_two_level"` backend and kept the advanced
+  Bayesian vignette as the deeper companion reference.
+
+# debiasR 0.0.0.9003
+
+### Latent Bayesian hardening
+
+- Added an optional `latent-stress` Bayesian test-runner scope for the custom
+  `stan_latent` backend. The scope fits larger S3 repeated-source and S4
+  source-time complete-grid synthetic fixtures, then checks latent true-flow
+  invariance, observation-scale variation, zero-filled prediction rows, and
+  sampler diagnostics.
+- Updated the manual Bayesian GitHub Actions workflow so maintainers can choose
+  the smoke lane, the latent S3/S4 stress lane, or all optional Bayesian checks.
+- Corrected the custom Stan latent true-flow intercept prior so
+  `latent_intercept_prior_scale` directly controls the intercept scale rather
+  than being multiplied by the coefficient prior scale.
+- Kept `observation_model = "latent_two_level"` experimental pending hosted
+  manual stress-lane results and empirical runtime notes.
+
+# debiasR 0.0.0.9002
+
+### Latent Bayesian backend
+
+- Completed a public-repository hygiene pass covering public docs, pkgdown
+  exposure, workflow deploy guards, conduct/reporting text, non-code license
+  clarity, local-path cleanup, and tracked development artifacts.
+- Clarified the validation framework terminology by keeping individual
+  origin-destination flow checks as Level 3 and presenting
+  `validate_flow_distribution()` as Level 4 distributional allocation
+  validation.
+- Replaced the `observation_model = "latent_two_level"` random-intercept
+  prototype with an experimental custom Stan backend selected by
+  `backend = "stan_latent"` or `backend = "auto"`.
+- The latent backend estimates source-invariant OD or OD-time true-flow
+  intensities and models each MPD source/time row as a coverage-scaled noisy
+  observation of that latent state.
+- Added posterior summary columns for true-flow and MPD-scale means, medians,
+  and 95% intervals while preserving the existing `flow_adj`,
+  `flow_true_pred`, and `flow_mpd_pred` columns.
+- Added deterministic latent-contract tests for backend routing, S1-S4 latent
+  state keys, formula partitioning, Stan data construction, and clear backend
+  availability errors.
+- Updated the optional Bayesian test runner and workflow to include `rstan`
+  for the custom latent backend.
+- Added explicit latent prior and sampler controls, richer Stan diagnostics,
+  generated-quantity overflow guards, and split optional Bayesian test scopes
+  for `rstanarm` smoke/full checks and latent Stan checks.
+
 # debiasR 0.0.0.9001
 
 ### Bias distribution and latent Bayesian development
@@ -61,7 +143,7 @@
   workflow articles while keeping notes that explain where those helpers live
   and how source users can load them.
 - Refined the validation vignette interpretation and recommendation text for
-  the three-level validation workflow.
+  the validation workflow.
 - Improved validation vignette tables and scatterplots with smaller table text,
   clearer marginal labels, explicit x/y comparison labels, and centred
   difference colours.
