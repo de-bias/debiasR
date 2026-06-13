@@ -49,6 +49,7 @@ jobs:
             any::patchwork
             any::lme4
             github::de-bias/debiasRdata
+            github::e-kotov/mapgl@flowmap
 
       - name: Install local package
         run: R CMD INSTALL .
