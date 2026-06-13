@@ -5,8 +5,8 @@
 - Added a concise metadata description to the validation vignette so article
   listings and previews describe the full validation workflow.
 - Added a new optional flow-visualisation vignette showing how to prepare LAD
-  OD flows and centroids for static exploratory flow plots, with non-evaluated
-  `mapgl` code for interactive flow maps.
+  OD flows and centroids for interactive flow maps using the experimental
+  `mapgl` flow-map branch when available.
 - Added a distinct Level 5 spatial/residual structure diagnostics section to
   the validation vignette, demonstrating `validate_flow_residual_structure()`
   with residual-versus-benchmark-flow correlation, optional Moran's I, and

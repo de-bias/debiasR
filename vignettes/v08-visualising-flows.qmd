@@ -1,8 +1,8 @@
 ---
 title: "Visualising origin-destination flows"
 description: >
-  Prepare origin-destination flows and area centroids for exploratory static
-  and interactive flow visualisation.
+  Prepare origin-destination flows and area centroids for exploratory
+  interactive flow visualisation.
 vignette: >
   %\VignetteIndexEntry{Visualising origin-destination flows}
   %\VignetteEngine{quarto::html}
@@ -31,12 +31,20 @@ adjusted flows returned by `debiasR`.
 ## Getting ready
 
 The README shows how to install `debiasR` and the companion `debiasRdata`
-package from GitHub. This vignette also uses `dplyr`, `ggplot2` and `scales`
-for data preparation and plotting.
+package from GitHub. This vignette also uses `dplyr` for data preparation and
+the experimental flow-map branch of `mapgl` for interactive visualisation.
 
 ```{r load-packages}
 library(debiasR)
 library(debiasRdata)
+```
+
+The interactive map uses experimental flow-map support from `mapgl`. If the
+package is not installed, the preparation code below still shows the data
+structure needed for the map.
+
+```{r mapgl-availability, include=FALSE}
+mapgl_available <- requireNamespace("mapgl", quietly = TRUE)
 ```
 
 We start with the LAD benchmark OD-flow table and the LAD centroid table. The
@@ -50,9 +58,9 @@ centroids <- debiasRdata::lad_centroids
 
 ## Identify the largest flows
 
-Flow maps can become difficult to read if every OD pair is plotted. A practical
-first step is to focus on the largest flows. This keeps the visualisation
-readable and makes the plotted corridors easier to interpret.
+Flow maps can become difficult to read if every OD pair is plotted at once. A
+practical first step is to inspect the largest flows and then pass a bounded
+set of between-area flows to the interactive map.
 
 ```{r largest-flows}
 largest_flows <- benchmark_flows |>
@@ -64,114 +72,90 @@ largest_flows |>
 ```
 
 The table above shows the largest between-area flows. Within-area flows are
-excluded here because they have the same origin and destination centroid, so
-they do not produce visible lines on a centroid-to-centroid plot.
+excluded here because they have the same origin and destination.
 
-## Attach coordinates
+## Prepare map inputs
 
-To draw a line between each origin and destination, the flow table needs origin
-coordinates and destination coordinates. We create two coordinate lookup tables
-from the same LAD centroid data and join them to the selected flows.
+`mapgl::add_flowmap()` expects two plain data frames:
 
-```{r attach-coordinates}
-origin_locations <- centroids |>
-  dplyr::select(
-    origin = area,
-    origin_name = name,
-    origin_lon = longitude,
-    origin_lat = latitude
-  )
+- `locations`, with one row per area and columns identifying the area,
+  longitude and latitude.
+- `flows`, with one row per OD pair and columns identifying the origin,
+  destination and flow count.
 
-destination_locations <- centroids |>
-  dplyr::select(
-    destination = area,
-    destination_name = name,
-    destination_lon = longitude,
-    destination_lat = latitude
-  )
+We create those inputs from the LAD centroid and Census OD-flow tables.
 
-flow_lines <- largest_flows |>
-  dplyr::left_join(origin_locations, by = "origin") |>
-  dplyr::left_join(destination_locations, by = "destination") |>
-  dplyr::filter(
-    !is.na(origin_lon),
-    !is.na(origin_lat),
-    !is.na(destination_lon),
-    !is.na(destination_lat)
-  )
+```{r prepare-map-inputs}
+locations <- data.frame(
+  id = centroids$area,
+  name = centroids$name,
+  lon = centroids$longitude,
+  lat = centroids$latitude,
+  stringsAsFactors = FALSE
+)
 
-flow_lines |>
-  dplyr::select(
-    origin_name,
-    destination_name,
-    flow,
-    origin_lon,
-    origin_lat,
-    destination_lon,
-    destination_lat
+flows <- benchmark_flows |>
+  dplyr::filter(origin != destination, flow > 0) |>
+  dplyr::slice_max(order_by = flow, n = 10000, with_ties = FALSE) |>
+  dplyr::left_join(
+    centroids |>
+      dplyr::select(origin = area, origin_name = name),
+    by = "origin"
   ) |>
-  dplyr::slice_head(n = 10)
+  dplyr::left_join(
+    centroids |>
+      dplyr::select(destination = area, dest_name = name),
+    by = "destination"
+  ) |>
+  dplyr::transmute(
+    origin = origin,
+    dest = destination,
+    origin_name = origin_name,
+    dest_name = dest_name,
+    count = flow
+  )
+
+head(locations)
+head(flows)
 ```
 
-This `flow_lines` table is the main structure needed by most flow visualisation
-tools: each row has an origin identifier, a destination identifier, a flow value
-and coordinates for both ends of the OD pair.
+The `locations` data frame links LAD codes to coordinates. The `flows` data
+frame stores the OD pairs to display. Here we keep the 10,000 largest
+between-area Census flows to keep the browser widget responsive.
 
-## Static flow plot
+## Interactive flow map
 
-A simple static plot is useful for reports, teaching material and package
-documentation because it does not depend on web map tiles or experimental
-interactive mapping packages. The plot below uses LAD centroids and straight
-line segments. It is therefore an exploratory diagram of the OD network, not a
-route map.
+The map below uses `mapgl::add_flowmap()` to display LAD travel-to-work flows.
+The flow layer is interactive: you can zoom, pan and inspect flow corridors in
+the rendered HTML page.
 
-```{r static-flow-plot, fig.width=7, fig.height=7}
-ggplot2::ggplot() +
-  ggplot2::geom_segment(
-    data = flow_lines,
-    ggplot2::aes(
-      x = origin_lon,
-      y = origin_lat,
-      xend = destination_lon,
-      yend = destination_lat,
-      linewidth = flow,
-      alpha = flow
-    ),
-    colour = "#246A73",
-    lineend = "round"
-  ) +
-  ggplot2::geom_point(
-    data = centroids,
-    ggplot2::aes(x = longitude, y = latitude),
-    size = 0.7,
-    colour = "grey35",
-    alpha = 0.6
-  ) +
-  ggplot2::scale_linewidth_continuous(
-    range = c(0.2, 2.8),
-    labels = function(x) format(x, big.mark = ",", scientific = FALSE)
-  ) +
-  ggplot2::scale_alpha_continuous(range = c(0.25, 0.85), guide = "none") +
-  ggplot2::coord_quickmap() +
-  ggplot2::labs(
-    x = NULL,
-    y = NULL,
-    linewidth = "Census flow",
-    title = "Largest Census travel-to-work flows between LADs"
-  ) +
-  ggplot2::theme_minimal(base_size = 12) +
-  ggplot2::theme(
-    panel.grid = ggplot2::element_blank(),
-    axis.text = ggplot2::element_blank(),
-    legend.position = "bottom"
+```{r interactive-flow-map, eval=mapgl_available}
+mapgl::maplibre(
+  style = mapgl::carto_style("dark-matter"),
+  center = c(-2.0, 54.0),
+  zoom = 5
+) |>
+  mapgl::add_flowmap(
+    id = "census-lad-flows",
+    locations = locations,
+    flows = flows,
+    flow_color_scheme = "Teal",
+    flow_dark_mode = TRUE,
+    flow_lines_rendering_mode = "curved",
+    flow_line_thickness_scale = 1.1,
+    flow_clustering_enabled = TRUE,
+    flow_max_top_flows_display_num = 10000,
+    tooltip = list(
+      location = "{name}",
+      flow = "{origin.name} -> {dest.name}<br>{count}"
+    )
   )
 ```
 
-The figure highlights the largest benchmark travel-to-work corridors among the
-selected LADs. Larger and darker lines represent larger flows. This kind of
-plot is useful for checking whether a small number of corridors dominate the
-OD system, identifying flows that may deserve closer inspection and comparing
-raw, adjusted or benchmark flow patterns.
+The map highlights major benchmark travel-to-work corridors. This kind of
+visualisation is useful for checking whether a small number of corridors
+dominate the OD system, identifying flows that may deserve closer inspection
+and comparing raw, adjusted or benchmark flow patterns.
 
 ## Visualise other flow columns
 
@@ -198,45 +182,14 @@ formal metrics. A map can show where large flows are located, but it does not
 quantify whether adjusted flows are closer to a benchmark. For that, use the
 validation methods in the validation vignette.
 
-## Optional interactive flow maps
+## Installation note
 
-Interactive flow maps can be useful when there are many OD pairs and users need
-to zoom, pan or inspect corridors. Issue #27 suggested the experimental
-flow-map support in `mapgl`. Because that functionality depends on a development
-branch, the example below is not evaluated when this vignette is rendered.
+The flow-map functionality used above is currently available from an
+experimental `mapgl` branch. You can install it with:
 
 ```{r eval=FALSE}
 # install.packages("pak")
 pak::pak("e-kotov/mapgl@flowmap")
-pak::pak("de-bias/debiasRdata")
-
-locations <- data.frame(
-  id = debiasRdata::lad_centroids$area,
-  lon = debiasRdata::lad_centroids$longitude,
-  lat = debiasRdata::lad_centroids$latitude,
-  stringsAsFactors = FALSE
-)
-
-flows <- data.frame(
-  origin = debiasRdata::census_lad_OD_travel2work$origin,
-  dest = debiasRdata::census_lad_OD_travel2work$destination,
-  count = debiasRdata::census_lad_OD_travel2work$flow,
-  stringsAsFactors = FALSE
-)
-
-mapgl::maplibre(
-  style = mapgl::carto_style("dark-matter"),
-  center = c(-2.0, 54.0),
-  zoom = 5
-) |>
-  mapgl::add_flowmap(
-    id = "census-lad-flows",
-    locations = locations,
-    flows = flows,
-    flow_color_scheme = "Teal",
-    flow_dark_mode = TRUE,
-    flow_max_top_flows_display_num = 10000
-  )
 ```
 
 Other packages can also be used for flow visualisation. `flowmapper` is a
