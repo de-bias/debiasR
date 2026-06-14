@@ -14,7 +14,8 @@ plot_validation_metrics(
   method_col = "method",
   method_family_col = NULL,
   method_labels = NULL,
-  palette = NULL
+  palette = NULL,
+  relative_error_breaks = seq(0, 100, by = 10)
 )
 
 plot_validate_flow_metrics(...)
@@ -31,7 +32,8 @@ plot. Defaults to \code{c("mae", "rmse", "mape")}. Common labels such as
 
 \item{comparisons}{Flow comparison(s) to plot. Defaults to
 \code{"adjusted_vs_benchmark"}. Use \code{"all"} when \code{metrics} contains rows for
-all supported comparisons.}
+all supported comparisons. When \code{"raw_vs_benchmark"} is included, it is
+shown as a single unadjusted raw MPD baseline row.}
 
 \item{methods}{Optional character vector of method identifiers or display
 labels to include. Default \code{NULL} includes all methods.}
@@ -48,6 +50,10 @@ organised by method and metric.}
 \item{palette}{Optional character vector of colours for the relative-error
 fill scale. Defaults to a yellow-green-blue sequence suitable for ordered
 error intensity.}
+
+\item{relative_error_breaks}{Numeric percentage cut points used to bin the
+within-metric relative-error fill scale. Default \code{seq(0, 100, by = 10)}
+produces legend ranges such as 0-10, 11-20, and 91-100.}
 }
 \value{
 A \code{ggplot} object.

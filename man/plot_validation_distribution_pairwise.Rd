@@ -13,10 +13,12 @@ plot_validation_distribution_pairwise(
   methods = NULL,
   method_col = "method",
   method_labels = NULL,
+  plot_type = c("comparison", "heatmap"),
+  sort = c("none", "ascending", "descending"),
   mirror_jsd = TRUE
 )
 
-plot_validate_flow_distribution_pairwise_heatmap(...)
+plot_validate_flow_distribution_pairwise_heatmap(..., plot_type = "heatmap")
 }
 \arguments{
 \item{distribution_results}{A data frame, one \code{validate_flow_distribution()}
@@ -27,9 +29,12 @@ result, or a named list of results.}
 \item{value}{Summary statistic to plot: \code{"mean"}, \code{"weighted_mean"}, or
 \code{"median"}.}
 
-\item{comparisons}{Flow comparison(s) used to build the matrix. Defaults to
-\code{"adjusted_vs_benchmark"}. Use \code{"all"} for a full pairwise matrix when
-\code{distribution_results} contains all comparison rows.}
+\item{comparisons}{Flow comparison(s) to plot. Defaults to
+\code{"adjusted_vs_benchmark"}. Use \code{"all"} to include all comparison rows
+present in \code{distribution_results}; with \code{plot_type = "heatmap"} this
+produces the full pairwise matrix. When \code{"raw_vs_benchmark"} is included
+in comparison plots, it is shown as a single unadjusted raw MPD baseline
+row.}
 
 \item{methods}{Optional character vector of method identifiers or display
 labels to include. Default \code{NULL} includes all methods.}
@@ -39,6 +44,15 @@ labels to include. Default \code{NULL} includes all methods.}
 
 \item{method_labels}{Optional named character vector used to relabel methods.}
 
+\item{plot_type}{Plot type to return: \code{"comparison"} for a horizontal
+benchmark-comparison chart or \code{"heatmap"} for the full pairwise matrix.}
+
+\item{sort}{Sort order for the comparison chart. Use \code{"none"} to keep method
+order, \code{"ascending"} for smallest-to-largest divergence, or
+\code{"descending"} for largest-to-smallest divergence. Adjusted methods are
+sorted; the raw MPD baseline remains at the edge as a reference row.
+Default \code{"none"}.}
+
 \item{mirror_jsd}{Logical. If \code{TRUE}, mirror JSD values to show a symmetric
 matrix. Default \code{TRUE}.}
 }
@@ -46,8 +60,9 @@ matrix. Default \code{TRUE}.}
 A \code{ggplot} object.
 }
 \description{
-Builds a reference-by-comparison heatmap from
-\code{validate_flow_distribution()} summary rows. For JSD, the default mirrors
-supplied off-diagonal entries because JSD is symmetric. KL entries remain
-directional.
+Builds an intuitive method-by-comparison divergence chart from
+\code{validate_flow_distribution()} summary rows. Lower values indicate closer
+allocation fidelity. A full reference-by-comparison matrix is also available
+with \code{plot_type = "heatmap"}; for JSD, this matrix can mirror supplied
+off-diagonal entries because JSD is symmetric. KL entries remain directional.
 }

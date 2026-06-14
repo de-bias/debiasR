@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_validation.R
 \name{plot_validation_lisa_map}
 \alias{plot_validation_lisa_map}
-\title{Plot validation LISA clusters on user-supplied boundaries}
+\title{Plot validation LISA indicators on user-supplied boundaries}
 \usage{
 plot_validation_lisa_map(
   structure_results,
@@ -14,10 +14,15 @@ plot_validation_lisa_map(
   method_col = "method",
   method_labels = NULL,
   cluster_col = "lisa_cluster",
+  p_value_col = "p_value",
+  p_value_threshold = 0.05,
   palette = NULL,
   missing_fill = "#F3F4F6",
-  boundary_colour = "white",
-  boundary_linewidth = 0.15
+  boundary_colour = NA,
+  boundary_linewidth = 0,
+  outline_boundaries = NULL,
+  outline_colour = "white",
+  outline_linewidth = 0.45
 )
 }
 \arguments{
@@ -26,8 +31,8 @@ plot_validation_lisa_map(
 The data must contain \code{lisa_cluster}, which is produced when
 \code{validate_flow_residual_structure(local_moran = TRUE)}.}
 
-\item{boundaries}{An \code{sf} polygon or multipolygon object with one row per
-area to map.}
+\item{boundaries}{User-supplied \code{sf} polygon or multipolygon object with one
+row per area to map.}
 
 \item{boundary_area_col}{Column in \code{boundaries} identifying areas. Default
 \code{"area"}.}
@@ -50,6 +55,14 @@ labels to include. Default \code{NULL} includes all methods.}
 \item{cluster_col}{Column containing LISA cluster classes. Default
 \code{"lisa_cluster"}.}
 
+\item{p_value_col}{Column containing Local Moran/LISA p-values. Default
+\code{"p_value"}.}
+
+\item{p_value_threshold}{Numeric threshold used to display statistically
+significant LISA clusters. Areas with p-values above this threshold are
+shown as not significant. Set \code{NULL} to plot \code{cluster_col} without
+p-value masking. Default \code{0.05}.}
+
 \item{palette}{Optional named or unnamed character vector of colours for LISA
 clusters. Defaults to the supplied validation review palette plus neutral
 greys for non-significant or undefined areas.}
@@ -57,16 +70,25 @@ greys for non-significant or undefined areas.}
 \item{missing_fill}{Fill colour for boundaries that are not present in the
 validation results. Default \code{"#F3F4F6"}.}
 
-\item{boundary_colour}{Boundary line colour. Default \code{"white"}.}
+\item{boundary_colour}{Boundary line colour for mapped areas. Default \code{NA}
+avoids drawing small-area internal borders.}
 
-\item{boundary_linewidth}{Boundary line width. Default \code{0.15}.}
+\item{boundary_linewidth}{Boundary line width for mapped areas. Default \code{0}.}
+
+\item{outline_boundaries}{Optional user-supplied \code{sf} object for larger
+administrative boundaries to draw over the mapped areas.}
+
+\item{outline_colour}{Larger-boundary outline colour. Default \code{"white"}.}
+
+\item{outline_linewidth}{Larger-boundary outline width. Default \code{0.45}.}
 }
 \value{
 A \code{ggplot} object.
 }
 \description{
-Maps Local Moran/LISA cluster classes returned by
+Maps residual-derived Local Moran/LISA cluster classes returned by
 \code{validate_flow_residual_structure(local_moran = TRUE)}. The function requires
-users to supply an \code{sf} boundary object because \code{debiasR} does not ship or
-infer spatial boundaries.
+users to supply \code{sf} boundary objects because \code{debiasR} does not ship,
+download, or infer spatial boundaries. Optional outline boundaries can be
+supplied for larger administrative areas.
 }

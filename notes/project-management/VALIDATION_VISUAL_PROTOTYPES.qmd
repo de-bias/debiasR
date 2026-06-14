@@ -17,8 +17,12 @@ added to `debiasR`. The goal is visual iteration, not a final user-facing
 vignette.
 
 The notebook uses deterministic simulated package data and lightweight
-deterministic adjustment methods. It does not use the optional `debiasRdata`
-package or run Bayesian models.
+deterministic adjustment methods. It does not run Bayesian models. The LISA map
+section uses user-supplied `sf` boundaries when they are available. The local
+review defaults point to shared DEBIAS LAD and region boundary files only to
+preview the visual; `debiasR` does not provide or infer boundary files.
+`debiasRdata::lad_centroids` is used only as a lightweight LAD name-code lookup
+for this simulated review example.
 
 ## Setup
 
@@ -68,6 +72,7 @@ method_labels <- c(
 )
 
 method_subset <- names(method_labels)
+benchmark_comparisons <- c("adjusted_vs_benchmark", "raw_vs_benchmark")
 ```
 
 ## Build Validation Inputs
@@ -96,6 +101,7 @@ overall_results <- lapply(names(adjusted_outputs), function(method_name) {
     adj_df = adjusted_outputs[[method_name]],
     benchmark_od_df = simulated_benchmark.od,
     method_name = method_name,
+    comparisons = "all",
     return_joined = FALSE
   )
 }) |>
@@ -143,7 +149,7 @@ structure_results <- lapply(names(adjusted_outputs), function(method_name) {
     area_neighbors = area_neighbors,
     local_moran = TRUE,
     local_moran_nsim = 99,
-    local_moran_alpha = 1,
+    local_moran_alpha = 0.05,
     local_moran_p_adjust = "none",
     local_moran_seed = 123
   )
@@ -151,24 +157,85 @@ structure_results <- lapply(names(adjusted_outputs), function(method_name) {
   stats::setNames(names(adjusted_outputs))
 
 validation_lisa_boundaries <- NULL
-if (requireNamespace("sf", quietly = TRUE)) {
-  grid_width <- ceiling(sqrt(length(areas)))
-  validation_lisa_boundaries <- tibble::tibble(
-    area = areas,
-    x = (seq_along(areas) - 1) %% grid_width,
-    y = floor((seq_along(areas) - 1) / grid_width)
-  ) |>
-    mutate(
-      wkt = sprintf(
-        "POLYGON ((%s %s, %s %s, %s %s, %s %s, %s %s))",
-        x, y,
-        x + 0.95, y,
-        x + 0.95, y + 0.95,
-        x, y + 0.95,
-        x, y
-      )
-    ) |>
-    sf::st_as_sf(wkt = "wkt", crs = 27700)
+validation_lisa_outline_boundaries <- NULL
+validation_lisa_boundary_note <- NULL
+validation_lisa_boundary_path <- Sys.getenv(
+  "DEBIAS_LAD_BOUNDARY_PATH",
+  unset = file.path(
+    "/Volumes/DEBIAS/data/inputs/geographies/boundaries",
+    "LAD_Dec_2021_GB_BFC_2022_simplified.gpkg"
+  )
+)
+validation_lisa_outline_path <- Sys.getenv(
+  "DEBIAS_REGION_BOUNDARY_PATH",
+  unset = file.path(
+    "/Volumes/DEBIAS/data/inputs/geographies/boundaries",
+    "RGN_Dec_2021_EN_BFC_2022.gpkg"
+  )
+)
+
+if (!requireNamespace("sf", quietly = TRUE)) {
+  validation_lisa_boundary_note <- "Install sf and supply an sf boundary object to map LISA clusters."
+} else if (!requireNamespace("debiasRdata", quietly = TRUE)) {
+  validation_lisa_boundary_note <- "Install debiasRdata or provide a LAD name-code lookup to map these simulated LAD names."
+} else if (!file.exists(validation_lisa_boundary_path)) {
+  validation_lisa_boundary_note <- paste(
+    "Set DEBIAS_LAD_BOUNDARY_PATH to a simplified LAD boundary GeoPackage.",
+    "The shared DEBIAS volume path was not found."
+  )
+} else {
+  data("lad_centroids", package = "debiasRdata")
+
+  simulated_lad_lookup <- lad_centroids |>
+    transmute(area_code = .data$area, area = .data$name) |>
+    filter(.data$area %in% areas)
+
+  validation_lisa_boundary_read <- tryCatch(
+    sf::st_read(
+      validation_lisa_boundary_path,
+      quiet = TRUE
+    ),
+    error = function(error) error
+  )
+
+  if (inherits(validation_lisa_boundary_read, "error")) {
+    validation_lisa_boundary_note <- paste(
+      "Could not read the simplified LAD boundary GeoPackage:",
+      conditionMessage(validation_lisa_boundary_read)
+    )
+  } else {
+    validation_lisa_boundaries <- validation_lisa_boundary_read |>
+      rename(area_code = code) |>
+      inner_join(simulated_lad_lookup, by = "area_code") |>
+      select(area, area_code)
+  }
+
+  if (!is.null(validation_lisa_boundaries)) {
+    missing_lisa_areas <- setdiff(areas, validation_lisa_boundaries$area)
+  } else {
+    missing_lisa_areas <- character()
+  }
+  if (length(missing_lisa_areas) > 0L) {
+    validation_lisa_boundary_note <- paste(
+      "The simplified LAD boundaries do not cover:",
+      paste(missing_lisa_areas, collapse = ", ")
+    )
+    validation_lisa_boundaries <- NULL
+  }
+
+  if (file.exists(validation_lisa_outline_path)) {
+    validation_lisa_outline_read <- tryCatch(
+      sf::st_read(
+        validation_lisa_outline_path,
+        quiet = TRUE
+      ),
+      error = function(error) error
+    )
+
+    if (!inherits(validation_lisa_outline_read, "error")) {
+      validation_lisa_outline_boundaries <- validation_lisa_outline_read
+    }
+  }
 }
 ```
 
@@ -177,30 +244,34 @@ if (requireNamespace("sf", quietly = TRUE)) {
 This chart compares methods by error measure in a single matrix. Fill colour is
 scaled within each metric, so the visual supports method comparison without
 putting MAE, RMSE, and MAPE on one raw axis. The cell labels preserve the
-original values. The prototype uses the shared validation visual style:
-white background, quiet axes, and a bright yellow-to-blue palette. The plotted
-colour hex values are supplied from the visual review palette: `#ffd700`,
-`#ffb14e`, `#fa8775`, `#ea5f94`, `#cd34b5`, `#9d02d7`, and `#0000ff`.
-Users can select error measures with `error_measures` and adjustment methods
-with `methods`.
+original values. The legend is discrete: each colour represents a 10-point
+range of the within-metric relative-error score, such as 0-10, 11-20, and
+91-100. The prototype uses the shared validation visual style: white
+background, quiet axes, and a bright yellow-to-blue palette. The plotted colour
+hex values are supplied from the visual review palette: `#ffd700`, `#ffb14e`,
+`#fa8775`, `#ea5f94`, `#cd34b5`, `#9d02d7`, and `#0000ff`. Users can select
+error measures with `error_measures` and adjustment methods with `methods`. The
+review default includes the raw MPD versus benchmark comparison as an
+unadjusted baseline row.
 
-```{r}
+```{r fig.height=6.5}
 plot_validation_metrics(
   overall_results,
   error_measures = c("mae", "rmse", "mape"),
-  comparisons = "adjusted_vs_benchmark",
+  comparisons = benchmark_comparisons,
   methods = method_subset,
-  method_labels = method_labels
+  method_labels = method_labels,
+  relative_error_breaks = seq(0, 100, by = 10)
 )
 ```
 
 ## Level 2 And Level 3: Residual Distributions
 
 The violin plot shows the full distribution of signed flow differences. By
-default, it focuses on adjusted versus benchmark flows because this is the main
-validation comparison. Users can select other comparisons with `comparisons`
-and select adjustment methods with `methods`, using method IDs or display
-labels. The y-axis names the selected `Y - X` comparison explicitly. The
+default, it shows adjusted versus benchmark flows alongside the raw MPD versus
+benchmark baseline. Users can select other comparisons with `comparisons` and
+select adjustment methods with `methods`, using method IDs or display labels.
+The y-axis names the selected `Y - X` comparison explicitly. The
 package convention is:
 
 - `adjusted_vs_benchmark`: x is adjusted, y is benchmark, signed residual is
@@ -218,7 +289,7 @@ categorical palette uses the shared supplied hex values.
 ```{r fig.height=5.2}
 plot_validation_residuals(
   residual_results,
-  comparisons = "adjusted_vs_benchmark",
+  comparisons = benchmark_comparisons,
   methods = method_subset,
   method_labels = method_labels
 )
@@ -227,8 +298,9 @@ plot_validation_residuals(
 ## Level 2 And Level 3: Pairwise Flow Scatterplots
 
 The scatterplot uses the same comparison selector as the violin plot. By
-default, it focuses on adjusted versus benchmark flows. Users can select other
-comparisons, or pass a vector of comparisons for a faceted view. For a single
+default, it shows adjusted versus benchmark flows next to the raw MPD versus
+benchmark baseline. Users can select other comparisons, or pass a vector of
+comparisons for a faceted view. For a single
 comparison, the axis labels name the X and Y series directly; for multiple
 comparisons, each facet header states the X and Y series. The available axis
 orientations are:
@@ -246,10 +318,10 @@ the scale around zero is treated as neutral.
 Points use a fine neutral outline by default so near-zero differences remain
 visible on the light background without adding a heavy border.
 
-```{r fig.height=6.5}
+```{r fig.height=7.2}
 plot_validation_scatter(
   residual_results,
-  comparisons = "adjusted_vs_benchmark",
+  comparisons = benchmark_comparisons,
   methods = method_subset,
   method_labels = method_labels,
   white_band = 0.22,
@@ -272,7 +344,7 @@ from the pooled adjusted-residual scale.
 ```{r residual-bands-sd, fig.height=4.5}
 plot_validation_residual_bands(
   residual_results,
-  comparisons = "adjusted_vs_benchmark",
+  comparisons = benchmark_comparisons,
   methods = method_subset,
   band_method = "sd",
   method_labels = method_labels
@@ -285,7 +357,7 @@ shares remain comparable while making the upper tail easier to inspect.
 ```{r residual-bands-quantile, fig.height=4.5}
 plot_validation_residual_bands(
   residual_results,
-  comparisons = "adjusted_vs_benchmark",
+  comparisons = benchmark_comparisons,
   methods = method_subset,
   band_method = "quantile",
   method_labels = method_labels
@@ -306,27 +378,32 @@ plot_validation_distribution(
   distribution_results,
   metric = "jsd",
   value = "weighted_mean",
-  comparisons = "adjusted_vs_benchmark",
+  comparisons = benchmark_comparisons,
   methods = method_subset,
   method_labels = method_labels
 )
 ```
 
-## Level 4: Pairwise Distribution Heatmap
+## Level 4: Distribution Divergence Comparison
 
-This view turns the requested pairwise comparisons into a reference-by-comparison
-matrix. JSD is symmetric, so the prototype mirrors off-diagonal entries and
-adds zeros on the diagonal. Passing `comparisons = "all"` gives the full matrix
-over adjusted, raw MPD, and benchmark distributions.
+This view compares distributional allocation divergence directly by method.
+Lower JSD values mean the destination-share allocation is closer to the
+reference distribution. Showing adjusted-versus-benchmark next to raw
+MPD-versus-benchmark makes the main validation question easier to read: did the
+adjustment reduce allocation divergence from the benchmark? The full pairwise
+matrix is still available with `plot_type = "heatmap"` when a method-development
+audit needs all reference-by-comparison cells. Use `sort = "ascending"` or
+`sort = "descending"` to order methods by divergence.
 
-```{r fig.height=5}
+```{r fig.height=4}
 plot_validation_distribution_pairwise(
   distribution_results,
   metric = "jsd",
   value = "weighted_mean",
-  comparisons = "all",
+  comparisons = benchmark_comparisons,
   methods = method_subset,
-  method_labels = method_labels
+  method_labels = method_labels,
+  sort = "ascending"
 )
 ```
 
@@ -349,17 +426,17 @@ plot_validation_structure(
 ## Level 5: LISA Cluster Map
 
 Local Moran/LISA indicators need a separate map because the diagnostic is
-spatially local. `debiasR` should require users to supply boundaries, for
-example LAD or MSOA polygons, and then join the LISA output by area identifier.
-The toy boundaries below are only for visual review of the prototype. To expose
-the full cluster palette in this deterministic simulated example, the notebook
-uses a deliberately relaxed LISA threshold above; final user-facing examples
-should use the statistical default unless they are presenting a sensitivity
-check.
+spatially local. `debiasR` only provides the plotting option for validation
+residual and LISA indicator outputs; users must provide the `sf` boundaries to
+map those outputs. The prototype below uses user-supplied LAD boundaries for the
+mapped areas when available, with an optional user-supplied region boundary file
+drawn as a white outline. Only areas with Local Moran p-values at or below 0.05
+are coloured by LISA cluster; non-significant areas are shown in light grey. LAD
+internal outlines are suppressed.
 
 ```{r fig.height=5}
 if (is.null(validation_lisa_boundaries)) {
-  cat("Install sf and supply an sf boundary object to map LISA clusters.\n")
+  cat(validation_lisa_boundary_note, "\n")
 } else {
   plot_validation_lisa_map(
     structure_results,
@@ -367,7 +444,14 @@ if (is.null(validation_lisa_boundaries)) {
     boundary_area_col = "area",
     comparisons = "adjusted_vs_benchmark",
     methods = method_subset,
-    method_labels = method_labels
+    method_labels = method_labels,
+    p_value_col = "p_value",
+    p_value_threshold = 0.05,
+    boundary_colour = NA,
+    boundary_linewidth = 0,
+    outline_boundaries = validation_lisa_outline_boundaries,
+    outline_colour = "white",
+    outline_linewidth = 0.45
   )
 }
 ```

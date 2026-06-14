@@ -16,7 +16,7 @@ plot_validation_residual_bands(
   quantile_reference = c("selected", "adjusted", "pooled"),
   quantile_probs = c(0.5, 0.75, 0.9, 0.95),
   palette = NULL,
-  label_min_share = 3.5,
+  label_min_share = 8,
   orientation = c("horizontal", "vertical")
 )
 
@@ -32,7 +32,9 @@ named list of \code{validate_flow_residuals()} results.}
 \item{method_labels}{Optional named character vector used to relabel methods.}
 
 \item{comparisons}{Flow comparison(s) to plot. Defaults to
-\code{"adjusted_vs_benchmark"}. Use \code{"all"} to facet all supported comparisons.}
+\code{"adjusted_vs_benchmark"}. Use \code{"all"} to facet all supported comparisons.
+When \code{"raw_vs_benchmark"} is included, it is shown once as the unadjusted
+raw MPD baseline.}
 
 \item{methods}{Optional character vector of method identifiers or display
 labels to include. Default \code{NULL} includes all methods.}
@@ -60,7 +62,7 @@ Defaults to a colour-blind-aware sequential palette ordered from lower to
 higher residual-severity bands.}
 
 \item{label_min_share}{Minimum segment share, in percentage points, required
-for an in-bar label. Default \code{3.5}.}
+for an in-bar label. Default \code{8}.}
 
 \item{orientation}{Bar orientation. \code{"horizontal"} places methods on the
 y-axis and shares on the x-axis; \code{"vertical"} keeps methods on the x-axis.

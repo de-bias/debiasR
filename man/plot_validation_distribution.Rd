@@ -28,7 +28,8 @@ result, or a named list of results.}
 
 \item{comparisons}{Flow comparison(s) to plot. Defaults to
 \code{"adjusted_vs_benchmark"}. Use \code{"all"} to show all comparison rows present
-in \code{distribution_results}.}
+in \code{distribution_results}. When \code{"raw_vs_benchmark"} is included, it is
+shown as a single unadjusted raw MPD baseline row.}
 
 \item{methods}{Optional character vector of method identifiers or display
 labels to include. Default \code{NULL} includes all methods.}

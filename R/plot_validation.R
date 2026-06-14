@@ -157,6 +157,18 @@
 
 .validation_residual_axis_label <- function(residual, comparisons) {
   comparisons <- .normalise_flow_comparisons(comparisons)
+  if (.validation_benchmark_only_comparisons(comparisons)) {
+    return(switch(
+      residual,
+      signed = "Flow difference\n(Benchmark - adjusted/raw MPD)",
+      absolute = "Absolute flow difference\n(|Benchmark - adjusted/raw MPD|)",
+      percent = paste0(
+        "Flow difference (% of X)\n",
+        "((Benchmark - adjusted/raw MPD) / adjusted/raw MPD)"
+      )
+    ))
+  }
+
   if (length(comparisons) == 1L) {
     spec <- .flow_comparison_spec(comparisons)
     difference_label <- paste0(spec$y_label, " - ", spec$x_label)
@@ -188,6 +200,13 @@
 
 .validation_scatter_axis_labels <- function(comparisons) {
   comparisons <- .normalise_flow_comparisons(comparisons)
+  if (.validation_benchmark_only_comparisons(comparisons)) {
+    return(list(
+      x = "X-axis flow (adjusted or raw MPD, people)",
+      y = "Y-axis: Benchmark flow (people)"
+    ))
+  }
+
   if (length(comparisons) == 1L) {
     spec <- .flow_comparison_spec(comparisons)
     return(list(
@@ -204,6 +223,10 @@
 
 .validation_difference_label <- function(comparisons) {
   comparisons <- .normalise_flow_comparisons(comparisons)
+  if (.validation_benchmark_only_comparisons(comparisons)) {
+    return("Benchmark - adjusted/raw MPD")
+  }
+
   if (length(comparisons) == 1L) {
     spec <- .flow_comparison_spec(comparisons)
     return(paste0(spec$y_label, " - ", spec$x_label))
@@ -273,6 +296,74 @@
   }, character(1))
 }
 
+.validation_range_labels <- function(breaks) {
+  lower <- breaks[-length(breaks)]
+  upper <- breaks[-1]
+  integer_breaks <- all(abs(breaks - round(breaks)) < sqrt(.Machine$double.eps))
+
+  if (integer_breaks) {
+    lower <- as.integer(round(lower))
+    upper <- as.integer(round(upper))
+    lower[-1] <- lower[-1] + 1L
+  }
+
+  paste0(lower, "-", upper)
+}
+
+.validation_check_relative_error_breaks <- function(breaks) {
+  if (
+    !is.numeric(breaks) ||
+      length(breaks) < 2L ||
+      anyNA(breaks) ||
+      any(!is.finite(breaks)) ||
+      any(diff(breaks) <= 0) ||
+      min(breaks) > 0 ||
+      max(breaks) < 100
+  ) {
+    stop(
+      "`relative_error_breaks` must be an increasing numeric vector ",
+      "covering 0 to 100.",
+      call. = FALSE
+    )
+  }
+
+  invisible(breaks)
+}
+
+.validation_relative_error_band <- function(x, breaks) {
+  labels <- .validation_range_labels(breaks)
+  score <- 100 * x
+  score <- pmin(pmax(score, min(breaks)), max(breaks))
+  cut(
+    score,
+    breaks = breaks,
+    labels = labels,
+    include.lowest = TRUE,
+    right = TRUE,
+    ordered_result = TRUE
+  )
+}
+
+.validation_interpolate_palette <- function(palette, n) {
+  if (n <= 0L) {
+    return(character())
+  }
+  if (length(palette) == 0L) {
+    stop("`palette` must contain at least one colour.", call. = FALSE)
+  }
+  if (length(palette) == 1L) {
+    return(rep(palette, n))
+  }
+  if (length(palette) == n) {
+    return(palette)
+  }
+  if (length(palette) > n) {
+    return(palette[round(seq.int(1L, length(palette), length.out = n))])
+  }
+
+  grDevices::colorRampPalette(unname(palette))(n)
+}
+
 .validation_count_label <- function(x) {
   vapply(x, function(value) {
     if (!is.finite(value)) {
@@ -327,11 +418,94 @@
   raw_vs_adjusted = "Raw MPD vs adjusted"
 )
 
+.validation_raw_baseline_id <- "raw_mpd_baseline"
+.validation_raw_baseline_label <- "Unadjusted raw MPD"
+.validation_benchmark_display_id <- "benchmark_comparison"
+.validation_benchmark_display_label <- "Benchmark comparison"
+
 .validation_distribution_labels <- c(
   benchmark = "Benchmark",
   adjusted_mpd = "Adjusted",
   raw_mpd = "Raw MPD"
 )
+
+.validation_integrates_raw_baseline <- function(comparisons) {
+  comparisons <- .normalise_flow_comparisons(comparisons)
+  all(c("adjusted_vs_benchmark", "raw_vs_benchmark") %in% comparisons)
+}
+
+.validation_benchmark_only_comparisons <- function(comparisons) {
+  comparisons <- .normalise_flow_comparisons(comparisons)
+  .validation_integrates_raw_baseline(comparisons) &&
+    all(comparisons %in% c("adjusted_vs_benchmark", "raw_vs_benchmark"))
+}
+
+.validation_add_comparison_display <- function(data, comparisons) {
+  comparisons <- .normalise_flow_comparisons(comparisons)
+  if (!"comparison_label" %in% names(data)) {
+    data$comparison_label <- .flow_comparison_label(data$comparison)
+  }
+
+  data$comparison_display <- as.character(data$comparison)
+  data$comparison_display_label <- as.character(data$comparison_label)
+
+  if (.validation_integrates_raw_baseline(comparisons)) {
+    benchmark_rows <- data$comparison %in% c(
+      "adjusted_vs_benchmark",
+      "raw_vs_benchmark"
+    )
+    data$comparison_display[benchmark_rows] <- .validation_benchmark_display_id
+    data$comparison_display_label[benchmark_rows] <- .validation_benchmark_display_label
+  }
+
+  display_levels <- unique(data$comparison_display_label)
+  data$comparison_display_label <- factor(
+    data$comparison_display_label,
+    levels = display_levels
+  )
+  data
+}
+
+.validation_order_raw_baseline <- function(labels,
+                                           position = c("last", "first")) {
+  position <- match.arg(position)
+  labels <- unique(as.character(labels))
+  non_baseline <- setdiff(labels, .validation_raw_baseline_label)
+  baseline <- intersect(labels, .validation_raw_baseline_label)
+
+  if (position == "first") {
+    c(baseline, non_baseline)
+  } else {
+    c(non_baseline, baseline)
+  }
+}
+
+.validation_method_factor_levels <- function(labels,
+                                             axis = c("x", "y"),
+                                             raw_position = c("last", "first")) {
+  axis <- match.arg(axis)
+  raw_position <- match.arg(raw_position)
+  levels <- .validation_order_raw_baseline(labels, position = raw_position)
+  if (axis == "y") {
+    rev(levels)
+  } else {
+    levels
+  }
+}
+
+.validation_distribution_axis_label <- function(metric, value) {
+  statistic_label <- c(
+    mean = "Mean",
+    weighted_mean = "Weighted mean",
+    median = "Median"
+  )
+  paste0(
+    statistic_label[[value]],
+    " ",
+    toupper(metric),
+    " (lower = closer allocation)"
+  )
+}
 
 .validation_check_columns <- function(data, cols, arg = "data") {
   missing <- setdiff(cols, names(data))
@@ -663,22 +837,27 @@
       )
     },
     raw_vs_benchmark = function(data) {
-      y_minus_x <- data$benchmark_flow - data$mpd_flow
+      raw_data <- if (all(c("origin", "destination") %in% names(data))) {
+        dplyr::distinct(data, .data$origin, .data$destination, .keep_all = TRUE)
+      } else {
+        dplyr::distinct(data, .data$mpd_flow, .data$benchmark_flow, .keep_all = TRUE)
+      }
+      y_minus_x <- raw_data$benchmark_flow - raw_data$mpd_flow
       tibble::tibble(
-        method = data[[method_col]],
-        method_label = .validation_method_label(data, method_col, method_labels),
+        method = .validation_raw_baseline_id,
+        method_label = .validation_raw_baseline_label,
         comparison = "raw_vs_benchmark",
         comparison_label = .flow_comparison_label("raw_vs_benchmark"),
         x_series = "raw_mpd",
         y_series = "benchmark",
-        x_flow = data$mpd_flow,
-        y_flow = data$benchmark_flow,
+        x_flow = raw_data$mpd_flow,
+        y_flow = raw_data$benchmark_flow,
         difference = y_minus_x,
         abs_difference = abs(y_minus_x),
         pct_difference = dplyr::if_else(
-          data$mpd_flow == 0,
+          raw_data$mpd_flow == 0,
           NA_real_,
-          100 * y_minus_x / data$mpd_flow
+          100 * y_minus_x / raw_data$mpd_flow
         )
       )
     }
@@ -721,7 +900,8 @@
 #' @param metric_cols Compatibility alias for `error_measures`.
 #' @param comparisons Flow comparison(s) to plot. Defaults to
 #'   `"adjusted_vs_benchmark"`. Use `"all"` when `metrics` contains rows for
-#'   all supported comparisons.
+#'   all supported comparisons. When `"raw_vs_benchmark"` is included, it is
+#'   shown as a single unadjusted raw MPD baseline row.
 #' @param methods Optional character vector of method identifiers or display
 #'   labels to include. Default `NULL` includes all methods.
 #' @param method_col Column containing the method identifier. Default
@@ -733,6 +913,9 @@
 #' @param palette Optional character vector of colours for the relative-error
 #'   fill scale. Defaults to a yellow-green-blue sequence suitable for ordered
 #'   error intensity.
+#' @param relative_error_breaks Numeric percentage cut points used to bin the
+#'   within-metric relative-error fill scale. Default `seq(0, 100, by = 10)`
+#'   produces legend ranges such as 0-10, 11-20, and 91-100.
 #'
 #' @return A `ggplot` object.
 #' @export
@@ -744,8 +927,10 @@ plot_validation_metrics <- function(metrics,
                                     method_col = "method",
                                     method_family_col = NULL,
                                     method_labels = NULL,
-                                    palette = NULL) {
+                                    palette = NULL,
+                                    relative_error_breaks = seq(0, 100, by = 10)) {
   .require_ggplot2()
+  .validation_check_relative_error_breaks(relative_error_breaks)
   if (!is.null(metric_cols)) {
     if (!missing(error_measures)) {
       stop(
@@ -800,6 +985,32 @@ plot_validation_metrics <- function(metrics,
     )
   }))
 
+  plot_data <- plot_data |>
+    dplyr::mutate(
+      method = dplyr::if_else(
+        .data$comparison == "raw_vs_benchmark",
+        .validation_raw_baseline_id,
+        as.character(.data$method)
+      ),
+      method_label = dplyr::if_else(
+        .data$comparison == "raw_vs_benchmark",
+        .validation_raw_baseline_label,
+        as.character(.data$method_label)
+      ),
+      method_family = dplyr::if_else(
+        .data$comparison == "raw_vs_benchmark",
+        .validation_raw_baseline_label,
+        as.character(.data$method_family)
+      )
+    ) |>
+    dplyr::distinct(
+      .data$comparison,
+      .data$method_label,
+      .data$metric,
+      .keep_all = TRUE
+    )
+  plot_data <- .validation_add_comparison_display(plot_data, comparisons)
+
   plot_data <- dplyr::bind_rows(lapply(metric_cols, function(metric_col) {
     metric_data <- plot_data[plot_data$metric == metric_col, , drop = FALSE]
     finite_value <- is.finite(metric_data$value)
@@ -822,42 +1033,93 @@ plot_validation_metrics <- function(metrics,
   } else {
     palette
   }
-  method_order <- unique(plot_data$method_label)
+  method_order <- .validation_method_factor_levels(
+    plot_data$method_label,
+    axis = "y",
+    raw_position = "last"
+  )
   metric_order <- unique(plot_data$metric_label)
   plot_data <- plot_data |>
     dplyr::mutate(
-      method_label = factor(.data$method_label, levels = rev(method_order)),
+      method_label = factor(.data$method_label, levels = method_order),
       metric_label = factor(.data$metric_label, levels = metric_order),
       value_label = .validation_metric_value_label(.data$value),
+      relative_error_band = .validation_relative_error_band(
+        .data$relative_error,
+        relative_error_breaks
+      ),
       label_colour = dplyr::if_else(
         is.finite(.data$relative_error) & .data$relative_error >= 0.55,
         "white",
         "#1f2933"
       )
     )
+  relative_error_labels <- .validation_range_labels(relative_error_breaks)
+  fill_values <- stats::setNames(
+    .validation_interpolate_palette(metric_palette, length(relative_error_labels)),
+    relative_error_labels
+  )
+  legend_data <- data.frame(
+    metric_label = factor(metric_order[[1]], levels = metric_order),
+    method_label = factor(method_order[[1]], levels = method_order),
+    relative_error_band = factor(
+      relative_error_labels,
+      levels = relative_error_labels,
+      ordered = TRUE
+    )
+  )
 
   plot <- ggplot2::ggplot(
     plot_data,
     ggplot2::aes(
       x = .data$metric_label,
       y = .data$method_label,
-      fill = .data$relative_error
+      fill = .data$relative_error_band
     )
   ) +
-    ggplot2::geom_tile(colour = "white", linewidth = 0.6, na.rm = TRUE) +
+    ggplot2::geom_tile(
+      data = legend_data,
+      ggplot2::aes(
+        x = .data$metric_label,
+        y = .data$method_label,
+        fill = .data$relative_error_band
+      ),
+      alpha = 0,
+      colour = NA,
+      linewidth = 0,
+      inherit.aes = FALSE,
+      show.legend = TRUE
+    ) +
+    ggplot2::geom_tile(
+      colour = "white",
+      linewidth = 0.6,
+      na.rm = TRUE,
+      show.legend = FALSE
+    ) +
     ggplot2::geom_text(
       ggplot2::aes(label = .data$value_label, colour = .data$label_colour),
       size = 3.4,
       fontface = "bold",
       na.rm = TRUE
     ) +
-    ggplot2::scale_fill_gradientn(
-      colours = metric_palette,
-      limits = c(0, 1),
-      breaks = c(0, 0.5, 1),
-      labels = c("Lower", "Mid", "Higher"),
+    ggplot2::scale_fill_manual(
+      values = fill_values,
+      limits = relative_error_labels,
+      breaks = relative_error_labels,
+      drop = FALSE,
+      na.translate = FALSE,
       na.value = "#f2f2f2",
-      name = "Relative error"
+      name = "Relative error score (%)",
+      guide = ggplot2::guide_legend(
+        nrow = 2,
+        byrow = TRUE,
+        override.aes = list(
+          fill = unname(fill_values),
+          alpha = 1,
+          colour = "#A7ADB7",
+          linewidth = 0.25
+        )
+      )
     ) +
     ggplot2::scale_colour_identity() +
     ggplot2::labs(x = NULL, y = NULL) +
@@ -866,16 +1128,21 @@ plot_validation_metrics <- function(metrics,
       legend.position = "bottom",
       legend.title = ggplot2::element_text(size = 9),
       legend.text = ggplot2::element_text(size = 9),
-      legend.key.width = grid::unit(1.2, "cm"),
+      legend.key.width = grid::unit(0.65, "cm"),
+      legend.key.height = grid::unit(0.35, "cm"),
       panel.grid = ggplot2::element_blank(),
       axis.line = ggplot2::element_blank(),
       axis.text.x = ggplot2::element_text(face = "bold"),
       axis.text.y = ggplot2::element_text(colour = "#344054")
     )
 
-  if (length(unique(plot_data$comparison)) > 1L) {
+  if (length(unique(plot_data$comparison_display)) > 1L) {
     plot <- plot +
-      ggplot2::facet_wrap(ggplot2::vars(.data$comparison_label))
+      ggplot2::facet_wrap(
+        ggplot2::vars(.data$comparison_display_label),
+        ncol = 1,
+        scales = "free_y"
+      )
   }
 
   plot
@@ -900,7 +1167,8 @@ plot_validate_flow_metrics <- function(...) {
 #' @param residual Difference scale: `"signed"`, `"absolute"`, or `"percent"`.
 #' @param comparisons Comparisons to plot. Defaults to
 #'   `"adjusted_vs_benchmark"`. Use a character vector to compare multiple
-#'   flow-pair definitions.
+#'   flow-pair definitions. When `"raw_vs_benchmark"` is included, it is shown
+#'   once as the unadjusted raw MPD baseline.
 #' @param methods Optional character vector of method identifiers or display
 #'   labels to include, giving users control over which adjustment methods are
 #'   compared. Default `NULL` includes all methods.
@@ -961,13 +1229,18 @@ plot_validation_residuals <- function(residuals,
     method_col = method_col,
     method_labels = method_labels
   )
+  plot_data <- .validation_add_comparison_display(plot_data, comparisons)
 
-  method_order <- unique(plot_data$method_label)
+  method_order <- .validation_method_factor_levels(
+    plot_data$method_label,
+    axis = "x",
+    raw_position = "last"
+  )
   plot_data <- plot_data |>
     dplyr::mutate(method_label = factor(.data$method_label, levels = method_order))
   finite_plot_data <- plot_data[is.finite(plot_data$value), , drop = FALSE]
   count_data <- finite_plot_data |>
-    dplyr::group_by(.data$comparison_label, .data$method_label) |>
+    dplyr::group_by(.data$comparison_display_label, .data$method_label) |>
     dplyr::summarise(
       n = dplyr::n(),
       y_max = max(.data$value, na.rm = TRUE),
@@ -981,7 +1254,7 @@ plot_validation_residuals <- function(residuals,
   point_data <- dplyr::bind_rows(lapply(
     split(
       finite_plot_data,
-      list(finite_plot_data$comparison_label, finite_plot_data$method_label),
+      list(finite_plot_data$comparison_display_label, finite_plot_data$method_label),
       drop = TRUE
     ),
     .validation_thin_points,
@@ -1014,7 +1287,7 @@ plot_validation_residuals <- function(residuals,
       scale = "width",
       na.rm = TRUE
     ) +
-    ggplot2::facet_wrap(ggplot2::vars(.data$comparison_label), scales = "free_y") +
+    ggplot2::facet_wrap(ggplot2::vars(.data$comparison_display_label), scales = "free") +
     ggplot2::scale_fill_manual(values = fill_values, name = NULL) +
     ggplot2::scale_colour_manual(values = fill_values, name = NULL) +
     ggplot2::scale_y_continuous(
@@ -1082,7 +1355,8 @@ plot_validate_flow_residual_violin <- function(...) {
 #'   named list of `validate_flow_residuals()` results.
 #' @param comparisons Comparisons to plot. Defaults to
 #'   `"adjusted_vs_benchmark"`. Use a character vector to compare multiple
-#'   flow-pair definitions.
+#'   flow-pair definitions. When `"raw_vs_benchmark"` is included, it is shown
+#'   once as the unadjusted raw MPD baseline.
 #' @param methods Optional character vector of method identifiers or display
 #'   labels to include. Default `NULL` includes all methods.
 #' @param method_col Column containing the method identifier. Default
@@ -1137,6 +1411,7 @@ plot_validation_scatter <- function(residuals,
     method_col = method_col,
     method_labels = method_labels
   ) |>
+    .validation_add_comparison_display(comparisons = comparisons) |>
     dplyr::mutate(
       x_series_label = dplyr::coalesce(
         unname(stats::setNames(
@@ -1166,6 +1441,15 @@ plot_validation_scatter <- function(residuals,
   }
   axis_labels <- .validation_scatter_axis_labels(comparisons)
   difference_label <- .validation_difference_label(comparisons)
+  method_order <- .validation_method_factor_levels(
+    plot_data$method_label,
+    axis = "x",
+    raw_position = "last"
+  )
+  plot_data <- plot_data |>
+    dplyr::mutate(
+      method_label = factor(.data$method_label, levels = method_order)
+    )
   if (is.null(difference_limits)) {
     difference_limits <- .validation_symmetric_limits(
       plot_data$difference,
@@ -1242,6 +1526,24 @@ plot_validation_scatter <- function(residuals,
     )
   }
 
+  facet_layer <- if (.validation_benchmark_only_comparisons(comparisons)) {
+    ggplot2::facet_wrap(
+      ggplot2::vars(.data$method_label),
+      scales = "free"
+    )
+  } else if (length(unique(plot_data$comparison)) > 1L) {
+    ggplot2::facet_wrap(
+      ggplot2::vars(.data$method_label, .data$scatter_comparison_label),
+      scales = "free"
+    )
+  } else {
+    ggplot2::facet_grid(
+      ggplot2::vars(.data$method_label),
+      ggplot2::vars(.data$scatter_comparison_label),
+      scales = "free"
+    )
+  }
+
   plot +
     ggplot2::geom_abline(
       intercept = 0,
@@ -1250,11 +1552,7 @@ plot_validation_scatter <- function(residuals,
       colour = "#4B5563",
       linewidth = 0.5
     ) +
-    ggplot2::facet_grid(
-      ggplot2::vars(.data$method_label),
-      ggplot2::vars(.data$scatter_comparison_label),
-      scales = "free"
-    ) +
+    facet_layer +
     difference_scale +
     ggplot2::scale_x_continuous(labels = .validation_flow_axis_label) +
     ggplot2::scale_y_continuous(labels = .validation_flow_axis_label) +
@@ -1287,6 +1585,8 @@ plot_validate_flow_scatter <- function(...) {
 #' @param method_labels Optional named character vector used to relabel methods.
 #' @param comparisons Flow comparison(s) to plot. Defaults to
 #'   `"adjusted_vs_benchmark"`. Use `"all"` to facet all supported comparisons.
+#'   When `"raw_vs_benchmark"` is included, it is shown once as the unadjusted
+#'   raw MPD baseline.
 #' @param methods Optional character vector of method identifiers or display
 #'   labels to include. Default `NULL` includes all methods.
 #' @param band_method Banding strategy. `"sd"` uses standard-deviation bands;
@@ -1307,7 +1607,7 @@ plot_validate_flow_scatter <- function(...) {
 #'   Defaults to a colour-blind-aware sequential palette ordered from lower to
 #'   higher residual-severity bands.
 #' @param label_min_share Minimum segment share, in percentage points, required
-#'   for an in-bar label. Default `3.5`.
+#'   for an in-bar label. Default `8`.
 #' @param orientation Bar orientation. `"horizontal"` places methods on the
 #'   y-axis and shares on the x-axis; `"vertical"` keeps methods on the x-axis.
 #'   Default `"horizontal"`.
@@ -1324,7 +1624,7 @@ plot_validation_residual_bands <- function(residuals,
                                            quantile_reference = c("selected", "adjusted", "pooled"),
                                            quantile_probs = c(0.5, 0.75, 0.9, 0.95),
                                            palette = NULL,
-                                           label_min_share = 3.5,
+                                           label_min_share = 8,
                                            orientation = c("horizontal", "vertical")) {
   .require_ggplot2()
   comparisons <- .normalise_flow_comparisons(comparisons)
@@ -1478,21 +1778,29 @@ plot_validation_residual_bands <- function(residuals,
 
   residual_reference <- residual_reference |>
     dplyr::filter(is.finite(.data$residual), !is.na(.data$residual_band))
+  residual_reference <- .validation_add_comparison_display(
+    residual_reference,
+    comparisons
+  )
 
   plot_data <- residual_reference |>
     dplyr::count(
-      .data$comparison,
-      .data$comparison_label,
+      .data$comparison_display,
+      .data$comparison_display_label,
       .data$method_label,
       .data$residual_band,
       name = "n"
     ) |>
-    dplyr::group_by(.data$comparison, .data$method_label) |>
+    dplyr::group_by(.data$comparison_display, .data$method_label) |>
     dplyr::mutate(share = 100 * .data$n / sum(.data$n)) |>
     dplyr::ungroup()
 
   method_grid <- residual_reference |>
-    dplyr::distinct(.data$comparison, .data$comparison_label, .data$method_label)
+    dplyr::distinct(
+      .data$comparison_display,
+      .data$comparison_display_label,
+      .data$method_label
+    )
   complete_grid <- merge(
     method_grid,
     data.frame(
@@ -1505,11 +1813,18 @@ plot_validation_residual_bands <- function(residuals,
   plot_data <- complete_grid |>
     dplyr::left_join(
       plot_data,
-      by = c("comparison", "comparison_label", "method_label", "residual_band")
+      by = c(
+        "comparison_display",
+        "comparison_display_label",
+        "method_label",
+        "residual_band"
+      )
     ) |>
     dplyr::mutate(
       n = dplyr::coalesce(.data$n, 0L),
       share = dplyr::coalesce(.data$share, 0),
+      comparison = .data$comparison_display,
+      comparison_label = .data$comparison_display_label,
       residual_band = factor(.data$residual_band, levels = band_levels),
       label = dplyr::if_else(
         .data$share >= label_min_share,
@@ -1529,17 +1844,18 @@ plot_validation_residual_bands <- function(residuals,
     if (is.null(palette)) .validation_residual_band_palette else palette
   )
 
-  method_order <- unique(plot_data$method_label)
+  method_order <- .validation_method_factor_levels(
+    plot_data$method_label,
+    axis = if (orientation == "horizontal") "y" else "x",
+    raw_position = "last"
+  )
   plot_data <- plot_data |>
     dplyr::mutate(
       method_label = factor(
         .data$method_label,
-        levels = if (orientation == "horizontal") rev(method_order) else method_order
+        levels = method_order
       ),
-      comparison_label = factor(
-        .data$comparison_label,
-        levels = .flow_comparison_label(comparisons)
-      )
+      comparison_display_label = factor(.data$comparison_display_label)
     )
 
   stack_position <- ggplot2::position_stack(reverse = TRUE)
@@ -1612,9 +1928,12 @@ plot_validation_residual_bands <- function(residuals,
       panel.grid.minor = ggplot2::element_blank()
     )
 
-  if (length(comparisons) > 1L) {
+  if (length(unique(plot_data$comparison_display)) > 1L) {
     plot <- plot +
-      ggplot2::facet_wrap(ggplot2::vars(.data$comparison_label), scales = "free_y")
+      ggplot2::facet_wrap(
+        ggplot2::vars(.data$comparison_display_label),
+        scales = "free_y"
+      )
   }
 
   plot
@@ -1638,7 +1957,8 @@ plot_validate_flow_residual_heatmap <- function(...) {
 #'   `"median"`.
 #' @param comparisons Flow comparison(s) to plot. Defaults to
 #'   `"adjusted_vs_benchmark"`. Use `"all"` to show all comparison rows present
-#'   in `distribution_results`.
+#'   in `distribution_results`. When `"raw_vs_benchmark"` is included, it is
+#'   shown as a single unadjusted raw MPD baseline row.
 #' @param methods Optional character vector of method identifiers or display
 #'   labels to include. Default `NULL` includes all methods.
 #' @param method_col Column containing the method identifier. Default
@@ -1684,11 +2004,46 @@ plot_validation_distribution <- function(distribution_results,
         .data$comparison
       ),
       divergence = .data[[value_col]]
+    ) |>
+    dplyr::mutate(
+      method = dplyr::if_else(
+        .data$comparison == "raw_vs_benchmark",
+        .validation_raw_baseline_id,
+        as.character(.data[[method_col]])
+      ),
+      method_label = dplyr::if_else(
+        .data$comparison == "raw_vs_benchmark",
+        .validation_raw_baseline_label,
+        as.character(.data$method_label)
+      )
+    ) |>
+    dplyr::distinct(
+      .data$comparison,
+      .data$method_label,
+      .keep_all = TRUE
+    )
+  plot_data <- .validation_add_comparison_display(plot_data, comparisons)
+
+  method_order <- .validation_method_factor_levels(
+    plot_data$method_label,
+    axis = "y",
+    raw_position = "last"
+  )
+  plot_data <- plot_data |>
+    dplyr::mutate(
+      method_label = factor(
+        .data$method_label,
+        levels = method_order
+      )
     )
 
   ggplot2::ggplot(
     plot_data,
-    ggplot2::aes(x = .data$comparison_label, y = .data$method_label, fill = .data$divergence)
+    ggplot2::aes(
+      x = .data$comparison_display_label,
+      y = .data$method_label,
+      fill = .data$divergence
+    )
   ) +
     ggplot2::geom_tile(colour = "white", linewidth = 0.4) +
     ggplot2::geom_text(
@@ -1715,24 +2070,35 @@ plot_validate_flow_distribution_heatmap <- function(...) {
 
 #' Plot pairwise distributional allocation divergences
 #'
-#' Builds a reference-by-comparison heatmap from
-#' `validate_flow_distribution()` summary rows. For JSD, the default mirrors
-#' supplied off-diagonal entries because JSD is symmetric. KL entries remain
-#' directional.
+#' Builds an intuitive method-by-comparison divergence chart from
+#' `validate_flow_distribution()` summary rows. Lower values indicate closer
+#' allocation fidelity. A full reference-by-comparison matrix is also available
+#' with `plot_type = "heatmap"`; for JSD, this matrix can mirror supplied
+#' off-diagonal entries because JSD is symmetric. KL entries remain directional.
 #'
 #' @param distribution_results A data frame, one `validate_flow_distribution()`
 #'   result, or a named list of results.
 #' @param metric Divergence metric to plot: `"jsd"` or `"kl"`.
 #' @param value Summary statistic to plot: `"mean"`, `"weighted_mean"`, or
 #'   `"median"`.
-#' @param comparisons Flow comparison(s) used to build the matrix. Defaults to
-#'   `"adjusted_vs_benchmark"`. Use `"all"` for a full pairwise matrix when
-#'   `distribution_results` contains all comparison rows.
+#' @param comparisons Flow comparison(s) to plot. Defaults to
+#'   `"adjusted_vs_benchmark"`. Use `"all"` to include all comparison rows
+#'   present in `distribution_results`; with `plot_type = "heatmap"` this
+#'   produces the full pairwise matrix. When `"raw_vs_benchmark"` is included
+#'   in comparison plots, it is shown as a single unadjusted raw MPD baseline
+#'   row.
 #' @param methods Optional character vector of method identifiers or display
 #'   labels to include. Default `NULL` includes all methods.
 #' @param method_col Column containing the method identifier. Default
 #'   `"method"`.
 #' @param method_labels Optional named character vector used to relabel methods.
+#' @param plot_type Plot type to return: `"comparison"` for a horizontal
+#'   benchmark-comparison chart or `"heatmap"` for the full pairwise matrix.
+#' @param sort Sort order for the comparison chart. Use `"none"` to keep method
+#'   order, `"ascending"` for smallest-to-largest divergence, or
+#'   `"descending"` for largest-to-smallest divergence. Adjusted methods are
+#'   sorted; the raw MPD baseline remains at the edge as a reference row.
+#'   Default `"none"`.
 #' @param mirror_jsd Logical. If `TRUE`, mirror JSD values to show a symmetric
 #'   matrix. Default `TRUE`.
 #'
@@ -1745,10 +2111,14 @@ plot_validation_distribution_pairwise <- function(distribution_results,
                                                   methods = NULL,
                                                   method_col = "method",
                                                   method_labels = NULL,
+                                                  plot_type = c("comparison", "heatmap"),
+                                                  sort = c("none", "ascending", "descending"),
                                                   mirror_jsd = TRUE) {
   .require_ggplot2()
   metric <- match.arg(metric)
   value <- match.arg(value)
+  plot_type <- match.arg(plot_type)
+  sort <- match.arg(sort)
   comparisons <- .normalise_flow_comparisons(comparisons)
   summary <- .as_validate_distribution_summary(distribution_results, method_col = method_col)
   value_col <- paste(metric, value, sep = "_")
@@ -1776,10 +2146,115 @@ plot_validation_distribution_pairwise <- function(distribution_results,
     dplyr::transmute(
       method = .data[[method_col]],
       method_label = .validation_method_label(summary, method_col, method_labels),
+      comparison = .data$comparison,
       reference_distribution = .data$reference_distribution,
       comparison_distribution = .data$comparison_distribution,
       divergence = .data[[value_col]]
+    ) |>
+    dplyr::mutate(
+      method = dplyr::if_else(
+        .data$comparison == "raw_vs_benchmark",
+        .validation_raw_baseline_id,
+        as.character(.data$method)
+      ),
+      method_label = dplyr::if_else(
+        .data$comparison == "raw_vs_benchmark",
+        .validation_raw_baseline_label,
+        as.character(.data$method_label)
+      )
+    ) |>
+    dplyr::distinct(
+      .data$comparison,
+      .data$method_label,
+      .data$reference_distribution,
+      .data$comparison_distribution,
+      .keep_all = TRUE
     )
+  plot_data <- .validation_add_comparison_display(plot_data, comparisons)
+
+  if (plot_type == "comparison") {
+    plot_data <- plot_data |>
+      dplyr::mutate(
+        comparison_label = dplyr::coalesce(
+          .flow_comparison_label(.data$comparison),
+          .data$comparison
+        ),
+        divergence_label = sprintf("%.3f", .data$divergence)
+      )
+    if (sort == "none") {
+      method_order <- .validation_method_factor_levels(
+        plot_data$method_label,
+        axis = "y",
+        raw_position = "last"
+      )
+    } else {
+      baseline_label <- .validation_raw_baseline_label
+      baseline_order <- intersect(
+        unique(as.character(plot_data$method_label)),
+        baseline_label
+      )
+      method_order <- plot_data |>
+        dplyr::filter(.data$method_label != baseline_label) |>
+        dplyr::group_by(.data$method_label) |>
+        dplyr::summarise(.sort_value = mean(.data$divergence, na.rm = TRUE), .groups = "drop") |>
+        dplyr::arrange(if (sort == "ascending") .data$.sort_value else dplyr::desc(.data$.sort_value)) |>
+        dplyr::pull("method_label") |>
+        as.character()
+      method_order <- rev(c(method_order, baseline_order))
+    }
+    comparison_order <- unique(as.character(plot_data$comparison_label))
+    plot_data <- plot_data |>
+      dplyr::mutate(
+        method_label = factor(.data$method_label, levels = method_order),
+        comparison_label = factor(.data$comparison_label, levels = comparison_order)
+      )
+
+    fill_values <- .validation_palette(
+      comparison_order,
+      .validation_viz_palette_categorical
+    )
+    dodge <- ggplot2::position_dodge2(width = 0.72, preserve = "single")
+
+    return(
+      ggplot2::ggplot(
+        plot_data,
+        ggplot2::aes(
+          x = .data$method_label,
+          y = .data$divergence,
+          fill = .data$comparison_label
+        )
+      ) +
+        ggplot2::geom_col(
+          width = 0.64,
+          colour = "white",
+          linewidth = 0.35,
+          position = dodge
+        ) +
+        ggplot2::geom_text(
+          ggplot2::aes(label = .data$divergence_label),
+          position = dodge,
+          hjust = -0.15,
+          size = 3.3,
+          na.rm = TRUE
+        ) +
+        ggplot2::coord_flip(clip = "off") +
+        ggplot2::scale_y_continuous(
+          expand = ggplot2::expansion(mult = c(0, 0.16))
+        ) +
+        ggplot2::scale_fill_manual(values = fill_values, name = "Comparison") +
+        ggplot2::labs(
+          x = NULL,
+          y = .validation_distribution_axis_label(metric, value)
+        ) +
+        .validation_theme(base_size = 11, grid = "xy") +
+        ggplot2::theme(
+          legend.position = "bottom",
+          panel.grid.major.y = ggplot2::element_blank(),
+          panel.grid.minor = ggplot2::element_blank(),
+          axis.text.y = ggplot2::element_text(colour = "#344054")
+        )
+    )
+  }
 
   if (metric == "jsd" && isTRUE(mirror_jsd)) {
     plot_data <- dplyr::bind_rows(
@@ -1844,8 +2319,9 @@ plot_validation_distribution_pairwise <- function(distribution_results,
 
 #' @rdname plot_validation_distribution_pairwise
 #' @export
-plot_validate_flow_distribution_pairwise_heatmap <- function(...) {
-  plot_validation_distribution_pairwise(...)
+plot_validate_flow_distribution_pairwise_heatmap <- function(...,
+                                                             plot_type = "heatmap") {
+  plot_validation_distribution_pairwise(..., plot_type = plot_type)
 }
 
 #' Plot residual-structure validation metrics
@@ -1968,19 +2444,20 @@ plot_validate_flow_structure <- function(...) {
   plot_validation_structure(...)
 }
 
-#' Plot validation LISA clusters on user-supplied boundaries
+#' Plot validation LISA indicators on user-supplied boundaries
 #'
-#' Maps Local Moran/LISA cluster classes returned by
+#' Maps residual-derived Local Moran/LISA cluster classes returned by
 #' `validate_flow_residual_structure(local_moran = TRUE)`. The function requires
-#' users to supply an `sf` boundary object because `debiasR` does not ship or
-#' infer spatial boundaries.
+#' users to supply `sf` boundary objects because `debiasR` does not ship,
+#' download, or infer spatial boundaries. Optional outline boundaries can be
+#' supplied for larger administrative areas.
 #'
 #' @param structure_results A data frame containing LISA map data, one
 #'   `validate_flow_residual_structure()` result, or a named list of results.
 #'   The data must contain `lisa_cluster`, which is produced when
 #'   `validate_flow_residual_structure(local_moran = TRUE)`.
-#' @param boundaries An `sf` polygon or multipolygon object with one row per
-#'   area to map.
+#' @param boundaries User-supplied `sf` polygon or multipolygon object with one
+#'   row per area to map.
 #' @param boundary_area_col Column in `boundaries` identifying areas. Default
 #'   `"area"`.
 #' @param area_col Column in the validation map data identifying areas. Default
@@ -1995,13 +2472,24 @@ plot_validate_flow_structure <- function(...) {
 #' @param method_labels Optional named character vector used to relabel methods.
 #' @param cluster_col Column containing LISA cluster classes. Default
 #'   `"lisa_cluster"`.
+#' @param p_value_col Column containing Local Moran/LISA p-values. Default
+#'   `"p_value"`.
+#' @param p_value_threshold Numeric threshold used to display statistically
+#'   significant LISA clusters. Areas with p-values above this threshold are
+#'   shown as not significant. Set `NULL` to plot `cluster_col` without
+#'   p-value masking. Default `0.05`.
 #' @param palette Optional named or unnamed character vector of colours for LISA
 #'   clusters. Defaults to the supplied validation review palette plus neutral
 #'   greys for non-significant or undefined areas.
 #' @param missing_fill Fill colour for boundaries that are not present in the
 #'   validation results. Default `"#F3F4F6"`.
-#' @param boundary_colour Boundary line colour. Default `"white"`.
-#' @param boundary_linewidth Boundary line width. Default `0.15`.
+#' @param boundary_colour Boundary line colour for mapped areas. Default `NA`
+#'   avoids drawing small-area internal borders.
+#' @param boundary_linewidth Boundary line width for mapped areas. Default `0`.
+#' @param outline_boundaries Optional user-supplied `sf` object for larger
+#'   administrative boundaries to draw over the mapped areas.
+#' @param outline_colour Larger-boundary outline colour. Default `"white"`.
+#' @param outline_linewidth Larger-boundary outline width. Default `0.45`.
 #'
 #' @return A `ggplot` object.
 #' @export
@@ -2014,10 +2502,15 @@ plot_validation_lisa_map <- function(structure_results,
                                      method_col = "method",
                                      method_labels = NULL,
                                      cluster_col = "lisa_cluster",
+                                     p_value_col = "p_value",
+                                     p_value_threshold = 0.05,
                                      palette = NULL,
                                      missing_fill = "#F3F4F6",
-                                     boundary_colour = "white",
-                                     boundary_linewidth = 0.15) {
+                                     boundary_colour = NA,
+                                     boundary_linewidth = 0,
+                                     outline_boundaries = NULL,
+                                     outline_colour = "white",
+                                     outline_linewidth = 0.45) {
   .require_ggplot2()
   comparisons <- .normalise_flow_comparisons(comparisons)
   map_data <- .as_validate_structure_map_data(
@@ -2064,13 +2557,49 @@ plot_validation_lisa_map <- function(structure_results,
   if (!boundary_area_col %in% names(boundaries)) {
     stop("`boundary_area_col` must name a column in `boundaries`.", call. = FALSE)
   }
+  if (!is.null(outline_boundaries) && !inherits(outline_boundaries, "sf")) {
+    stop("`outline_boundaries` must be an `sf` object.", call. = FALSE)
+  }
+  if (!is.null(p_value_threshold)) {
+    if (!is.numeric(p_value_threshold) ||
+        length(p_value_threshold) != 1L ||
+        is.na(p_value_threshold) ||
+        p_value_threshold < 0 ||
+        p_value_threshold > 1) {
+      stop("`p_value_threshold` must be a number between 0 and 1, or `NULL`.", call. = FALSE)
+    }
+    if (!p_value_col %in% names(map_data)) {
+      stop("`p_value_col` must name a column in `structure_results`.", call. = FALSE)
+    }
+    if (!is.numeric(map_data[[p_value_col]])) {
+      stop("`p_value_col` must identify a numeric p-value column.", call. = FALSE)
+    }
+  }
 
   map_data <- map_data |>
     dplyr::mutate(
       method_label = .validation_method_label(map_data, method_col, method_labels),
       comparison_label = .flow_comparison_label(.data$comparison),
-      .lisa_cluster = as.character(.data[[cluster_col]])
+      .lisa_cluster_raw = as.character(.data[[cluster_col]])
     )
+
+  if (is.null(p_value_threshold)) {
+    map_data <- map_data |>
+      dplyr::mutate(.lisa_cluster = .data$.lisa_cluster_raw)
+  } else {
+    map_data <- map_data |>
+      dplyr::mutate(
+        .lisa_p_value = .data[[p_value_col]],
+        .lisa_cluster = dplyr::case_when(
+          .data$.lisa_cluster_raw %in% c("no neighbours", "undefined") ~
+            .data$.lisa_cluster_raw,
+          is.finite(.data$.lisa_p_value) &
+            .data$.lisa_p_value <= p_value_threshold ~
+            .data$.lisa_cluster_raw,
+          TRUE ~ "not significant"
+        )
+      )
+  }
 
   map_join_data <- map_data |>
     dplyr::select(dplyr::any_of(c(
@@ -2080,6 +2609,7 @@ plot_validation_lisa_map <- function(structure_results,
       "comparison",
       "comparison_label",
       cluster_col,
+      ".lisa_cluster_raw",
       ".lisa_cluster",
       "local_moran_i",
       "lisa_quadrant",
@@ -2128,6 +2658,15 @@ plot_validation_lisa_map <- function(structure_results,
   }
   names(fill_values) <- cluster_order
 
+  if (!is.null(outline_boundaries)) {
+    boundary_crs <- sf::st_crs(boundaries)
+    outline_crs <- sf::st_crs(outline_boundaries)
+    if (!is.na(boundary_crs) && !is.na(outline_crs) && boundary_crs != outline_crs) {
+      outline_boundaries <- sf::st_transform(outline_boundaries, boundary_crs)
+    }
+  }
+  boundary_bbox <- sf::st_bbox(boundaries)
+
   plot_data <- plot_data |>
     dplyr::mutate(
       .lisa_cluster = factor(.data$.lisa_cluster, levels = cluster_order),
@@ -2137,6 +2676,18 @@ plot_validation_lisa_map <- function(structure_results,
         levels = .flow_comparison_label(comparisons)
       )
     )
+
+  outline_layer <- if (is.null(outline_boundaries)) {
+    NULL
+  } else {
+    ggplot2::geom_sf(
+      data = outline_boundaries,
+      fill = NA,
+      colour = outline_colour,
+      linewidth = outline_linewidth,
+      inherit.aes = FALSE
+    )
+  }
 
   plot <- ggplot2::ggplot() +
     ggplot2::geom_sf(
@@ -2153,6 +2704,7 @@ plot_validation_lisa_map <- function(structure_results,
       linewidth = boundary_linewidth,
       inherit.aes = FALSE
     ) +
+    outline_layer +
     ggplot2::scale_fill_manual(
       values = fill_values,
       breaks = cluster_order,
@@ -2161,7 +2713,11 @@ plot_validation_lisa_map <- function(structure_results,
       na.value = missing_fill,
       name = "LISA cluster"
     ) +
-    ggplot2::coord_sf(datum = NA) +
+    ggplot2::coord_sf(
+      xlim = c(boundary_bbox[["xmin"]], boundary_bbox[["xmax"]]),
+      ylim = c(boundary_bbox[["ymin"]], boundary_bbox[["ymax"]]),
+      datum = NA
+    ) +
     ggplot2::labs(x = NULL, y = NULL) +
     ggplot2::theme_void(base_size = 11) +
     ggplot2::theme(

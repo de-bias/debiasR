@@ -33,7 +33,8 @@ named list of \code{validate_flow_residuals()} results.}
 
 \item{comparisons}{Comparisons to plot. Defaults to
 \code{"adjusted_vs_benchmark"}. Use a character vector to compare multiple
-flow-pair definitions.}
+flow-pair definitions. When \code{"raw_vs_benchmark"} is included, it is shown
+once as the unadjusted raw MPD baseline.}
 
 \item{methods}{Optional character vector of method identifiers or display
 labels to include, giving users control over which adjustment methods are
