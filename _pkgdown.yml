@@ -11,9 +11,9 @@ home:
         title: Developers
         text: |
           Francisco Rowe<br>
-          <small class="roles">Author, maintainer</small><br><br>
+          <small class="roles">Author, package maintainer</small><br><br>
           Carmen Cabrera<br>
-          <small class="roles">Author, maintainer</small>
+          <small class="roles">Author, project maintainer</small>
 
 navbar:
   structure:
