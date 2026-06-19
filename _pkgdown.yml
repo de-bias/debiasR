@@ -90,3 +90,6 @@ reference:
 - title: Validate flows
   contents:
   - starts_with("validate_flow_")
+- title: Validation plots
+  contents:
+  - starts_with("plot_validation_")

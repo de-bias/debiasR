@@ -14,7 +14,9 @@ validate_flow_overall(
   na_rm = TRUE,
   by_source = FALSE,
   return_joined = TRUE,
-  method_name = NA_character_
+  method_name = NA_character_,
+  comparisons = "adjusted_vs_benchmark",
+  flow_col_mpd = "flow"
 )
 
 validate_flow_benchmark(...)
@@ -42,16 +44,28 @@ compute metrics per mpd_source as well as overall. Default FALSE.}
 \item{method_name}{Optional label for the adjustment method (e.g. "adjust_inverse_penetration",
 "adjust_selection_rate"). Stored in the output for comparison workflows.}
 
+\item{comparisons}{Flow comparison(s) to compute. The package convention is
+that the first series in the ID is the x-axis/baseline, the second series
+is the y-axis/reference, and signed residuals are \code{Y - X}. Default
+\code{"adjusted_vs_benchmark"}. Use \code{"all"} for all supported
+comparisons.}
+
+\item{flow_col_mpd}{Name of raw MPD flow column in \code{adj_df}. Default
+\code{"flow"}. Required only when \code{comparisons} includes raw MPD
+flows.}
+
 \item{...}{Arguments passed to \code{validate_flow_overall()}.}
 }
 \value{
 A list with:
 \itemize{
 \item method (if provided)
-\item n, sum_adj, sum_bench
+\item comparison metadata, n, sum_x, sum_y, sum_adj, sum_bench
 \item pearson_r, spearman_rho
 \item rmse, mae, mape
 \item ols_intercept, ols_slope, r_squared (from lm(y ~ x))
+\item (optional) summary: a tibble of metric rows when more than one
+comparison is requested
 \item (optional) by_source: a tibble of per-source metrics when by_source = TRUE
 \item (optional) data: the joined tibble used for the calculations
 }

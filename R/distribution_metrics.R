@@ -20,23 +20,5 @@
 }
 
 .normalise_distribution_comparisons <- function(comparisons) {
-  valid <- c(
-    "raw_vs_benchmark",
-    "adjusted_vs_benchmark",
-    "raw_vs_adjusted"
-  )
-
-  if (length(comparisons) == 1L && identical(comparisons, "all")) {
-    return(valid)
-  }
-
-  invalid <- setdiff(comparisons, valid)
-  if (length(invalid) > 0L) {
-    stop(
-      "`comparisons` must contain only 'raw_vs_benchmark', ",
-      "'adjusted_vs_benchmark', 'raw_vs_adjusted', or 'all'."
-    )
-  }
-
-  unique(comparisons)
+  .normalise_flow_comparisons(comparisons)
 }

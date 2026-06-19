@@ -17,6 +17,7 @@ fast_test_files <- c(
   "tests/testthat/test-validate-flow-residuals.R",
   "tests/testthat/test-validate-flow-residual-structure.R",
   "tests/testthat/test-validate-flow-distribution.R",
+  "tests/testthat/test-plot-validation.R",
   "tests/testthat/test-adjust_raking_ratio-smoke.R"
 )
 

@@ -46,8 +46,8 @@ summary and origin-level outputs.}
 
 \item{comparisons}{Distribution comparisons to compute. The default
 \code{"adjusted_vs_benchmark"} preserves the original behavior. Use
-\code{"all"} to compute \code{"raw_vs_benchmark"},
-\code{"adjusted_vs_benchmark"}, and \code{"raw_vs_adjusted"}.}
+\code{"all"} to compute \code{"adjusted_vs_benchmark"},
+\code{"raw_vs_benchmark"}, and \code{"raw_vs_adjusted"}.}
 
 \item{return_origin_level}{Logical, return one row per origin in the output.
 Default \code{TRUE}.}
@@ -75,7 +75,10 @@ similar way to a reference OD table, rather than checking individual OD-cell
 magnitudes. By default, the function compares adjusted OD flows with
 benchmark OD flows and reports \code{KL(benchmark || adjusted)} plus
 Jensen-Shannon divergence. It can also compare raw MPD versus benchmark and
-raw MPD versus adjusted flows through \code{comparisons}. Lower values
+raw MPD versus adjusted flows through \code{comparisons}. For each
+comparison ID, the first series is the x/baseline distribution, the second
+series is the y/reference distribution, and directional KL is
+\code{KL(Y || X)}. Lower values
 indicate closer destination-allocation fidelity. These metrics assess
 spatial allocation, not total flow scale or individual OD-pair residual size.
 }

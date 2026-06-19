@@ -41,14 +41,18 @@ A tibble with columns:
 \item \code{adj_flow},
 \item \code{diff_mpd_benchmark = mpd_flow - benchmark_flow},
 \item \code{diff_mpd_adj = mpd_flow - adj_flow},
-\item \code{diff_adj_benchmark = adj_flow - benchmark_flow}.
+\item \code{diff_adj_benchmark = adj_flow - benchmark_flow},
+\item \code{signed_residual_adjusted_vs_benchmark = benchmark_flow - adj_flow},
+\item \code{signed_residual_raw_vs_benchmark = benchmark_flow - mpd_flow},
+\item \code{signed_residual_raw_vs_adjusted = adj_flow - mpd_flow}.
 }
 }
 \description{
 Joins adjusted-flow output to benchmark OD flows and returns a tidy table with
-original MPD flow, adjusted flow, benchmark flow, and residual-style
-difference columns. This complements \code{validate_flow_overall()}, which
-summarizes method-level fit, by exposing OD-level differences directly.
+original MPD flow, adjusted flow, benchmark flow, legacy first-minus-second
+difference columns, and canonical signed residual columns. This complements
+\code{validate_flow_overall()}, which summarizes method-level fit, by
+exposing OD-level differences directly.
 For richer residual diagnostics (absolute residuals, percentage residuals,
 improvement flags, and a top-worst table), use
 \code{validate_flow_residuals()}.
