@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-06-13
+Last updated: 2026-06-19
 
 ## Snapshot
 
@@ -132,6 +132,10 @@ Last updated: 2026-06-13
   `error_measures`, `comparisons`, and `methods` selectors. A short visual review notebook in
   `notes/project-management/VALIDATION_VISUAL_PROTOTYPES.qmd` illustrates the
   designs using deterministic simulated package data.
+- Decision recorded on 2026-06-19: these visualisation functions should be used
+  in the existing validation vignette rather than documented in a separate
+  validation-visualisation vignette. The prototype notebook and rendered notes
+  under `notes/project-management/` are internal design/review material.
 - Fast core tests passed after replacing the placeholder raking smoke test and removing selection-rate deprecation warnings
 - Stage 2 maintainer review is complete: `validate_flow_residual_structure()` is stable public API; optional scalar diagnostics remain dependency-light, while LISA cluster mapping is exposed separately through `plot_validation_lisa_map()` and requires user-supplied `sf` boundaries; the optional `debiasRdata` companion package is the empirical data source.
 - Stage 3 measure-bias diagnostics now include active-user coverage residuals, optional Moran's I, benchmark origin/destination flow correlations, covariate correlations, map-ready data, and optional plots through `validate_bias_residual_structure()`.

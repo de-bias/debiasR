@@ -16,6 +16,11 @@ This short notebook illustrates the prototype validation plotting functions
 added to `debiasR`. The goal is visual iteration, not a final user-facing
 vignette.
 
+Project decision, 2026-06-19: these plotting functions will be used inside the
+existing validation vignette. They will not be documented through a separate
+validation-visualisation vignette. This notebook and its rendered output are
+internal design/review notes.
+
 The notebook uses deterministic simulated package data and lightweight
 deterministic adjustment methods. It does not run Bayesian models. The LISA map
 section uses user-supplied `sf` boundaries when they are available. The local
