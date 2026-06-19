@@ -182,7 +182,7 @@ test_that("validation metric matrix plot returns a ggplot", {
   expect_equal(length(unique(as.character(all_comparisons_plot$data$comparison))), 3)
   expect_equal(length(unique(as.character(all_comparisons_plot$data$comparison_display))), 2)
   expect_true(
-    "Benchmark comparison" %in%
+    "Adjusted methods and raw MPD vs benchmark" %in%
       as.character(all_comparisons_plot$data$comparison_display_label)
   )
   expect_equal(unique(as.character(selected_plot$data$metric)), c("mae", "rmse"))
@@ -199,6 +199,8 @@ test_that("validation metric matrix plot returns a ggplot", {
   expect_equal(fill_scale$limits, expected_relative_error_labels)
   expect_equal(fill_scale$breaks, expected_relative_error_labels)
   expect_false(fill_scale$na.translate)
+  expect_equal(tolower(unname(fill_scale$palette(10)[1])), "#fff7bc")
+  expect_equal(plot$theme$legend.position, "right")
   legend_layers <- Filter(function(layer) {
     is.data.frame(layer$data) &&
       "relative_error_band" %in% names(layer$data)
@@ -297,15 +299,15 @@ test_that("validation residual violin plot returns a ggplot", {
   expect_equal(unique(as.character(plot$data$comparison)), "adjusted_vs_benchmark")
   expect_equal(
     plot$labels$y,
-    "Flow difference\n(Y - X: Benchmark - Adjusted)"
+    "Flow difference\n(Benchmark - Adjusted)"
   )
   expect_equal(
     all_comparisons_plot$labels$y,
-    "Flow difference\n(Y - X; X is first and Y second in each facet)"
+    "Flow difference\n(second named series - first named series)"
   )
   expect_equal(
     absolute_plot$labels$y,
-    "Absolute flow difference\n(|Y - X|: |Benchmark - Adjusted|)"
+    "Absolute flow difference\n(|Benchmark - Adjusted|)"
   )
   expect_equal(
     percent_plot$labels$y,
@@ -322,7 +324,7 @@ test_that("validation residual violin plot returns a ggplot", {
   expect_equal(length(unique(as.character(all_comparisons_plot$data$comparison))), 3)
   expect_equal(length(unique(as.character(all_comparisons_plot$data$comparison_display))), 2)
   expect_true(
-    "Benchmark comparison" %in%
+    "Adjusted methods and raw MPD vs benchmark" %in%
       as.character(all_comparisons_plot$data$comparison_display_label)
   )
   layer_geoms <- vapply(plot$layers, function(layer) {
@@ -396,7 +398,7 @@ test_that("validation scatter plot returns a ggplot", {
   )
   expect_equal(
     names(benchmark_comparisons_plot$facet$params$facets),
-    "method_label"
+    c("method_label", "scatter_comparison_label")
   )
   expect_equal(
     names(all_comparisons_plot$facet$params$facets),
@@ -414,7 +416,7 @@ test_that("validation scatter plot returns a ggplot", {
   expect_equal(length(unique(as.character(all_comparisons_plot$data$comparison))), 3)
   expect_equal(length(unique(as.character(all_comparisons_plot$data$comparison_display))), 2)
   expect_true(
-    "Benchmark comparison" %in%
+    "Adjusted methods and raw MPD vs benchmark" %in%
       as.character(all_comparisons_plot$data$comparison_display_label)
   )
   expect_s3_class(plain_plot, "ggplot")
@@ -450,9 +452,13 @@ test_that("validation residual band stacked bar plots return ggplots", {
     sort(c("method_a", "Unadjusted raw MPD"))
   )
   expect_equal(length(unique(as.character(all_comparisons_plot$data$comparison))), 2)
-  expect_true("Benchmark comparison" %in% as.character(all_comparisons_plot$data$comparison_label))
+  expect_true(
+    "Adjusted methods and raw MPD vs benchmark" %in%
+      as.character(all_comparisons_plot$data$comparison_label)
+  )
   expect_equal(plot$labels$x, "Share of OD pairs")
   expect_null(plot$labels$y)
+  expect_equal(plot$theme$legend.position, "right")
   expect_equal(vertical_plot$labels$y, "Share of OD pairs")
   expect_true(any(grepl("P", as.character(quantile_plot$data$residual_band))))
   shares <- as.numeric(round(tapply(quantile_plot$data$share, quantile_plot$data$method_label, sum), 6))
@@ -560,11 +566,48 @@ test_that("residual-structure validation plot returns a ggplot", {
     fixture$structure,
     methods = "method_a"
   )
+  no_band_plot <- plot_validation_structure(
+    fixture$structure,
+    near_zero_band = NULL,
+    show_value_labels = FALSE
+  )
 
   expect_s3_class(plot, "ggplot")
   expect_s3_class(filtered_plot, "ggplot")
+  expect_s3_class(no_band_plot, "ggplot")
   expect_equal(unique(as.character(plot$data$comparison)), "adjusted_vs_benchmark")
   expect_equal(unique(as.character(filtered_plot$data$method)), "method_a")
+  expect_true(all(c(
+    "Spatial autocorrelation\n(Moran's I)",
+    "Residual-flow\ncorrelation (r)",
+    "Residual-covariate\ncorrelation (r)"
+  ) %in% as.character(plot$data$metric_label)))
+  expect_equal(names(plot$facet$params$facets), "metric_label")
+  layer_geoms <- vapply(plot$layers, function(layer) {
+    class(layer$geom)[1]
+  }, character(1))
+  no_band_layer_geoms <- vapply(no_band_plot$layers, function(layer) {
+    class(layer$geom)[1]
+  }, character(1))
+  expect_true("GeomRect" %in% layer_geoms)
+  expect_true("GeomText" %in% layer_geoms)
+  expect_false("GeomRect" %in% no_band_layer_geoms)
+  expect_false("GeomText" %in% no_band_layer_geoms)
+  expect_match(plot$labels$caption, "Shaded area: near-zero reference band")
+  expect_null(no_band_plot$labels$caption)
+  expect_true("value_label" %in% names(plot$data))
+  expect_error(
+    plot_validation_structure(fixture$structure, near_zero_band = -0.1),
+    "`near_zero_band` must be `NULL` or a single non-negative finite number"
+  )
+  expect_error(
+    plot_validation_structure(fixture$structure, show_value_labels = NA),
+    "`show_value_labels` must be `TRUE` or `FALSE`"
+  )
+  expect_error(
+    plot_validation_structure(fixture$structure, value_digits = 1.5),
+    "`value_digits` must be a single non-negative whole number"
+  )
 })
 
 test_that("LISA validation map requires Local Moran output", {

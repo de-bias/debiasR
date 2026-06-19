@@ -11,7 +11,10 @@ plot_validation_structure(
   methods = NULL,
   method_col = "method",
   method_labels = NULL,
-  palette = NULL
+  palette = NULL,
+  near_zero_band = 0.1,
+  show_value_labels = TRUE,
+  value_digits = 2
 )
 
 plot_validate_flow_structure(...)
@@ -33,6 +36,16 @@ labels to include. Default \code{NULL} includes all methods.}
 \item{method_labels}{Optional named character vector used to relabel methods.}
 
 \item{palette}{Optional character vector of colours.}
+
+\item{near_zero_band}{Optional non-negative numeric width around zero to
+shade as a near-zero reference band. Use \code{NULL} to suppress the band.
+Default \code{0.1}.}
+
+\item{show_value_labels}{Logical; label points with rounded diagnostic
+values. Default \code{TRUE}.}
+
+\item{value_digits}{Number of decimal places used when
+\code{show_value_labels = TRUE}. Default \code{2}.}
 }
 \value{
 A \code{ggplot} object.

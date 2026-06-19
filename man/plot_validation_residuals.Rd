@@ -78,7 +78,7 @@ A \code{ggplot} object.
 \description{
 Builds violin plots from \code{validate_flow_residuals()} data. Differences are
 aligned with the scatterplot convention used by
-\code{plot_validation_scatter()}: positive values mean the vertical-axis series
-is larger than the horizontal-axis series. The default style uses translucent
+\code{plot_validation_scatter()}: positive values mean the second named series is
+larger than the first named series. The default style uses translucent
 violins, jittered OD-pair points, and sample-size labels above each method.
 }

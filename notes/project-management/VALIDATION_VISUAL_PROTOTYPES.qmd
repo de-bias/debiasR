@@ -141,12 +141,18 @@ area_neighbors <- bind_rows(
 ) |>
   filter(area != neighbor)
 
+area_covariates <- simulated_benchmark.od |>
+  group_by(area = origin) |>
+  summarise(benchmark_origin_flow_total = sum(flow), .groups = "drop")
+
 structure_results <- lapply(names(adjusted_outputs), function(method_name) {
   validate_flow_residual_structure(
     adj_df = adjusted_outputs[[method_name]],
     benchmark_od_df = simulated_benchmark.od,
     method_name = method_name,
     area_neighbors = area_neighbors,
+    covariate_df = area_covariates,
+    covariate_col = "benchmark_origin_flow_total",
     local_moran = TRUE,
     local_moran_nsim = 99,
     local_moran_alpha = 0.05,
@@ -244,14 +250,15 @@ if (!requireNamespace("sf", quietly = TRUE)) {
 This chart compares methods by error measure in a single matrix. Fill colour is
 scaled within each metric, so the visual supports method comparison without
 putting MAE, RMSE, and MAPE on one raw axis. The cell labels preserve the
-original values. The legend is discrete: each colour represents a 10-point
-range of the within-metric relative-error score, such as 0-10, 11-20 and
-91-100. The prototype uses the shared validation visual style: white
-background, quiet axes and a yellow-to-blue palette. The lowest relative-error
-band starts with a pale yellow rather than white, so low error is visible as
-data rather than appearing as an empty cell. Users can select error measures
-with `error_measures` and adjustment methods with `methods`. The review default
-includes the raw MPD versus benchmark comparison as an unadjusted baseline row.
+range of the within-metric relative-error score, such as 0-10, 11-20, and
+91-100. The low-error band starts with pale yellow rather than white, reserving
+white for page background and missing values. Users can select error measures
+with `error_measures` and adjustment methods with `methods`.
+
+The review default passes `comparisons = c("adjusted_vs_benchmark",
+"raw_vs_benchmark")`. In the plot, adjusted-versus-benchmark values appear once
+for each adjustment method. Raw-MPD-versus-benchmark values appear once as the
+`Unadjusted raw MPD` baseline row.
 
 ```{r fig.height=6.5}
 plot_validation_metrics(
@@ -260,45 +267,22 @@ plot_validation_metrics(
   comparisons = benchmark_comparisons,
   methods = method_subset,
   method_labels = method_labels,
-  palette = c(
-    "#fff7bc", "#ffd700", "#ffb14e", "#fa8775",
-    "#ea5f94", "#cd34b5", "#9d02d7", "#0000ff"
-  ),
   relative_error_breaks = seq(0, 100, by = 10)
-) +
-  ggplot2::scale_x_discrete(
-    labels = c(
-      "Mean absolute error" = "Mean absolute\nerror",
-      "Root mean squared error" = "Root mean\nsquared error",
-      "Mean absolute percentage error" = "Mean absolute\npercentage error"
-    )
-  ) +
-  ggplot2::guides(
-    fill = ggplot2::guide_legend(
-      title = "Relative error\nscore (%)",
-      ncol = 1,
-      byrow = FALSE,
-      override.aes = list(
-        alpha = 1,
-        colour = "#A7ADB7",
-        linewidth = 0.25
-      )
-    )
-  ) +
-  ggplot2::theme(
-    legend.position = "right",
-    legend.box = "vertical"
-  )
+)
 ```
 
 ## Level 2 And Level 3: Residual Distributions
 
 The violin plot shows the full distribution of signed flow differences. By
-default, it shows adjusted versus benchmark flows alongside the raw MPD versus
-benchmark baseline. Users can select other comparisons with `comparisons` and
-select adjustment methods with `methods`, using method IDs or display labels.
-The y-axis names the selected `Y - X` comparison explicitly. The
-package convention is:
+default, it shows adjusted-versus-benchmark residuals alongside the raw-MPD
+versus benchmark baseline. Users can select other comparisons with
+`comparisons` and select adjustment methods with `methods`, using method IDs or
+display labels.
+
+For benchmark comparisons, the signed residual is the benchmark flow minus the
+flow being assessed. Positive values mean the benchmark is larger than the
+adjusted or raw MPD flow; negative values mean the adjusted or raw MPD flow is
+larger than the benchmark. The package convention is:
 
 - `adjusted_vs_benchmark`: x is adjusted, y is benchmark, signed residual is
   benchmark minus adjusted.
@@ -307,8 +291,8 @@ package convention is:
 - `raw_vs_adjusted`: x is raw MPD, y is adjusted, signed residual is adjusted
   minus raw MPD.
 
-Positive signed residuals therefore mean the y/reference series is larger than
-the x/baseline series. The style follows the review reference: translucent
+Positive signed residuals therefore mean the reference series is larger than
+the assessed series. The style follows the review reference: translucent
 violins, overlaid OD-pair points, and sample-size labels above each method. The
 categorical palette uses the shared supplied hex values.
 
@@ -324,12 +308,11 @@ plot_validation_residuals(
 ## Level 2 And Level 3: Pairwise Flow Scatterplots
 
 The scatterplot uses the same comparison selector as the violin plot. By
-default, it shows adjusted versus benchmark flows next to the raw MPD versus
+default, it shows adjusted-versus-benchmark flows next to the raw-MPD versus
 benchmark baseline. Users can select other comparisons, or pass a vector of
-comparisons for a faceted view. For a single
-comparison, the axis labels name the X and Y series directly; for multiple
-comparisons, each facet header states the X and Y series. The available axis
-orientations are:
+comparisons for a faceted view. When both benchmark comparisons are shown, the
+facet labels identify whether the plotted estimate is an adjusted flow or a raw
+MPD flow. The available axis orientations are:
 
 - adjusted on x versus benchmark on y
 - raw MPD on x versus benchmark on y
@@ -337,7 +320,7 @@ orientations are:
 
 The colour scale is blue-white-coral and centred on zero, using supplied
 `#0000ff` and `#fa8775` endpoints. The default scale uses
-robust symmetric limits from the 95th percentile of absolute `Y - X`
+robust symmetric limits from the 95th percentile of absolute signed
 differences, with more extreme OD pairs squished to the end colours so the blue
 and coral patterns remain visible. The `white_band` argument controls how much of
 the scale around zero is treated as neutral.
@@ -353,23 +336,24 @@ plot_validation_scatter(
   white_band = 0.22,
   point_alpha = 0.6,
   point_size = 0.9
-) +
-  ggplot2::labs(
-    x = "Adjusted or Unadjusted MPD flow",
-    y = "Benchmark flow"
-  )
+)
 ```
 
 ## Level 3: Residual Outlier Bands
 
 These stacked bar plots summarise how much of each method's OD-pair residual
-distribution falls into severity bands. The unadjusted raw MPD baseline is
-included as a reference bar. The colour-blind-friendly sequential palette orders
-residual severity from lower to higher bands. The default orientation is
-horizontal so method labels remain readable.
+distribution falls into severity bands. Each bar represents all plotted OD
+pairs for one method-comparison combination. Each coloured segment is the share
+of those OD pairs whose absolute residual falls into that severity band. A
+method with more mass in higher-severity bands has more large OD-pair errors.
+The unadjusted raw MPD baseline is included as a reference bar. The
+colour-blind-friendly sequential palette orders residual severity from lower to
+higher bands. The default orientation is horizontal so method labels remain
+readable.
 
-The standard-deviation version is useful for identifying residuals that are far
-from the pooled adjusted-residual scale.
+The standard-deviation version groups residual magnitudes by distance from zero
+in standard-deviation units. It is useful for identifying residuals that are far
+from the selected residual scale.
 
 ```{r residual-bands-sd, fig.height=4.5}
 plot_validation_residual_bands(
@@ -378,16 +362,12 @@ plot_validation_residual_bands(
   methods = method_subset,
   band_method = "sd",
   method_labels = method_labels
-) +
-  ggplot2::guides(fill = ggplot2::guide_legend(ncol = 1)) +
-  ggplot2::theme(
-    legend.position = "right",
-    legend.box = "vertical"
-  )
+)
 ```
 
-The quantile version uses shared absolute-residual cut points, so the method
-shares remain comparable while making the upper tail easier to inspect.
+The quantile version uses shared cut points from the absolute-residual
+distribution, so the method shares remain comparable while making the upper tail
+easier to inspect.
 
 ```{r residual-bands-quantile, fig.height=4.5}
 plot_validation_residual_bands(
@@ -396,49 +376,41 @@ plot_validation_residual_bands(
   methods = method_subset,
   band_method = "quantile",
   method_labels = method_labels
-) +
-  ggplot2::guides(fill = ggplot2::guide_legend(ncol = 1)) +
-  ggplot2::theme(
-    legend.position = "right",
-    legend.box = "vertical"
-  )
+)
 ```
 
 ## Level 4: Distributional Allocation Summary
 
 This heatmap compares origin-conditioned destination-share allocation using
-Jensen-Shannon divergence. Lower values indicate closer allocation fidelity.
-The user-facing default should use benchmark-origin-total weighted means because
+Jensen-Shannon divergence. Lower values indicate closer allocation fidelity. In
+this implementation JSD uses natural logarithms, so values range from `0` for
+identical destination-share distributions to `log(2)`, about `0.693`, for
+maximally separated distributions. A value such as `0.158` is therefore not a
+percentage; it is about 23% of the theoretical maximum JSD scale. The
+user-facing default should use benchmark-origin-total weighted means because
 that answers the system-level validation question: how much allocation error
 affects the flow system as a whole. Unweighted means and medians remain useful
 supporting diagnostics for the typical origin.
 
 ```{r fig.height=4}
-suppressMessages({
-  plot_validation_distribution(
-    distribution_results,
-    metric = "jsd",
-    value = "weighted_mean",
-    comparisons = benchmark_comparisons,
-    methods = method_subset,
-    method_labels = method_labels
-  ) +
-    ggplot2::scale_fill_gradient(
-      low = "#fff7bc",
-      high = "#0000ff",
-      name = "JSD"
-    )
-})
+plot_validation_distribution(
+  distribution_results,
+  metric = "jsd",
+  value = "weighted_mean",
+  comparisons = benchmark_comparisons,
+  methods = method_subset,
+  method_labels = method_labels
+)
 ```
 
 ## Level 4: Distribution Divergence Comparison
 
-This view compares distributional allocation divergence directly by method.
+This bar view compares distributional allocation divergence directly by method.
 Lower JSD values mean the destination-share allocation is closer to the
 reference distribution. Showing adjusted-versus-benchmark next to raw
 MPD-versus-benchmark makes the main validation question easier to read: did the
 adjustment reduce allocation divergence from the benchmark? The full pairwise
-matrix is still available with `plot_type = "heatmap"` when a method-development
+matrix remains available with `plot_type = "heatmap"` when a method-development
 audit needs all reference-by-comparison cells. Use `sort = "ascending"` or
 `sort = "descending"` to order methods by divergence.
 
@@ -461,82 +433,26 @@ This dot-and-line summary shows scalar residual-structure diagnostics returned b
 global residual structure, but it deliberately does not show where local
 clusters occur.
 
+This diagnostic uses the same residual-structure logic as the assessing-bias
+workflow, but it applies that logic to a different object. In assessing bias,
+`validate_bias_residual_structure()` diagnoses population-count representation
+residuals such as coverage-score or user-count residuals. Here,
+`validate_flow_residual_structure()` diagnoses OD-flow validation residuals,
+such as adjusted-versus-benchmark flow differences aggregated to areas. The
+covariate panel below uses benchmark origin-flow totals as a simple illustrative
+area-level covariate, so all three Level 5 panels contain values.
+
+The shaded band marks values close to zero, and point labels show the rounded
+diagnostic values. Values further from zero indicate stronger remaining residual
+structure for that diagnostic, rather than better performance by default.
+
 ```{r fig.height=4}
-structure_axis_values <- unlist(lapply(structure_results, function(result) {
-  summary <- result$summary
-  as.numeric(unlist(summary[c(
-    "pearson_residual_benchmark_flow",
-    "moran_i",
-    "pearson_residual_covariate"
-  )]))
-}))
-
-structure_metric_labels <- c(
-  pearson_residual_benchmark_flow = "Residual-flow correlation (r)",
-  moran_i = "Moran's I of residuals",
-  pearson_residual_covariate = "Residual-covariate correlation (r)"
-)
-
-structure_axis_limits <- lapply(names(structure_metric_labels), function(metric) {
-  metric_values <- unlist(lapply(structure_results, function(result) {
-    result$summary[[metric]]
-  }))
-  limit <- max(abs(metric_values), na.rm = TRUE)
-  if (!is.finite(limit)) {
-    limit <- 0.25
-  }
-  limit <- max(limit * 1.15, 0.25)
-  limit <- min(limit, 1)
-  tibble::tibble(
-    comparison_label = "Adjusted vs benchmark",
-    metric_label = structure_metric_labels[[metric]],
-    x = c(-limit, limit),
-    y = method_labels[[1]]
-  )
-}) |>
-  dplyr::bind_rows() |>
-  dplyr::mutate(
-    metric_label = factor(
-      .data$metric_label,
-      levels = c(
-        "Moran's I of residuals",
-        "Residual-flow correlation (r)",
-        "Residual-covariate correlation (r)"
-      )
-    )
-  )
-
-structure_plot <- plot_validation_structure(
+plot_validation_structure(
   structure_results,
   comparisons = "adjusted_vs_benchmark",
   methods = method_subset,
   method_labels = method_labels
 )
-
-structure_plot$data <- structure_plot$data |>
-  dplyr::mutate(
-    metric_label = dplyr::recode(
-      .data$metric_label,
-      "Moran's I" = "Moran's I of residuals",
-      "Residual vs benchmark-flow r" = "Residual-flow correlation (r)",
-      "Residual vs covariate r" = "Residual-covariate correlation (r)"
-    ),
-    metric_label = factor(
-      .data$metric_label,
-      levels = c(
-        "Moran's I of residuals",
-        "Residual-flow correlation (r)",
-        "Residual-covariate correlation (r)"
-      )
-    )
-  )
-
-structure_plot +
-  ggplot2::geom_blank(
-    data = structure_axis_limits,
-    ggplot2::aes(x = .data$x, y = .data$y),
-    inherit.aes = FALSE
-  )
 ```
 
 ## Level 5: LISA Cluster Map
@@ -574,7 +490,8 @@ if (is.null(validation_lisa_boundaries)) {
 
 ## Iteration Notes
 
-The remaining design choice to review is:
-
-- Whether Level 1 should keep the method-by-error-measure matrix as the default
-  or add an alternate grouped bar view for methods with shared units.
+The current proposal keeps the Level 1 method-by-error-measure matrix as the
+default because the metrics have different units and the matrix keeps the raw
+values visible. The Level 4 distribution comparison uses the bar view as the
+preferred reading aid, with the compact heatmap retained as a secondary summary
+for users who want a matrix-style display.

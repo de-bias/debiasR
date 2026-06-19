@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.30">
+<meta name="generator" content="quarto-1.9.38">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="VALIDATION_VISUAL_PROTOTYPES_files/libs/quarto-html/tippy.umd.min.js"></script>
 <script src="VALIDATION_VISUAL_PROTOTYPES_files/libs/quarto-html/anchor.min.js"></script>
 <link href="VALIDATION_VISUAL_PROTOTYPES_files/libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="VALIDATION_VISUAL_PROTOTYPES_files/libs/quarto-html/quarto-syntax-highlighting-b6a8276bf55561bdbc268162d41bd1f7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="VALIDATION_VISUAL_PROTOTYPES_files/libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="VALIDATION_VISUAL_PROTOTYPES_files/libs/bootstrap/bootstrap.min.js"></script>
 <link href="VALIDATION_VISUAL_PROTOTYPES_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="VALIDATION_VISUAL_PROTOTYPES_files/libs/bootstrap/bootstrap-138a6193a3bd40baf1e627da441a4734.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
@@ -237,107 +237,114 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>) <span class="sc">|&gt;</span></span>
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(area <span class="sc">!=</span> neighbor)</span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>structure_results <span class="ot">&lt;-</span> <span class="fu">lapply</span>(<span class="fu">names</span>(adjusted_outputs), <span class="cf">function</span>(method_name) {</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">validate_flow_residual_structure</span>(</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">adj_df =</span> adjusted_outputs[[method_name]],</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">benchmark_od_df =</span> simulated_benchmark.od,</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">method_name =</span> method_name,</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">area_neighbors =</span> area_neighbors,</span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran =</span> <span class="cn">TRUE</span>,</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_nsim =</span> <span class="dv">99</span>,</span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_alpha =</span> <span class="fl">0.05</span>,</span>
-<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_p_adjust =</span> <span class="st">"none"</span>,</span>
-<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_seed =</span> <span class="dv">123</span></span>
-<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>}) <span class="sc">|&gt;</span></span>
-<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  stats<span class="sc">::</span><span class="fu">setNames</span>(<span class="fu">names</span>(adjusted_outputs))</span>
-<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>validation_lisa_boundaries <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
-<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>validation_lisa_outline_boundaries <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
-<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
-<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>validation_lisa_boundary_path <span class="ot">&lt;-</span> <span class="fu">Sys.getenv</span>(</span>
-<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  <span class="st">"DEBIAS_LAD_BOUNDARY_PATH"</span>,</span>
-<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>  <span class="at">unset =</span> <span class="fu">file.path</span>(</span>
-<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"/Volumes/DEBIAS/data/inputs/geographies/boundaries"</span>,</span>
-<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"LAD_Dec_2021_GB_BFC_2022_simplified.gpkg"</span></span>
-<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>validation_lisa_outline_path <span class="ot">&lt;-</span> <span class="fu">Sys.getenv</span>(</span>
-<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  <span class="st">"DEBIAS_REGION_BOUNDARY_PATH"</span>,</span>
-<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>  <span class="at">unset =</span> <span class="fu">file.path</span>(</span>
-<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"/Volumes/DEBIAS/data/inputs/geographies/boundaries"</span>,</span>
-<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="st">"RGN_Dec_2021_EN_BFC_2022.gpkg"</span></span>
-<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">requireNamespace</span>(<span class="st">"sf"</span>, <span class="at">quietly =</span> <span class="cn">TRUE</span>)) {</span>
-<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="st">"Install sf and supply an sf boundary object to map LISA clusters."</span></span>
-<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> <span class="cf">if</span> (<span class="sc">!</span><span class="fu">requireNamespace</span>(<span class="st">"debiasRdata"</span>, <span class="at">quietly =</span> <span class="cn">TRUE</span>)) {</span>
-<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="st">"Install debiasRdata or provide a LAD name-code lookup to map these simulated LAD names."</span></span>
-<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> <span class="cf">if</span> (<span class="sc">!</span><span class="fu">file.exists</span>(validation_lisa_boundary_path)) {</span>
-<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="fu">paste</span>(</span>
-<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Set DEBIAS_LAD_BOUNDARY_PATH to a simplified LAD boundary GeoPackage."</span>,</span>
-<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>    <span class="st">"The shared DEBIAS volume path was not found."</span></span>
-<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
-<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">data</span>(<span class="st">"lad_centroids"</span>, <span class="at">package =</span> <span class="st">"debiasRdata"</span>)</span>
-<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>  simulated_lad_lookup <span class="ot">&lt;-</span> lad_centroids <span class="sc">|&gt;</span></span>
-<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>    <span class="fu">transmute</span>(<span class="at">area_code =</span> .data<span class="sc">$</span>area, <span class="at">area =</span> .data<span class="sc">$</span>name) <span class="sc">|&gt;</span></span>
-<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(.data<span class="sc">$</span>area <span class="sc">%in%</span> areas)</span>
-<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_read <span class="ot">&lt;-</span> <span class="fu">tryCatch</span>(</span>
-<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">st_read</span>(</span>
-<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>      validation_lisa_boundary_path,</span>
-<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
-<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>    <span class="at">error =</span> <span class="cf">function</span>(error) error</span>
-<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">inherits</span>(validation_lisa_boundary_read, <span class="st">"error"</span>)) {</span>
-<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="fu">paste</span>(</span>
-<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Could not read the simplified LAD boundary GeoPackage:"</span>,</span>
-<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>      <span class="fu">conditionMessage</span>(validation_lisa_boundary_read)</span>
-<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
-<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundaries <span class="ot">&lt;-</span> validation_lisa_boundary_read <span class="sc">|&gt;</span></span>
-<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>      <span class="fu">rename</span>(<span class="at">area_code =</span> code) <span class="sc">|&gt;</span></span>
-<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>      <span class="fu">inner_join</span>(simulated_lad_lookup, <span class="at">by =</span> <span class="st">"area_code"</span>) <span class="sc">|&gt;</span></span>
-<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>      <span class="fu">select</span>(area, area_code)</span>
-<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(validation_lisa_boundaries)) {</span>
-<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>    missing_lisa_areas <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(areas, validation_lisa_boundaries<span class="sc">$</span>area)</span>
-<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
-<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a>    missing_lisa_areas <span class="ot">&lt;-</span> <span class="fu">character</span>()</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>area_covariates <span class="ot">&lt;-</span> simulated_benchmark.od <span class="sc">|&gt;</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(<span class="at">area =</span> origin) <span class="sc">|&gt;</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">benchmark_origin_flow_total =</span> <span class="fu">sum</span>(flow), <span class="at">.groups =</span> <span class="st">"drop"</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>structure_results <span class="ot">&lt;-</span> <span class="fu">lapply</span>(<span class="fu">names</span>(adjusted_outputs), <span class="cf">function</span>(method_name) {</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">validate_flow_residual_structure</span>(</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">adj_df =</span> adjusted_outputs[[method_name]],</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">benchmark_od_df =</span> simulated_benchmark.od,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">method_name =</span> method_name,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">area_neighbors =</span> area_neighbors,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">covariate_df =</span> area_covariates,</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">covariate_col =</span> <span class="st">"benchmark_origin_flow_total"</span>,</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_nsim =</span> <span class="dv">99</span>,</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_alpha =</span> <span class="fl">0.05</span>,</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_p_adjust =</span> <span class="st">"none"</span>,</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">local_moran_seed =</span> <span class="dv">123</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>}) <span class="sc">|&gt;</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>  stats<span class="sc">::</span><span class="fu">setNames</span>(<span class="fu">names</span>(adjusted_outputs))</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>validation_lisa_boundaries <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>validation_lisa_outline_boundaries <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>validation_lisa_boundary_path <span class="ot">&lt;-</span> <span class="fu">Sys.getenv</span>(</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  <span class="st">"DEBIAS_LAD_BOUNDARY_PATH"</span>,</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  <span class="at">unset =</span> <span class="fu">file.path</span>(</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">"/Volumes/DEBIAS/data/inputs/geographies/boundaries"</span>,</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"LAD_Dec_2021_GB_BFC_2022_simplified.gpkg"</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>validation_lisa_outline_path <span class="ot">&lt;-</span> <span class="fu">Sys.getenv</span>(</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>  <span class="st">"DEBIAS_REGION_BOUNDARY_PATH"</span>,</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>  <span class="at">unset =</span> <span class="fu">file.path</span>(</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    <span class="st">"/Volumes/DEBIAS/data/inputs/geographies/boundaries"</span>,</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>    <span class="st">"RGN_Dec_2021_EN_BFC_2022.gpkg"</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">requireNamespace</span>(<span class="st">"sf"</span>, <span class="at">quietly =</span> <span class="cn">TRUE</span>)) {</span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="st">"Install sf and supply an sf boundary object to map LISA clusters."</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> <span class="cf">if</span> (<span class="sc">!</span><span class="fu">requireNamespace</span>(<span class="st">"debiasRdata"</span>, <span class="at">quietly =</span> <span class="cn">TRUE</span>)) {</span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="st">"Install debiasRdata or provide a LAD name-code lookup to map these simulated LAD names."</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> <span class="cf">if</span> (<span class="sc">!</span><span class="fu">file.exists</span>(validation_lisa_boundary_path)) {</span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="fu">paste</span>(</span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Set DEBIAS_LAD_BOUNDARY_PATH to a simplified LAD boundary GeoPackage."</span>,</span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>    <span class="st">"The shared DEBIAS volume path was not found."</span></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>  <span class="fu">data</span>(<span class="st">"lad_centroids"</span>, <span class="at">package =</span> <span class="st">"debiasRdata"</span>)</span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>  simulated_lad_lookup <span class="ot">&lt;-</span> lad_centroids <span class="sc">|&gt;</span></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>    <span class="fu">transmute</span>(<span class="at">area_code =</span> .data<span class="sc">$</span>area, <span class="at">area =</span> .data<span class="sc">$</span>name) <span class="sc">|&gt;</span></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(.data<span class="sc">$</span>area <span class="sc">%in%</span> areas)</span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>  validation_lisa_boundary_read <span class="ot">&lt;-</span> <span class="fu">tryCatch</span>(</span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">st_read</span>(</span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>      validation_lisa_boundary_path,</span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>      <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>    <span class="at">error =</span> <span class="cf">function</span>(error) error</span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">inherits</span>(validation_lisa_boundary_read, <span class="st">"error"</span>)) {</span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="fu">paste</span>(</span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Could not read the simplified LAD boundary GeoPackage:"</span>,</span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>      <span class="fu">conditionMessage</span>(validation_lisa_boundary_read)</span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundaries <span class="ot">&lt;-</span> validation_lisa_boundary_read <span class="sc">|&gt;</span></span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>      <span class="fu">rename</span>(<span class="at">area_code =</span> code) <span class="sc">|&gt;</span></span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>      <span class="fu">inner_join</span>(simulated_lad_lookup, <span class="at">by =</span> <span class="st">"area_code"</span>) <span class="sc">|&gt;</span></span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a>      <span class="fu">select</span>(area, area_code)</span>
 <span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(missing_lisa_areas) <span class="sc">&gt;</span> <span class="dv">0</span>L) {</span>
-<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="fu">paste</span>(</span>
-<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a>      <span class="st">"The simplified LAD boundaries do not cover:"</span>,</span>
-<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a>      <span class="fu">paste</span>(missing_lisa_areas, <span class="at">collapse =</span> <span class="st">", "</span>)</span>
-<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundaries <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
-<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">file.exists</span>(validation_lisa_outline_path)) {</span>
-<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a>    validation_lisa_outline_read <span class="ot">&lt;-</span> <span class="fu">tryCatch</span>(</span>
-<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a>      sf<span class="sc">::</span><span class="fu">st_read</span>(</span>
-<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a>        validation_lisa_outline_path,</span>
-<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a>        <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
-<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a>      ),</span>
-<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a>      <span class="at">error =</span> <span class="cf">function</span>(error) error</span>
-<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">inherits</span>(validation_lisa_outline_read, <span class="st">"error"</span>)) {</span>
-<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a>      validation_lisa_outline_boundaries <span class="ot">&lt;-</span> validation_lisa_outline_read</span>
-<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(validation_lisa_boundaries)) {</span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a>    missing_lisa_areas <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(areas, validation_lisa_boundaries<span class="sc">$</span>area)</span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a>    missing_lisa_areas <span class="ot">&lt;-</span> <span class="fu">character</span>()</span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(missing_lisa_areas) <span class="sc">&gt;</span> <span class="dv">0</span>L) {</span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundary_note <span class="ot">&lt;-</span> <span class="fu">paste</span>(</span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a>      <span class="st">"The simplified LAD boundaries do not cover:"</span>,</span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a>      <span class="fu">paste</span>(missing_lisa_areas, <span class="at">collapse =</span> <span class="st">", "</span>)</span>
+<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a>    validation_lisa_boundaries <span class="ot">&lt;-</span> <span class="cn">NULL</span></span>
+<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">file.exists</span>(validation_lisa_outline_path)) {</span>
+<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a>    validation_lisa_outline_read <span class="ot">&lt;-</span> <span class="fu">tryCatch</span>(</span>
+<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a>      sf<span class="sc">::</span><span class="fu">st_read</span>(</span>
+<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a>        validation_lisa_outline_path,</span>
+<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a>        <span class="at">quiet =</span> <span class="cn">TRUE</span></span>
+<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a>      <span class="at">error =</span> <span class="cf">function</span>(error) error</span>
+<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">inherits</span>(validation_lisa_outline_read, <span class="st">"error"</span>)) {</span>
+<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a>      validation_lisa_outline_boundaries <span class="ot">&lt;-</span> validation_lisa_outline_read</span>
+<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="level-1-overall-fit-metrics" class="level2" data-number="4">
 <h2 data-number="4" class="anchored" data-anchor-id="level-1-overall-fit-metrics"><span class="header-section-number">4</span> Level 1: Overall Fit Metrics</h2>
-<p>This chart compares methods by error measure in a single matrix. Fill colour is scaled within each metric, so the visual supports method comparison without putting MAE, RMSE, and MAPE on one raw axis. The cell labels preserve the original values. The legend is discrete: each colour represents a 10-point range of the within-metric relative-error score, such as 0-10, 11-20 and 91-100. The prototype uses the shared validation visual style: white background, quiet axes and a yellow-to-blue palette. The lowest relative-error band starts with a pale yellow rather than white, so low error is visible as data rather than appearing as an empty cell. Users can select error measures with <code>error_measures</code> and adjustment methods with <code>methods</code>. The review default includes the raw MPD versus benchmark comparison as an unadjusted baseline row.</p>
+<p>This chart compares methods by error measure in a single matrix. Fill colour is scaled within each metric, so the visual supports method comparison without putting MAE, RMSE, and MAPE on one raw axis. The cell labels preserve the range of the within-metric relative-error score, such as 0-10, 11-20, and 91-100. The low-error band starts with pale yellow rather than white, reserving white for page background and missing values. Users can select error measures with <code>error_measures</code> and adjustment methods with <code>methods</code>.</p>
+<p>The review default passes <code>comparisons = c("adjusted_vs_benchmark", "raw_vs_benchmark")</code>. In the plot, adjusted-versus-benchmark values appear once for each adjustment method. Raw-MPD-versus-benchmark values appear once as the <code>Unadjusted raw MPD</code> baseline row.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_metrics</span>(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  overall_results,</span>
@@ -345,35 +352,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">comparisons =</span> benchmark_comparisons,</span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">methods =</span> method_subset,</span>
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">method_labels =</span> method_labels,</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">palette =</span> <span class="fu">c</span>(</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"#fff7bc"</span>, <span class="st">"#ffd700"</span>, <span class="st">"#ffb14e"</span>, <span class="st">"#fa8775"</span>,</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"#ea5f94"</span>, <span class="st">"#cd34b5"</span>, <span class="st">"#9d02d7"</span>, <span class="st">"#0000ff"</span></span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  ),</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">relative_error_breaks =</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">100</span>, <span class="at">by =</span> <span class="dv">10</span>)</span>
-<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
-<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">scale_x_discrete</span>(</span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Mean absolute error"</span> <span class="ot">=</span> <span class="st">"Mean absolute</span><span class="sc">\n</span><span class="st">error"</span>,</span>
-<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Root mean squared error"</span> <span class="ot">=</span> <span class="st">"Root mean</span><span class="sc">\n</span><span class="st">squared error"</span>,</span>
-<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Mean absolute percentage error"</span> <span class="ot">=</span> <span class="st">"Mean absolute</span><span class="sc">\n</span><span class="st">percentage error"</span></span>
-<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">guides</span>(</span>
-<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">fill =</span> ggplot2<span class="sc">::</span><span class="fu">guide_legend</span>(</span>
-<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>      <span class="at">title =</span> <span class="st">"Relative error</span><span class="sc">\n</span><span class="st">score (%)"</span>,</span>
-<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>      <span class="at">ncol =</span> <span class="dv">1</span>,</span>
-<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>      <span class="at">byrow =</span> <span class="cn">FALSE</span>,</span>
-<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>      <span class="at">override.aes =</span> <span class="fu">list</span>(</span>
-<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>        <span class="at">alpha =</span> <span class="dv">1</span>,</span>
-<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>        <span class="at">colour =</span> <span class="st">"#A7ADB7"</span>,</span>
-<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>        <span class="at">linewidth =</span> <span class="fl">0.25</span></span>
-<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>      )</span>
-<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">theme</span>(</span>
-<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"right"</span>,</span>
-<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.box =</span> <span class="st">"vertical"</span></span>
-<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">relative_error_breaks =</span> <span class="fu">seq</span>(<span class="dv">0</span>, <span class="dv">100</span>, <span class="at">by =</span> <span class="dv">10</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -385,13 +365,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="level-2-and-level-3-residual-distributions" class="level2" data-number="5">
 <h2 data-number="5" class="anchored" data-anchor-id="level-2-and-level-3-residual-distributions"><span class="header-section-number">5</span> Level 2 And Level 3: Residual Distributions</h2>
-<p>The violin plot shows the full distribution of signed flow differences. By default, it shows adjusted versus benchmark flows alongside the raw MPD versus benchmark baseline. Users can select other comparisons with <code>comparisons</code> and select adjustment methods with <code>methods</code>, using method IDs or display labels. The y-axis names the selected <code>Y - X</code> comparison explicitly. The package convention is:</p>
+<p>The violin plot shows the full distribution of signed flow differences. By default, it shows adjusted-versus-benchmark residuals alongside the raw-MPD versus benchmark baseline. Users can select other comparisons with <code>comparisons</code> and select adjustment methods with <code>methods</code>, using method IDs or display labels.</p>
+<p>For benchmark comparisons, the signed residual is the benchmark flow minus the flow being assessed. Positive values mean the benchmark is larger than the adjusted or raw MPD flow; negative values mean the adjusted or raw MPD flow is larger than the benchmark. The package convention is:</p>
 <ul>
 <li><code>adjusted_vs_benchmark</code>: x is adjusted, y is benchmark, signed residual is benchmark minus adjusted.</li>
 <li><code>raw_vs_benchmark</code>: x is raw MPD, y is benchmark, signed residual is benchmark minus raw MPD.</li>
 <li><code>raw_vs_adjusted</code>: x is raw MPD, y is adjusted, signed residual is adjusted minus raw MPD.</li>
 </ul>
-<p>Positive signed residuals therefore mean the y/reference series is larger than the x/baseline series. The style follows the review reference: translucent violins, overlaid OD-pair points, and sample-size labels above each method. The categorical palette uses the shared supplied hex values.</p>
+<p>Positive signed residuals therefore mean the reference series is larger than the assessed series. The style follows the review reference: translucent violins, overlaid OD-pair points, and sample-size labels above each method. The categorical palette uses the shared supplied hex values.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_residuals</span>(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  residual_results,</span>
@@ -410,13 +391,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="level-2-and-level-3-pairwise-flow-scatterplots" class="level2" data-number="6">
 <h2 data-number="6" class="anchored" data-anchor-id="level-2-and-level-3-pairwise-flow-scatterplots"><span class="header-section-number">6</span> Level 2 And Level 3: Pairwise Flow Scatterplots</h2>
-<p>The scatterplot uses the same comparison selector as the violin plot. By default, it shows adjusted versus benchmark flows next to the raw MPD versus benchmark baseline. Users can select other comparisons, or pass a vector of comparisons for a faceted view. For a single comparison, the axis labels name the X and Y series directly; for multiple comparisons, each facet header states the X and Y series. The available axis orientations are:</p>
+<p>The scatterplot uses the same comparison selector as the violin plot. By default, it shows adjusted-versus-benchmark flows next to the raw-MPD versus benchmark baseline. Users can select other comparisons, or pass a vector of comparisons for a faceted view. When both benchmark comparisons are shown, the facet labels identify whether the plotted estimate is an adjusted flow or a raw MPD flow. The available axis orientations are:</p>
 <ul>
 <li>adjusted on x versus benchmark on y</li>
 <li>raw MPD on x versus benchmark on y</li>
 <li>raw MPD on x versus adjusted on y</li>
 </ul>
-<p>The colour scale is blue-white-coral and centred on zero, using supplied <code>#0000ff</code> and <code>#fa8775</code> endpoints. The default scale uses robust symmetric limits from the 95th percentile of absolute <code>Y - X</code> differences, with more extreme OD pairs squished to the end colours so the blue and coral patterns remain visible. The <code>white_band</code> argument controls how much of the scale around zero is treated as neutral. Points use a fine neutral outline by default so near-zero differences remain visible on the light background without adding a heavy border.</p>
+<p>The colour scale is blue-white-coral and centred on zero, using supplied <code>#0000ff</code> and <code>#fa8775</code> endpoints. The default scale uses robust symmetric limits from the 95th percentile of absolute signed differences, with more extreme OD pairs squished to the end colours so the blue and coral patterns remain visible. The <code>white_band</code> argument controls how much of the scale around zero is treated as neutral. Points use a fine neutral outline by default so near-zero differences remain visible on the light background without adding a heavy border.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_scatter</span>(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  residual_results,</span>
@@ -426,11 +407,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">white_band =</span> <span class="fl">0.22</span>,</span>
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">point_alpha =</span> <span class="fl">0.6</span>,</span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">point_size =</span> <span class="fl">0.9</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">labs</span>(</span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">"Adjusted or Unadjusted MPD flow"</span>,</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">"Benchmark flow"</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -442,8 +419,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="level-3-residual-outlier-bands" class="level2" data-number="7">
 <h2 data-number="7" class="anchored" data-anchor-id="level-3-residual-outlier-bands"><span class="header-section-number">7</span> Level 3: Residual Outlier Bands</h2>
-<p>These stacked bar plots summarise how much of each method’s OD-pair residual distribution falls into severity bands. The unadjusted raw MPD baseline is included as a reference bar. The colour-blind-friendly sequential palette orders residual severity from lower to higher bands. The default orientation is horizontal so method labels remain readable.</p>
-<p>The standard-deviation version is useful for identifying residuals that are far from the pooled adjusted-residual scale.</p>
+<p>These stacked bar plots summarise how much of each method’s OD-pair residual distribution falls into severity bands. Each bar represents all plotted OD pairs for one method-comparison combination. Each coloured segment is the share of those OD pairs whose absolute residual falls into that severity band. A method with more mass in higher-severity bands has more large OD-pair errors. The unadjusted raw MPD baseline is included as a reference bar. The colour-blind-friendly sequential palette orders residual severity from lower to higher bands. The default orientation is horizontal so method labels remain readable.</p>
+<p>The standard-deviation version groups residual magnitudes by distance from zero in standard-deviation units. It is useful for identifying residuals that are far from the selected residual scale.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_residual_bands</span>(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  residual_results,</span>
@@ -451,12 +428,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">methods =</span> method_subset,</span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">band_method =</span> <span class="st">"sd"</span>,</span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">method_labels =</span> method_labels</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">guides</span>(<span class="at">fill =</span> ggplot2<span class="sc">::</span><span class="fu">guide_legend</span>(<span class="at">ncol =</span> <span class="dv">1</span>)) <span class="sc">+</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">theme</span>(</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"right"</span>,</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.box =</span> <span class="st">"vertical"</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -465,7 +437,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>The quantile version uses shared absolute-residual cut points, so the method shares remain comparable while making the upper tail easier to inspect.</p>
+<p>The quantile version uses shared cut points from the absolute-residual distribution, so the method shares remain comparable while making the upper tail easier to inspect.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_residual_bands</span>(</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  residual_results,</span>
@@ -473,12 +445,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">methods =</span> method_subset,</span>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">band_method =</span> <span class="st">"quantile"</span>,</span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">method_labels =</span> method_labels</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>) <span class="sc">+</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">guides</span>(<span class="at">fill =</span> ggplot2<span class="sc">::</span><span class="fu">guide_legend</span>(<span class="at">ncol =</span> <span class="dv">1</span>)) <span class="sc">+</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">theme</span>(</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.position =</span> <span class="st">"right"</span>,</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">legend.box =</span> <span class="st">"vertical"</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -490,23 +457,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="level-4-distributional-allocation-summary" class="level2" data-number="8">
 <h2 data-number="8" class="anchored" data-anchor-id="level-4-distributional-allocation-summary"><span class="header-section-number">8</span> Level 4: Distributional Allocation Summary</h2>
-<p>This heatmap compares origin-conditioned destination-share allocation using Jensen-Shannon divergence. Lower values indicate closer allocation fidelity. The user-facing default should use benchmark-origin-total weighted means because that answers the system-level validation question: how much allocation error affects the flow system as a whole. Unweighted means and medians remain useful supporting diagnostics for the typical origin.</p>
+<p>This heatmap compares origin-conditioned destination-share allocation using Jensen-Shannon divergence. Lower values indicate closer allocation fidelity. In this implementation JSD uses natural logarithms, so values range from <code>0</code> for identical destination-share distributions to <code>log(2)</code>, about <code>0.693</code>, for maximally separated distributions. A value such as <code>0.158</code> is therefore not a percentage; it is about 23% of the theoretical maximum JSD scale. The user-facing default should use benchmark-origin-total weighted means because that answers the system-level validation question: how much allocation error affects the flow system as a whole. Unweighted means and medians remain useful supporting diagnostics for the typical origin.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">suppressMessages</span>({</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">plot_validation_distribution</span>(</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    distribution_results,</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">metric =</span> <span class="st">"jsd"</span>,</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">value =</span> <span class="st">"weighted_mean"</span>,</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">comparisons =</span> benchmark_comparisons,</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">methods =</span> method_subset,</span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">method_labels =</span> method_labels</span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    ggplot2<span class="sc">::</span><span class="fu">scale_fill_gradient</span>(</span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>      <span class="at">low =</span> <span class="st">"#fff7bc"</span>,</span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>      <span class="at">high =</span> <span class="st">"#0000ff"</span>,</span>
-<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>      <span class="at">name =</span> <span class="st">"JSD"</span></span>
-<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_distribution</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  distribution_results,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">metric =</span> <span class="st">"jsd"</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">value =</span> <span class="st">"weighted_mean"</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">comparisons =</span> benchmark_comparisons,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">methods =</span> method_subset,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">method_labels =</span> method_labels</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -518,7 +478,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="level-4-distribution-divergence-comparison" class="level2" data-number="9">
 <h2 data-number="9" class="anchored" data-anchor-id="level-4-distribution-divergence-comparison"><span class="header-section-number">9</span> Level 4: Distribution Divergence Comparison</h2>
-<p>This view compares distributional allocation divergence directly by method. Lower JSD values mean the destination-share allocation is closer to the reference distribution. Showing adjusted-versus-benchmark next to raw MPD-versus-benchmark makes the main validation question easier to read: did the adjustment reduce allocation divergence from the benchmark? The full pairwise matrix is still available with <code>plot_type = "heatmap"</code> when a method-development audit needs all reference-by-comparison cells. Use <code>sort = "ascending"</code> or <code>sort = "descending"</code> to order methods by divergence.</p>
+<p>This bar view compares distributional allocation divergence directly by method. Lower JSD values mean the destination-share allocation is closer to the reference distribution. Showing adjusted-versus-benchmark next to raw MPD-versus-benchmark makes the main validation question easier to read: did the adjustment reduce allocation divergence from the benchmark? The full pairwise matrix remains available with <code>plot_type = "heatmap"</code> when a method-development audit needs all reference-by-comparison cells. Use <code>sort = "ascending"</code> or <code>sort = "descending"</code> to order methods by divergence.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_distribution_pairwise</span>(</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  distribution_results,</span>
@@ -541,82 +501,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="level-5-residual-structure-diagnostics" class="level2" data-number="10">
 <h2 data-number="10" class="anchored" data-anchor-id="level-5-residual-structure-diagnostics"><span class="header-section-number">10</span> Level 5: Residual-Structure Diagnostics</h2>
 <p>This dot-and-line summary shows scalar residual-structure diagnostics returned by <code>validate_flow_residual_structure()</code>. It is useful for comparing methods on global residual structure, but it deliberately does not show where local clusters occur.</p>
+<p>This diagnostic uses the same residual-structure logic as the assessing-bias workflow, but it applies that logic to a different object. In assessing bias, <code>validate_bias_residual_structure()</code> diagnoses population-count representation residuals such as coverage-score or user-count residuals. Here, <code>validate_flow_residual_structure()</code> diagnoses OD-flow validation residuals, such as adjusted-versus-benchmark flow differences aggregated to areas. The covariate panel below uses benchmark origin-flow totals as a simple illustrative area-level covariate, so all three Level 5 panels contain values.</p>
+<p>The shaded band marks values close to zero, and point labels show the rounded diagnostic values. Values further from zero indicate stronger remaining residual structure for that diagnostic, rather than better performance by default.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>structure_axis_values <span class="ot">&lt;-</span> <span class="fu">unlist</span>(<span class="fu">lapply</span>(structure_results, <span class="cf">function</span>(result) {</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  summary <span class="ot">&lt;-</span> result<span class="sc">$</span>summary</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.numeric</span>(<span class="fu">unlist</span>(summary[<span class="fu">c</span>(</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pearson_residual_benchmark_flow"</span>,</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"moran_i"</span>,</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pearson_residual_covariate"</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  )]))</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>}))</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>structure_metric_labels <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">pearson_residual_benchmark_flow =</span> <span class="st">"Residual-flow correlation (r)"</span>,</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">moran_i =</span> <span class="st">"Moran's I of residuals"</span>,</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">pearson_residual_covariate =</span> <span class="st">"Residual-covariate correlation (r)"</span></span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>structure_axis_limits <span class="ot">&lt;-</span> <span class="fu">lapply</span>(<span class="fu">names</span>(structure_metric_labels), <span class="cf">function</span>(metric) {</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>  metric_values <span class="ot">&lt;-</span> <span class="fu">unlist</span>(<span class="fu">lapply</span>(structure_results, <span class="cf">function</span>(result) {</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    result<span class="sc">$</span>summary[[metric]]</span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>  }))</span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>  limit <span class="ot">&lt;-</span> <span class="fu">max</span>(<span class="fu">abs</span>(metric_values), <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.finite</span>(limit)) {</span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    limit <span class="ot">&lt;-</span> <span class="fl">0.25</span></span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>  limit <span class="ot">&lt;-</span> <span class="fu">max</span>(limit <span class="sc">*</span> <span class="fl">1.15</span>, <span class="fl">0.25</span>)</span>
-<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>  limit <span class="ot">&lt;-</span> <span class="fu">min</span>(limit, <span class="dv">1</span>)</span>
-<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>  tibble<span class="sc">::</span><span class="fu">tibble</span>(</span>
-<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">comparison_label =</span> <span class="st">"Adjusted vs benchmark"</span>,</span>
-<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">metric_label =</span> structure_metric_labels[[metric]],</span>
-<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="fu">c</span>(<span class="sc">-</span>limit, limit),</span>
-<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> method_labels[[<span class="dv">1</span>]]</span>
-<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>}) <span class="sc">|&gt;</span></span>
-<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">bind_rows</span>() <span class="sc">|&gt;</span></span>
-<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
-<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">metric_label =</span> <span class="fu">factor</span>(</span>
-<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>      .data<span class="sc">$</span>metric_label,</span>
-<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(</span>
-<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Moran's I of residuals"</span>,</span>
-<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Residual-flow correlation (r)"</span>,</span>
-<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Residual-covariate correlation (r)"</span></span>
-<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>      )</span>
-<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a>structure_plot <span class="ot">&lt;-</span> <span class="fu">plot_validation_structure</span>(</span>
-<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>  structure_results,</span>
-<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>  <span class="at">comparisons =</span> <span class="st">"adjusted_vs_benchmark"</span>,</span>
-<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>  <span class="at">methods =</span> method_subset,</span>
-<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>  <span class="at">method_labels =</span> method_labels</span>
-<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>structure_plot<span class="sc">$</span>data <span class="ot">&lt;-</span> structure_plot<span class="sc">$</span>data <span class="sc">|&gt;</span></span>
-<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
-<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>    <span class="at">metric_label =</span> dplyr<span class="sc">::</span><span class="fu">recode</span>(</span>
-<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a>      .data<span class="sc">$</span>metric_label,</span>
-<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Moran's I"</span> <span class="ot">=</span> <span class="st">"Moran's I of residuals"</span>,</span>
-<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Residual vs benchmark-flow r"</span> <span class="ot">=</span> <span class="st">"Residual-flow correlation (r)"</span>,</span>
-<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a>      <span class="st">"Residual vs covariate r"</span> <span class="ot">=</span> <span class="st">"Residual-covariate correlation (r)"</span></span>
-<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a>    <span class="at">metric_label =</span> <span class="fu">factor</span>(</span>
-<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a>      .data<span class="sc">$</span>metric_label,</span>
-<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(</span>
-<span id="cb12-63"><a href="#cb12-63" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Moran's I of residuals"</span>,</span>
-<span id="cb12-64"><a href="#cb12-64" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Residual-flow correlation (r)"</span>,</span>
-<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Residual-covariate correlation (r)"</span></span>
-<span id="cb12-66"><a href="#cb12-66" aria-hidden="true" tabindex="-1"></a>      )</span>
-<span id="cb12-67"><a href="#cb12-67" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb12-68"><a href="#cb12-68" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb12-69"><a href="#cb12-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-70"><a href="#cb12-70" aria-hidden="true" tabindex="-1"></a>structure_plot <span class="sc">+</span></span>
-<span id="cb12-71"><a href="#cb12-71" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">geom_blank</span>(</span>
-<span id="cb12-72"><a href="#cb12-72" aria-hidden="true" tabindex="-1"></a>    <span class="at">data =</span> structure_axis_limits,</span>
-<span id="cb12-73"><a href="#cb12-73" aria-hidden="true" tabindex="-1"></a>    ggplot2<span class="sc">::</span><span class="fu">aes</span>(<span class="at">x =</span> .data<span class="sc">$</span>x, <span class="at">y =</span> .data<span class="sc">$</span>y),</span>
-<span id="cb12-74"><a href="#cb12-74" aria-hidden="true" tabindex="-1"></a>    <span class="at">inherit.aes =</span> <span class="cn">FALSE</span></span>
-<span id="cb12-75"><a href="#cb12-75" aria-hidden="true" tabindex="-1"></a>  )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_validation_structure</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  structure_results,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">comparisons =</span> <span class="st">"adjusted_vs_benchmark"</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">methods =</span> method_subset,</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">method_labels =</span> method_labels</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -649,17 +542,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">outline_linewidth =</span> <span class="fl">0.45</span></span>
 <span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>  )</span>
 <span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>Set DEBIAS_LAD_BOUNDARY_PATH to a simplified LAD boundary GeoPackage. The shared DEBIAS volume path was not found. </code></pre>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="VALIDATION_VISUAL_PROTOTYPES_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
 </div>
 </div>
 </section>
 <section id="iteration-notes" class="level2" data-number="12">
 <h2 data-number="12" class="anchored" data-anchor-id="iteration-notes"><span class="header-section-number">12</span> Iteration Notes</h2>
-<p>The remaining design choice to review is:</p>
-<ul>
-<li>Whether Level 1 should keep the method-by-error-measure matrix as the default or add an alternate grouped bar view for methods with shared units.</li>
-</ul>
+<p>The current proposal keeps the Level 1 method-by-error-measure matrix as the default because the metrics have different units and the matrix keeps the raw values visible. The Level 4 distribution comparison uses the bar view as the preferred reading aid, with the compact heatmap retained as a secondary summary for users who want a matrix-style display.</p>
 </section>
 
 </main>

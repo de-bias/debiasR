@@ -41,12 +41,12 @@ labels to include. Default \code{NULL} includes all methods.}
 \item{method_labels}{Optional named character vector used to relabel methods.}
 
 \item{difference_limits}{Optional numeric vector of length 2 giving the
-colour-scale limits for \code{Y - X}. Values outside the limits are squished to
-the end colours.}
+colour-scale limits for the signed difference. Values outside the limits
+are squished to the end colours.}
 
-\item{difference_quantile}{Quantile of absolute \code{Y - X} used for robust
-symmetric colour limits when \code{difference_limits = NULL}. Set to \code{1} to use
-the full observed range. Default \code{0.95}.}
+\item{difference_quantile}{Quantile of absolute signed differences used for
+robust symmetric colour limits when \code{difference_limits = NULL}. Set to \code{1}
+to use the full observed range. Default \code{0.95}.}
 
 \item{white_band}{Width of the neutral white band around zero as a proportion
 of the colour scale. Increase this to make near-zero differences read as
@@ -71,7 +71,7 @@ A \code{ggplot} object.
 \description{
 Builds faceted scatterplots from \code{validate_flow_residuals()} data. The
 default comparison is adjusted versus benchmark, with colour showing the
-signed difference \code{Y - X}. For a single comparison, axis labels name the
-selected X and Y series directly; for multiple comparisons, facet headers
-include the X and Y series.
+signed difference between the second and first named series. For a single
+comparison, axis labels name the selected X and Y series directly; for
+multiple comparisons, facet headers include the compared series.
 }

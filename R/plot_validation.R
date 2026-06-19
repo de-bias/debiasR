@@ -19,7 +19,7 @@
 )
 
 .validation_metric_matrix_palette <- c(
-  "#FFFFFF", "#ffd700", "#ffb14e", "#fa8775",
+  "#fff7bc", "#ffd700", "#ffb14e", "#fa8775",
   "#ea5f94", "#cd34b5", "#9d02d7", "#0000ff"
 )
 
@@ -163,7 +163,7 @@
       signed = "Flow difference\n(Benchmark - adjusted/raw MPD)",
       absolute = "Absolute flow difference\n(|Benchmark - adjusted/raw MPD|)",
       percent = paste0(
-        "Flow difference (% of X)\n",
+        "Flow difference (% of adjusted/raw MPD)\n",
         "((Benchmark - adjusted/raw MPD) / adjusted/raw MPD)"
       )
     ))
@@ -174,9 +174,9 @@
     difference_label <- paste0(spec$y_label, " - ", spec$x_label)
     return(switch(
       residual,
-      signed = paste0("Flow difference\n(Y - X: ", difference_label, ")"),
+      signed = paste0("Flow difference\n(", difference_label, ")"),
       absolute = paste0(
-        "Absolute flow difference\n(|Y - X|: |",
+        "Absolute flow difference\n(|",
         difference_label,
         "|)"
       ),
@@ -192,9 +192,9 @@
 
   switch(
     residual,
-    signed = "Flow difference\n(Y - X; X is first and Y second in each facet)",
-    absolute = "Absolute flow difference\n(|Y - X|; X is first and Y second in each facet)",
-    percent = "Flow difference (% of X)\n(X is first and Y second in each facet)"
+    signed = "Flow difference\n(second named series - first named series)",
+    absolute = "Absolute flow difference\n(|second named series - first named series|)",
+    percent = "Flow difference (% of first named series)"
   )
 }
 
@@ -202,8 +202,8 @@
   comparisons <- .normalise_flow_comparisons(comparisons)
   if (.validation_benchmark_only_comparisons(comparisons)) {
     return(list(
-      x = "X-axis flow (adjusted or raw MPD, people)",
-      y = "Y-axis: Benchmark flow (people)"
+      x = "Adjusted flow or raw MPD flow (people; see facet)",
+      y = "Benchmark flow (people)"
     ))
   }
 
@@ -232,7 +232,7 @@
     return(paste0(spec$y_label, " - ", spec$x_label))
   }
 
-  "Y - X"
+  "Second named series - first named series"
 }
 
 .validation_squish_oob <- function(x, range = c(0, 1), ...) {
@@ -395,10 +395,10 @@
 
 .validation_metric_labels <- c(
   mean_error = "Mean error",
-  mae = "Mean absolute error",
-  rmse = "Root mean squared error",
+  mae = "Mean absolute\nerror",
+  rmse = "Root mean squared\nerror",
   median_absolute_error = "Median absolute error",
-  mape = "Mean absolute percentage error",
+  mape = "Mean absolute percentage\nerror",
   pearson_r = "Pearson r",
   spearman_rho = "Spearman rho",
   r_squared = "R-squared"
@@ -407,6 +407,9 @@
 .validation_error_measure_aliases <- c(
   stats::setNames(names(.validation_metric_labels), names(.validation_metric_labels)),
   stats::setNames(names(.validation_metric_labels), unname(.validation_metric_labels)),
+  "Mean absolute error" = "mae",
+  "Root mean squared error" = "rmse",
+  "Mean absolute percentage error" = "mape",
   MAE = "mae",
   RMSE = "rmse",
   MAPE = "mape"
@@ -421,7 +424,7 @@
 .validation_raw_baseline_id <- "raw_mpd_baseline"
 .validation_raw_baseline_label <- "Unadjusted raw MPD"
 .validation_benchmark_display_id <- "benchmark_comparison"
-.validation_benchmark_display_label <- "Benchmark comparison"
+.validation_benchmark_display_label <- "Adjusted methods and raw MPD vs benchmark"
 
 .validation_distribution_labels <- c(
   benchmark = "Benchmark",
@@ -1109,10 +1112,10 @@ plot_validation_metrics <- function(metrics,
       drop = FALSE,
       na.translate = FALSE,
       na.value = "#f2f2f2",
-      name = "Relative error score (%)",
+      name = "Relative error\nscore (%)",
       guide = ggplot2::guide_legend(
-        nrow = 2,
-        byrow = TRUE,
+        ncol = 1,
+        byrow = FALSE,
         override.aes = list(
           fill = unname(fill_values),
           alpha = 1,
@@ -1125,11 +1128,11 @@ plot_validation_metrics <- function(metrics,
     ggplot2::labs(x = NULL, y = NULL) +
     .validation_theme(base_size = 11, grid = "none") +
     ggplot2::theme(
-      legend.position = "bottom",
+      legend.position = "right",
       legend.title = ggplot2::element_text(size = 9),
       legend.text = ggplot2::element_text(size = 9),
-      legend.key.width = grid::unit(0.65, "cm"),
-      legend.key.height = grid::unit(0.35, "cm"),
+      legend.key.width = grid::unit(0.42, "cm"),
+      legend.key.height = grid::unit(0.42, "cm"),
       panel.grid = ggplot2::element_blank(),
       axis.line = ggplot2::element_blank(),
       axis.text.x = ggplot2::element_text(face = "bold"),
@@ -1158,8 +1161,8 @@ plot_validate_flow_metrics <- function(...) {
 #'
 #' Builds violin plots from `validate_flow_residuals()` data. Differences are
 #' aligned with the scatterplot convention used by
-#' `plot_validation_scatter()`: positive values mean the vertical-axis series
-#' is larger than the horizontal-axis series. The default style uses translucent
+#' `plot_validation_scatter()`: positive values mean the second named series is
+#' larger than the first named series. The default style uses translucent
 #' violins, jittered OD-pair points, and sample-size labels above each method.
 #'
 #' @param residuals A data frame, one `validate_flow_residuals()` result, or a
@@ -1347,9 +1350,9 @@ plot_validate_flow_residual_violin <- function(...) {
 #'
 #' Builds faceted scatterplots from `validate_flow_residuals()` data. The
 #' default comparison is adjusted versus benchmark, with colour showing the
-#' signed difference `Y - X`. For a single comparison, axis labels name the
-#' selected X and Y series directly; for multiple comparisons, facet headers
-#' include the X and Y series.
+#' signed difference between the second and first named series. For a single
+#' comparison, axis labels name the selected X and Y series directly; for
+#' multiple comparisons, facet headers include the compared series.
 #'
 #' @param residuals A data frame, one `validate_flow_residuals()` result, or a
 #'   named list of `validate_flow_residuals()` results.
@@ -1363,11 +1366,11 @@ plot_validate_flow_residual_violin <- function(...) {
 #'   `"method"`.
 #' @param method_labels Optional named character vector used to relabel methods.
 #' @param difference_limits Optional numeric vector of length 2 giving the
-#'   colour-scale limits for `Y - X`. Values outside the limits are squished to
-#'   the end colours.
-#' @param difference_quantile Quantile of absolute `Y - X` used for robust
-#'   symmetric colour limits when `difference_limits = NULL`. Set to `1` to use
-#'   the full observed range. Default `0.95`.
+#'   colour-scale limits for the signed difference. Values outside the limits
+#'   are squished to the end colours.
+#' @param difference_quantile Quantile of absolute signed differences used for
+#'   robust symmetric colour limits when `difference_limits = NULL`. Set to `1`
+#'   to use the full observed range. Default `0.95`.
 #' @param white_band Width of the neutral white band around zero as a proportion
 #'   of the colour scale. Increase this to make near-zero differences read as
 #'   neutral. Default `0.22`.
@@ -1430,6 +1433,12 @@ plot_validation_scatter <- function(residuals,
     )
   plot_data$scatter_comparison_label <- if (length(unique(plot_data$comparison)) == 1L) {
     as.character(plot_data$comparison_label)
+  } else if (.validation_benchmark_only_comparisons(comparisons)) {
+    dplyr::case_when(
+      plot_data$comparison == "adjusted_vs_benchmark" ~ "Adjusted flow vs benchmark",
+      plot_data$comparison == "raw_vs_benchmark" ~ "Raw MPD flow vs benchmark",
+      TRUE ~ as.character(plot_data$comparison_label)
+    )
   } else {
     paste0(
       as.character(plot_data$comparison_label),
@@ -1528,7 +1537,7 @@ plot_validation_scatter <- function(residuals,
 
   facet_layer <- if (.validation_benchmark_only_comparisons(comparisons)) {
     ggplot2::facet_wrap(
-      ggplot2::vars(.data$method_label),
+      ggplot2::vars(.data$method_label, .data$scatter_comparison_label),
       scales = "free"
     )
   } else if (length(unique(plot_data$comparison)) > 1L) {
@@ -1921,10 +1930,15 @@ plot_validation_residual_bands <- function(residuals,
   }
 
   plot <- plot +
-    ggplot2::scale_fill_manual(values = fill_values, name = "Residual band") +
+    ggplot2::scale_fill_manual(
+      values = fill_values,
+      name = "Residual band",
+      guide = ggplot2::guide_legend(ncol = 1, byrow = FALSE)
+    ) +
     ggplot2::scale_colour_identity(guide = "none") +
     ggplot2::theme(
-      legend.position = "bottom",
+      legend.position = "right",
+      legend.box = "vertical",
       panel.grid.minor = ggplot2::element_blank()
     )
 
@@ -2051,7 +2065,7 @@ plot_validation_distribution <- function(distribution_results,
       size = 3.3,
       na.rm = TRUE
     ) +
-    ggplot2::scale_fill_gradient(low = "#FFFFFF", high = "#0000ff", name = toupper(metric)) +
+    ggplot2::scale_fill_gradient(low = "#fff7bc", high = "#0000ff", name = toupper(metric)) +
     ggplot2::labs(x = NULL, y = NULL) +
     .validation_theme(base_size = 11, grid = "none") +
     ggplot2::theme(
@@ -2306,7 +2320,7 @@ plot_validation_distribution_pairwise <- function(distribution_results,
       na.rm = TRUE
     ) +
     ggplot2::facet_wrap(ggplot2::vars(.data$method_label)) +
-    ggplot2::scale_fill_gradient(low = "#FFFFFF", high = "#0000ff", name = toupper(metric)) +
+    ggplot2::scale_fill_gradient(low = "#fff7bc", high = "#0000ff", name = toupper(metric)) +
     ggplot2::labs(x = "Comparison distribution", y = "Reference distribution") +
     .validation_theme(base_size = 11, grid = "none") +
     ggplot2::theme(
@@ -2342,6 +2356,13 @@ plot_validate_flow_distribution_pairwise_heatmap <- function(...,
 #'   `"method"`.
 #' @param method_labels Optional named character vector used to relabel methods.
 #' @param palette Optional character vector of colours.
+#' @param near_zero_band Optional non-negative numeric width around zero to
+#'   shade as a near-zero reference band. Use `NULL` to suppress the band.
+#'   Default `0.1`.
+#' @param show_value_labels Logical; label points with rounded diagnostic
+#'   values. Default `TRUE`.
+#' @param value_digits Number of decimal places used when
+#'   `show_value_labels = TRUE`. Default `2`.
 #'
 #' @return A `ggplot` object.
 #' @export
@@ -2350,9 +2371,33 @@ plot_validation_structure <- function(structure_results,
                                       methods = NULL,
                                       method_col = "method",
                                       method_labels = NULL,
-                                      palette = NULL) {
+                                      palette = NULL,
+                                      near_zero_band = 0.1,
+                                      show_value_labels = TRUE,
+                                      value_digits = 2) {
   .require_ggplot2()
   comparisons <- .normalise_flow_comparisons(comparisons)
+  if (
+    !is.null(near_zero_band) &&
+      (!is.numeric(near_zero_band) ||
+        length(near_zero_band) != 1L ||
+        !is.finite(near_zero_band) ||
+        near_zero_band < 0)
+  ) {
+    stop("`near_zero_band` must be `NULL` or a single non-negative finite number.", call. = FALSE)
+  }
+  if (!is.logical(show_value_labels) || length(show_value_labels) != 1L || is.na(show_value_labels)) {
+    stop("`show_value_labels` must be `TRUE` or `FALSE`.", call. = FALSE)
+  }
+  if (
+    !is.numeric(value_digits) ||
+      length(value_digits) != 1L ||
+      !is.finite(value_digits) ||
+      value_digits < 0 ||
+      value_digits != as.integer(value_digits)
+  ) {
+    stop("`value_digits` must be a single non-negative whole number.", call. = FALSE)
+  }
   summary <- .as_validate_structure_summary(structure_results, method_col = method_col)
   if (!"comparison" %in% names(summary)) {
     residual_type <- if ("residual_type" %in% names(summary)) {
@@ -2388,9 +2433,14 @@ plot_validation_structure <- function(structure_results,
   .validation_check_columns(summary, c(method_col, metric_cols), "structure_results")
 
   metric_labels <- c(
-    pearson_residual_benchmark_flow = "Residual vs benchmark-flow r",
-    moran_i = "Moran's I",
-    pearson_residual_covariate = "Residual vs covariate r"
+    pearson_residual_benchmark_flow = "Residual-flow\ncorrelation (r)",
+    moran_i = "Spatial autocorrelation\n(Moran's I)",
+    pearson_residual_covariate = "Residual-covariate\ncorrelation (r)"
+  )
+  metric_label_levels <- c(
+    "Spatial autocorrelation\n(Moran's I)",
+    "Residual-flow\ncorrelation (r)",
+    "Residual-covariate\ncorrelation (r)"
   )
 
   plot_data <- dplyr::bind_rows(lapply(metric_cols, function(metric_col) {
@@ -2405,16 +2455,155 @@ plot_validation_structure <- function(structure_results,
     )
   }))
 
-  colour_values <- .validation_palette(plot_data$method_label, palette)
+  method_order <- .validation_method_factor_levels(
+    plot_data$method_label,
+    axis = "y",
+    raw_position = "last"
+  )
+  plot_data <- plot_data |>
+    dplyr::mutate(
+      method_label = factor(.data$method_label, levels = method_order),
+      metric_label = factor(.data$metric_label, levels = metric_label_levels),
+      value_label = dplyr::if_else(
+        is.finite(.data$value),
+        format(
+          round(.data$value, digits = as.integer(value_digits)),
+          nsmall = as.integer(value_digits),
+          trim = TRUE,
+          scientific = FALSE
+        ),
+        ""
+      )
+    )
 
-  ggplot2::ggplot(
+  structure_axis_limits <- dplyr::bind_rows(lapply(
+    split(
+      plot_data,
+      list(plot_data$comparison_label, plot_data$metric_label),
+      drop = TRUE
+    ),
+    function(data) {
+      finite_values <- abs(data$value[is.finite(data$value)])
+      if (length(finite_values) == 0L) {
+        limit <- 0.25
+      } else {
+        limit <- max(finite_values)
+      }
+      limit <- max(limit * 1.15, 0.25)
+      limit <- min(limit, 1)
+      tibble::tibble(
+        comparison_label = data$comparison_label[1],
+        metric_label = factor(data$metric_label[1], levels = metric_label_levels),
+        method_label = factor(method_order[1], levels = method_order),
+        x = c(-limit, limit),
+        x_limit = limit,
+        label_offset = max(limit * 0.04, 0.015)
+      )
+    }
+  ))
+
+  plot_data <- plot_data |>
+    dplyr::left_join(
+      structure_axis_limits |>
+        dplyr::distinct(
+          .data$comparison_label,
+          .data$metric_label,
+          .data$x_limit,
+          .data$label_offset
+        ),
+      by = c("comparison_label", "metric_label")
+    ) |>
+    dplyr::mutate(
+      value_label_x = dplyr::case_when(
+        is.finite(.data$value) & .data$value >= .data$x_limit - 2 * .data$label_offset ~
+          .data$value - .data$label_offset,
+        is.finite(.data$value) & .data$value <= -.data$x_limit + 2 * .data$label_offset ~
+          .data$value + .data$label_offset,
+        .data$value >= 0 ~ .data$value + .data$label_offset,
+        TRUE ~ .data$value - .data$label_offset
+      ),
+      value_label_hjust = dplyr::case_when(
+        is.finite(.data$value) & .data$value >= .data$x_limit - 2 * .data$label_offset ~ 1,
+        is.finite(.data$value) & .data$value <= -.data$x_limit + 2 * .data$label_offset ~ 0,
+        .data$value >= 0 ~ 0,
+        TRUE ~ 1
+      )
+    )
+
+  if (is.null(near_zero_band) || near_zero_band == 0) {
+    band_data <- structure_axis_limits[0, c("comparison_label", "metric_label"), drop = FALSE]
+    band_data$xmin <- numeric()
+    band_data$xmax <- numeric()
+    band_data$ymin <- numeric()
+    band_data$ymax <- numeric()
+    band_note <- NULL
+  } else {
+    band_value_label <- format(
+      round(near_zero_band, digits = 2),
+      nsmall = 2,
+      trim = TRUE,
+      scientific = FALSE
+    )
+    band_note <- paste0(
+      "Shaded area: near-zero reference band (absolute diagnostic value <= ",
+      band_value_label,
+      ")."
+    )
+    band_data <- structure_axis_limits |>
+      dplyr::distinct(.data$comparison_label, .data$metric_label) |>
+      dplyr::mutate(
+        xmin = -near_zero_band,
+        xmax = near_zero_band,
+        ymin = -Inf,
+        ymax = Inf
+      )
+  }
+
+  colour_values <- .validation_palette(plot_data$method_label, palette)
+  facet_layer <- if (length(unique(plot_data$comparison_label)) == 1L) {
+    ggplot2::facet_wrap(
+      ggplot2::vars(.data$metric_label),
+      scales = "free_x"
+    )
+  } else {
+    ggplot2::facet_wrap(
+      ggplot2::vars(.data$comparison_label, .data$metric_label),
+      scales = "free_x"
+    )
+  }
+
+  plot <- ggplot2::ggplot(
     plot_data,
     ggplot2::aes(
-      y = stats::reorder(.data$method_label, .data$value, FUN = mean),
+      y = .data$method_label,
       x = .data$value,
       colour = .data$method_label
     )
   ) +
+    ggplot2::geom_blank(
+      data = structure_axis_limits,
+      ggplot2::aes(x = .data$x, y = .data$method_label),
+      inherit.aes = FALSE
+    )
+
+  if (nrow(band_data) > 0L) {
+    plot <- plot +
+      ggplot2::geom_rect(
+        data = band_data,
+        ggplot2::aes(
+          xmin = .data$xmin,
+          xmax = .data$xmax,
+          ymin = .data$ymin,
+          ymax = .data$ymax
+        ),
+        inherit.aes = FALSE,
+        fill = "#E5E7EB",
+        alpha = 0.35,
+        colour = NA
+      )
+  }
+
+  plot <- plot +
     ggplot2::geom_vline(xintercept = 0, linetype = "dashed", colour = "#4B5563") +
     ggplot2::geom_segment(
       ggplot2::aes(x = 0, xend = .data$value, yend = .data$method_label),
@@ -2423,19 +2612,43 @@ plot_validation_structure <- function(structure_results,
       na.rm = TRUE
     ) +
     ggplot2::geom_point(size = 2.5, na.rm = TRUE) +
-    ggplot2::facet_wrap(
-      ggplot2::vars(.data$comparison_label, .data$metric_label),
-      scales = "free_x"
-    ) +
+    facet_layer +
     ggplot2::scale_colour_manual(values = colour_values, name = NULL) +
-    ggplot2::labs(x = NULL, y = NULL) +
+    ggplot2::labs(x = NULL, y = NULL, caption = band_note) +
     .validation_theme(base_size = 11, grid = "xy") +
     ggplot2::theme(
       legend.position = "none",
       panel.grid.major.y = ggplot2::element_blank(),
       panel.grid.minor = ggplot2::element_blank(),
+      plot.caption = ggplot2::element_text(
+        hjust = 0,
+        colour = "#6B7280",
+        size = 8.5,
+        margin = ggplot2::margin(t = 6)
+      ),
       strip.text = ggplot2::element_text(face = "bold")
     )
+
+  if (isTRUE(show_value_labels)) {
+    plot <- plot +
+      ggplot2::geom_text(
+        ggplot2::aes(
+          x = .data$value_label_x,
+          label = .data$value_label,
+          hjust = .data$value_label_hjust
+        ),
+        size = 3.1,
+        colour = "#374151",
+        show.legend = FALSE,
+        na.rm = TRUE
+      ) +
+      ggplot2::coord_cartesian(clip = "off") +
+      ggplot2::theme(
+        plot.margin = ggplot2::margin(5.5, 18, 5.5, 5.5)
+      )
+  }
+
+  plot
 }
 
 #' @rdname plot_validation_structure
