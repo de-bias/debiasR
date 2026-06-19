@@ -245,14 +245,13 @@ This chart compares methods by error measure in a single matrix. Fill colour is
 scaled within each metric, so the visual supports method comparison without
 putting MAE, RMSE, and MAPE on one raw axis. The cell labels preserve the
 original values. The legend is discrete: each colour represents a 10-point
-range of the within-metric relative-error score, such as 0-10, 11-20, and
+range of the within-metric relative-error score, such as 0-10, 11-20 and
 91-100. The prototype uses the shared validation visual style: white
-background, quiet axes, and a bright yellow-to-blue palette. The plotted colour
-hex values are supplied from the visual review palette: `#ffd700`, `#ffb14e`,
-`#fa8775`, `#ea5f94`, `#cd34b5`, `#9d02d7`, and `#0000ff`. Users can select
-error measures with `error_measures` and adjustment methods with `methods`. The
-review default includes the raw MPD versus benchmark comparison as an
-unadjusted baseline row.
+background, quiet axes and a yellow-to-blue palette. The lowest relative-error
+band starts with a pale yellow rather than white, so low error is visible as
+data rather than appearing as an empty cell. Users can select error measures
+with `error_measures` and adjustment methods with `methods`. The review default
+includes the raw MPD versus benchmark comparison as an unadjusted baseline row.
 
 ```{r fig.height=6.5}
 plot_validation_metrics(
@@ -261,8 +260,35 @@ plot_validation_metrics(
   comparisons = benchmark_comparisons,
   methods = method_subset,
   method_labels = method_labels,
+  palette = c(
+    "#fff7bc", "#ffd700", "#ffb14e", "#fa8775",
+    "#ea5f94", "#cd34b5", "#9d02d7", "#0000ff"
+  ),
   relative_error_breaks = seq(0, 100, by = 10)
-)
+) +
+  ggplot2::scale_x_discrete(
+    labels = c(
+      "Mean absolute error" = "Mean absolute\nerror",
+      "Root mean squared error" = "Root mean\nsquared error",
+      "Mean absolute percentage error" = "Mean absolute\npercentage error"
+    )
+  ) +
+  ggplot2::guides(
+    fill = ggplot2::guide_legend(
+      title = "Relative error\nscore (%)",
+      ncol = 1,
+      byrow = FALSE,
+      override.aes = list(
+        alpha = 1,
+        colour = "#A7ADB7",
+        linewidth = 0.25
+      )
+    )
+  ) +
+  ggplot2::theme(
+    legend.position = "right",
+    legend.box = "vertical"
+  )
 ```
 
 ## Level 2 And Level 3: Residual Distributions
@@ -327,7 +353,11 @@ plot_validation_scatter(
   white_band = 0.22,
   point_alpha = 0.6,
   point_size = 0.9
-)
+) +
+  ggplot2::labs(
+    x = "Adjusted or Unadjusted MPD flow",
+    y = "Benchmark flow"
+  )
 ```
 
 ## Level 3: Residual Outlier Bands
@@ -348,7 +378,12 @@ plot_validation_residual_bands(
   methods = method_subset,
   band_method = "sd",
   method_labels = method_labels
-)
+) +
+  ggplot2::guides(fill = ggplot2::guide_legend(ncol = 1)) +
+  ggplot2::theme(
+    legend.position = "right",
+    legend.box = "vertical"
+  )
 ```
 
 The quantile version uses shared absolute-residual cut points, so the method
@@ -361,7 +396,12 @@ plot_validation_residual_bands(
   methods = method_subset,
   band_method = "quantile",
   method_labels = method_labels
-)
+) +
+  ggplot2::guides(fill = ggplot2::guide_legend(ncol = 1)) +
+  ggplot2::theme(
+    legend.position = "right",
+    legend.box = "vertical"
+  )
 ```
 
 ## Level 4: Distributional Allocation Summary
@@ -374,14 +414,21 @@ affects the flow system as a whole. Unweighted means and medians remain useful
 supporting diagnostics for the typical origin.
 
 ```{r fig.height=4}
-plot_validation_distribution(
-  distribution_results,
-  metric = "jsd",
-  value = "weighted_mean",
-  comparisons = benchmark_comparisons,
-  methods = method_subset,
-  method_labels = method_labels
-)
+suppressMessages({
+  plot_validation_distribution(
+    distribution_results,
+    metric = "jsd",
+    value = "weighted_mean",
+    comparisons = benchmark_comparisons,
+    methods = method_subset,
+    method_labels = method_labels
+  ) +
+    ggplot2::scale_fill_gradient(
+      low = "#fff7bc",
+      high = "#0000ff",
+      name = "JSD"
+    )
+})
 ```
 
 ## Level 4: Distribution Divergence Comparison
@@ -415,12 +462,81 @@ global residual structure, but it deliberately does not show where local
 clusters occur.
 
 ```{r fig.height=4}
-plot_validation_structure(
+structure_axis_values <- unlist(lapply(structure_results, function(result) {
+  summary <- result$summary
+  as.numeric(unlist(summary[c(
+    "pearson_residual_benchmark_flow",
+    "moran_i",
+    "pearson_residual_covariate"
+  )]))
+}))
+
+structure_metric_labels <- c(
+  pearson_residual_benchmark_flow = "Residual-flow correlation (r)",
+  moran_i = "Moran's I of residuals",
+  pearson_residual_covariate = "Residual-covariate correlation (r)"
+)
+
+structure_axis_limits <- lapply(names(structure_metric_labels), function(metric) {
+  metric_values <- unlist(lapply(structure_results, function(result) {
+    result$summary[[metric]]
+  }))
+  limit <- max(abs(metric_values), na.rm = TRUE)
+  if (!is.finite(limit)) {
+    limit <- 0.25
+  }
+  limit <- max(limit * 1.15, 0.25)
+  limit <- min(limit, 1)
+  tibble::tibble(
+    comparison_label = "Adjusted vs benchmark",
+    metric_label = structure_metric_labels[[metric]],
+    x = c(-limit, limit),
+    y = method_labels[[1]]
+  )
+}) |>
+  dplyr::bind_rows() |>
+  dplyr::mutate(
+    metric_label = factor(
+      .data$metric_label,
+      levels = c(
+        "Moran's I of residuals",
+        "Residual-flow correlation (r)",
+        "Residual-covariate correlation (r)"
+      )
+    )
+  )
+
+structure_plot <- plot_validation_structure(
   structure_results,
   comparisons = "adjusted_vs_benchmark",
   methods = method_subset,
   method_labels = method_labels
 )
+
+structure_plot$data <- structure_plot$data |>
+  dplyr::mutate(
+    metric_label = dplyr::recode(
+      .data$metric_label,
+      "Moran's I" = "Moran's I of residuals",
+      "Residual vs benchmark-flow r" = "Residual-flow correlation (r)",
+      "Residual vs covariate r" = "Residual-covariate correlation (r)"
+    ),
+    metric_label = factor(
+      .data$metric_label,
+      levels = c(
+        "Moran's I of residuals",
+        "Residual-flow correlation (r)",
+        "Residual-covariate correlation (r)"
+      )
+    )
+  )
+
+structure_plot +
+  ggplot2::geom_blank(
+    data = structure_axis_limits,
+    ggplot2::aes(x = .data$x, y = .data$y),
+    inherit.aes = FALSE
+  )
 ```
 
 ## Level 5: LISA Cluster Map
