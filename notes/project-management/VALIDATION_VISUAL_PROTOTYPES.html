@@ -123,6 +123,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="purpose" class="level2" data-number="1">
 <h2 data-number="1" class="anchored" data-anchor-id="purpose"><span class="header-section-number">1</span> Purpose</h2>
 <p>This short notebook illustrates the prototype validation plotting functions added to <code>debiasR</code>. The goal is visual iteration, not a final user-facing vignette.</p>
+<p>Project decision, 2026-06-19: these plotting functions will be used inside the existing validation vignette. They will not be documented through a separate validation-visualisation vignette. This notebook and its rendered output are internal design/review notes.</p>
 <p>The notebook uses deterministic simulated package data and lightweight deterministic adjustment methods. It does not run Bayesian models. The LISA map section uses user-supplied <code>sf</code> boundaries when they are available. The local review defaults point to shared DEBIAS LAD and region boundary files only to preview the visual; <code>debiasR</code> does not provide or infer boundary files. <code>debiasRdata::lad_centroids</code> is used only as a lightweight LAD name-code lookup for this simulated review example.</p>
 </section>
 <section id="setup" class="level2" data-number="2">

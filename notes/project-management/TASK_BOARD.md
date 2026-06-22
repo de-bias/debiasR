@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-06-13
+Last updated: 2026-06-19
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -51,6 +51,10 @@ The staged track below is intended to be implemented one stage per chat window. 
   `notes/project-management/VALIDATION_VISUAL_PROTOTYPES.qmd` using
   deterministic simulated package data so the chart designs can be iterated
   before promotion into the public validation vignette.
+- Decision recorded on 2026-06-19: the `plot_validation_*()` functions will be
+  incorporated into the existing validation vignette. There will not be a
+  separate validation-visualisation vignette; the visual prototype notebook and
+  rendered notes are internal design/review material.
 
 1. Add Local Moran/LISA residual diagnostics - `complete`
 - Completed on 2026-06-13.
