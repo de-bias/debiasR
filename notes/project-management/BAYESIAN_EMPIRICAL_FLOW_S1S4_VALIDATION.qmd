@@ -48,11 +48,14 @@ and S4.
 2. If the frequentist smoke tests pass, set `run_bayesian_pilots <- TRUE` and
    keep `area_grid <- c(6, 8)` or another small grid.
 3. If the coverage-offset Bayesian pilots pass for S3 and S4, set
-   `run_latent_bayesian_pilots <- TRUE` to test the experimental
+   `run_latent_bayesian_pilots <- TRUE` to test the advanced
    `latent_two_level` backend.
 4. Increase `area_grid`, `iter_exploratory`, and `chains_exploratory` only after
    runtime and diagnostics are acceptable on the smaller grids.
-5. Do not commit raw flow files, local caches, or bulky rendered outputs from
+5. Treat complete-grid outputs as sensitivity checks only. Approval evidence
+   must use observed MPD rows, observed Census benchmark rows, and real
+   centroid-derived OD distances.
+6. Do not commit raw flow files, local caches, or bulky rendered outputs from
    this external volume.
 
 ## Controls
@@ -93,6 +96,8 @@ flow_adj_summary <- "median"
 seed_base <- 25062026
 max_model_runtime_minutes <- Inf
 validation_drop_zeros <- TRUE
+require_observed_validation_rows <- TRUE
+require_latent_repeated_source_support <- TRUE
 
 selection_r_grid <- seq(0, 3, by = 0.25)
 selection_k_grid <- seq(0.1, 5, by = 0.25)
@@ -124,7 +129,7 @@ if (isTRUE(use_local_source)) {
   library(debiasR)
 }
 
-required_packages <- c("dplyr", "tibble", "tidyr", "purrr", "ggplot2")
+required_packages <- c("dplyr", "tibble", "tidyr", "purrr", "ggplot2", "debiasRdata")
 missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)]
 if (length(missing_packages) > 0L) {
   stop("Install required package(s): ", paste(missing_packages, collapse = ", "))
@@ -161,6 +166,7 @@ tibble(
     "rstanarm",
     "rstan",
     "brms",
+    "debiasRdata",
     "platform",
     "flow_root",
     "geography"
@@ -171,6 +177,7 @@ tibble(
     package_version_or_na("rstanarm"),
     package_version_or_na("rstan"),
     package_version_or_na("brms"),
+    package_version_or_na("debiasRdata"),
     R.version$platform,
     flow_root,
     geography
@@ -543,6 +550,70 @@ build_covariates_table <- function(coverage) {
     )
 }
 
+build_distance_table <- function(areas, geography) {
+  centroid_object <- switch(
+    geography,
+    lad = "lad_centroids",
+    msoa = "msoa_centroids",
+    NA_character_
+  )
+  if (is.na(centroid_object)) {
+    stop("No real centroid object is configured for geography: ", geography)
+  }
+  if (!requireNamespace("debiasRdata", quietly = TRUE)) {
+    stop("Install `debiasRdata` before running empirical validation with real OD distances.")
+  }
+
+  env <- new.env(parent = emptyenv())
+  suppressWarnings(utils::data(list = centroid_object, package = "debiasRdata", envir = env))
+  if (!exists(centroid_object, envir = env, inherits = FALSE)) {
+    stop("`debiasRdata::", centroid_object, "` is required for real OD distances.")
+  }
+
+  centroids <- get(centroid_object, envir = env) |>
+    as_tibble() |>
+    filter(.data$area %in% areas)
+
+  if (!all(areas %in% centroids$area)) {
+    missing_areas <- setdiff(areas, centroids$area)
+    stop(
+      "Centroid data are missing selected empirical areas: ",
+      paste(utils::head(missing_areas, 10), collapse = ", ")
+    )
+  }
+
+  origin_coords <- centroids |>
+    transmute(origin = .data$area, lon_o = .data$longitude, lat_o = .data$latitude, east_o = .data$easting, north_o = .data$northing)
+  destination_coords <- centroids |>
+    transmute(destination = .data$area, lon_d = .data$longitude, lat_d = .data$latitude, east_d = .data$easting, north_d = .data$northing)
+
+  distance <- tidyr::expand_grid(origin = areas, destination = areas) |>
+    left_join(origin_coords, by = "origin") |>
+    left_join(destination_coords, by = "destination")
+
+  if (all(c("lon_o", "lat_o", "lon_d", "lat_d") %in% names(distance)) &&
+      all(is.finite(distance$lon_o), is.finite(distance$lat_o), is.finite(distance$lon_d), is.finite(distance$lat_d))) {
+    radius_km <- 6371.0088
+    to_rad <- function(x) x * pi / 180
+    dlon <- to_rad(distance$lon_d - distance$lon_o)
+    dlat <- to_rad(distance$lat_d - distance$lat_o)
+    lat_o <- to_rad(distance$lat_o)
+    lat_d <- to_rad(distance$lat_d)
+    a <- sin(dlat / 2)^2 + cos(lat_o) * cos(lat_d) * sin(dlon / 2)^2
+    distance_km <- radius_km * 2 * atan2(sqrt(a), sqrt(pmax(0, 1 - a)))
+  } else {
+    distance_km <- sqrt((distance$east_d - distance$east_o)^2 + (distance$north_d - distance$north_o)^2) / 1000
+  }
+
+  tibble(
+    origin = distance$origin,
+    destination = distance$destination,
+    distance_km = distance_km,
+    distance_source = paste0("debiasRdata_", centroid_object)
+  ) |>
+    filter(is.finite(.data$distance_km), .data$distance_km >= 0)
+}
+
 build_scenario_example <- function(manifest,
                                    census_path,
                                    scenario,
@@ -595,6 +666,23 @@ build_scenario_example <- function(manifest,
     group_by(.data$origin, .data$destination, .data$mpd_source, .data$mpd_time, .data$geography, .data$source_file) |>
     summarise(flow = sum(.data$flow, na.rm = TRUE), .groups = "drop")
 
+  if (isTRUE(run_latent_bayesian_pilots) &&
+      isTRUE(require_latent_repeated_source_support) &&
+      scenario %in% c("s3", "s4")) {
+    replicated_od <- mpd_selected |>
+      distinct(.data$origin, .data$destination, .data$mpd_source) |>
+      count(.data$origin, .data$destination, name = "n_sources_observed") |>
+      filter(.data$n_sources_observed >= 2L) |>
+      select(.data$origin, .data$destination)
+
+    mpd_selected <- mpd_selected |>
+      semi_join(replicated_od, by = c("origin", "destination"))
+
+    if (nrow(mpd_selected) == 0L) {
+      stop("Latent approval run found no real repeated-source OD support for ", toupper(scenario), ".")
+    }
+  }
+
   benchmark_complete <- benchmark |>
     filter(.data$origin %in% areas, .data$destination %in% areas) |>
     complete_benchmark_grid(areas = areas, include_self_flows = include_self_flows)
@@ -622,6 +710,7 @@ build_scenario_example <- function(manifest,
     coverage_cap = coverage_cap
   )
   covariates <- build_covariates_table(coverage)
+  distance <- build_distance_table(areas, geography)
 
   list(
     available = TRUE,
@@ -629,14 +718,94 @@ build_scenario_example <- function(manifest,
     n_areas = length(areas),
     prediction_scope = prediction_scope,
     manifest = scenario_manifest,
+    census_path = census_path,
     areas = areas,
     mpd_od = mpd_model,
     mpd_observed_only = mpd_selected,
     benchmark_od = benchmark_complete,
     coverage = coverage,
     covariates = covariates,
-    distance = NULL
+    distance = distance
   )
+}
+
+assert_real_empirical_example <- function(example) {
+  if (!isTRUE(example$available)) {
+    return(invisible(example))
+  }
+
+  flow_root_norm <- normalizePath(flow_root, mustWork = TRUE)
+  manifest_paths <- normalizePath(example$manifest$path, mustWork = FALSE)
+  census_path_norm <- normalizePath(example$census_path, mustWork = FALSE)
+
+  if (!all(file.exists(example$manifest$path))) {
+    stop("One or more MPD source files are missing for ", toupper(example$scenario), ".")
+  }
+  if (!file.exists(example$census_path)) {
+    stop("The Census benchmark file is missing for ", toupper(example$scenario), ": ", example$census_path)
+  }
+  if (!all(startsWith(manifest_paths, flow_root_norm)) || !startsWith(census_path_norm, flow_root_norm)) {
+    stop("Empirical validation must use files under `flow_root`: ", flow_root)
+  }
+  if (nrow(example$mpd_observed_only) == 0L || nrow(example$benchmark_od) == 0L) {
+    stop("Empirical validation needs non-empty MPD and Census benchmark inputs.")
+  }
+  if (is.null(example$distance) || nrow(example$distance) == 0L) {
+    stop("Empirical validation needs real centroid-derived OD distances.")
+  }
+  if (nrow(example$distance) != length(example$areas)^2) {
+    stop("Empirical validation needs a complete centroid distance table for the selected areas.")
+  }
+  if (any(!is.finite(example$distance$distance_km))) {
+    stop("Empirical validation cannot use missing or non-finite OD distances.")
+  }
+  if (!"distance_source" %in% names(example$distance) ||
+      any(grepl("synthetic|simulated", example$distance$distance_source, ignore.case = TRUE))) {
+    stop("Empirical validation cannot use synthetic or simulated OD distances.")
+  }
+  if (!all(grepl("^debiasRdata_", example$distance$distance_source))) {
+    stop("Empirical validation distances must come from `debiasRdata` centroids.")
+  }
+
+  missing_distance <- example$mpd_od |>
+    distinct(.data$origin, .data$destination) |>
+    anti_join(example$distance, by = c("origin", "destination"))
+  if (nrow(missing_distance) > 0L) {
+    stop("Centroid distance table is missing OD rows used by the empirical MPD data.")
+  }
+  if (isTRUE(run_latent_bayesian_pilots) && identical(example$prediction_scope, "complete_grid")) {
+    stop("Latent approval runs must use observed MPD rows; complete-grid mode is sensitivity-only.")
+  }
+  if (isTRUE(run_latent_bayesian_pilots) &&
+      any(example$mpd_od$mpd_zero_filled %in% TRUE, na.rm = TRUE)) {
+    stop("Latent approval runs cannot include zero-filled MPD rows.")
+  }
+
+  invisible(example)
+}
+
+benchmark_for_validation <- function(example) {
+  benchmark <- example$benchmark_od
+  if (isTRUE(require_observed_validation_rows) && "benchmark_observed" %in% names(benchmark)) {
+    benchmark <- benchmark |>
+      filter(.data$benchmark_observed %in% TRUE)
+  }
+  if (nrow(benchmark) == 0L) {
+    stop("Validation requires non-empty observed Census benchmark rows.")
+  }
+  benchmark
+}
+
+adjusted_for_validation <- function(adj) {
+  out <- adj
+  if (isTRUE(require_observed_validation_rows) && "mpd_zero_filled" %in% names(out)) {
+    out <- out |>
+      filter(!(.data$mpd_zero_filled %in% TRUE))
+  }
+  if (nrow(out) == 0L) {
+    stop("Validation requires non-empty observed adjusted-flow rows.")
+  }
+  out
 }
 
 scenario_repeated_observation <- function(scenario) {
@@ -711,6 +880,8 @@ for (scenario in scenario_ids) {
   }
 }
 
+invisible(lapply(scenario_examples, assert_real_empirical_example))
+
 scenario_audit <- bind_rows(lapply(names(scenario_examples), function(key) {
   ex <- scenario_examples[[key]]
   if (!isTRUE(ex$available)) {
@@ -724,6 +895,8 @@ scenario_audit <- bind_rows(lapply(names(scenario_examples), function(key) {
       n_mpd_rows = NA_integer_,
       n_benchmark_rows = NA_integer_,
       n_coverage_rows = NA_integer_,
+      n_distance_rows = NA_integer_,
+      distance_source = NA_character_,
       n_sources = dplyr::n_distinct(ex$manifest$mpd_source),
       n_time_periods = dplyr::n_distinct(ex$manifest$mpd_time),
       source_levels = paste(sort(unique(ex$manifest$mpd_source)), collapse = ", "),
@@ -743,6 +916,8 @@ scenario_audit <- bind_rows(lapply(names(scenario_examples), function(key) {
     n_mpd_rows = nrow(ex$mpd_od),
     n_benchmark_rows = nrow(ex$benchmark_od),
     n_coverage_rows = nrow(ex$coverage),
+    n_distance_rows = nrow(ex$distance),
+    distance_source = paste(sort(unique(ex$distance$distance_source)), collapse = ", "),
     n_sources = dplyr::n_distinct(ex$mpd_od$mpd_source),
     n_time_periods = dplyr::n_distinct(ex$mpd_od$mpd_time),
     source_levels = paste(sort(unique(ex$mpd_od$mpd_source)), collapse = ", "),
@@ -783,7 +958,7 @@ The coverage-offset models estimate Census-scale true flows while treating
 source/time-specific coverage as a fixed observation offset. The reduced-form
 models estimate a counterfactual MPD-to-benchmark correction from the fitted
 bias covariate rather than using the coverage offset. The latent two-level
-models are the novel experimental path. They estimate source-invariant latent
+models are the advanced repeated-source path. They estimate source-invariant latent
 true OD or OD-time flow states and model observed source/time rows as noisy
 coverage-scaled observations of those latent states.
 
@@ -891,7 +1066,8 @@ make_adjustment_specs <- function(scenario) {
       observation_model = "latent_two_level",
       target_scale = "true_flow",
       backend = "stan_latent",
-      latent_flow_unit = if (scenario == "s4") "od_time" else "od",
+      bias_formula = ~ 0,
+      latent_flow_unit = "auto",
       max_n_areas = min(max(area_grid), 8)
     )
   }
@@ -1028,7 +1204,7 @@ run_baselines_for_example <- function(example) {
       mpd_slice = mpd_slice,
       coverage_slice = coverage_slice,
       covariates = example$covariates,
-      benchmark = example$benchmark_od
+      benchmark = benchmark_for_validation(example)
     )
   })
 
@@ -1097,12 +1273,13 @@ run_multilevel_spec <- function(example, spec, spec_index) {
       elapsed_seconds = 0
     ))
   }
+  assert_real_empirical_example(example)
 
   iter <- if (isTRUE(use_confirmatory_settings)) iter_confirmatory else iter_exploratory
   chains <- if (isTRUE(use_confirmatory_settings)) chains_confirmatory else chains_exploratory
   seed <- seed_base + spec_index + example$n_areas + match(example$scenario, scenario_ids) * 100L
 
-  capture_run(
+  run <- capture_run(
     debiasR::adjust_multilevel_bayes(
       mpd_od_df = example$mpd_od,
       coverage_df = example$coverage,
@@ -1131,6 +1308,16 @@ run_multilevel_spec <- function(example, spec, spec_index) {
       include_flow_adj_draws = FALSE
     )
   )
+  if (isTRUE(run$success)) {
+    distance_source <- attr(run$result, "distance_source") %||% NA_character_
+    if (identical(distance_source, "synthetic") ||
+        any(grepl("synthetic index-based distance", run$warnings, ignore.case = TRUE))) {
+      run$success <- FALSE
+      run$error <- "Rejected empirical model run because it used synthetic OD distance."
+      run$result <- NULL
+    }
+  }
+  run
 }
 
 multilevel_runs <- list()
@@ -1333,8 +1520,8 @@ for (key in names(scenario_examples)) {
     method_name <- unique(method_tbl$method)[[1]]
     validation_key <- paste(key, method_name, sep = "__")
     validation_runs[[validation_key]] <- validate_one_method(
-      adj = method_tbl,
-      benchmark = ex$benchmark_od,
+      adj = adjusted_for_validation(method_tbl),
+      benchmark = benchmark_for_validation(ex),
       method_name = method_name
     )
     validation_metadata[[validation_key]] <- tibble(

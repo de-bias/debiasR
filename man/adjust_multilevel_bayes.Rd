@@ -151,8 +151,8 @@ true-flow scale by using coverage as an observation-process offset.}
 the existing fitted-bias-covariate path. \code{"coverage_offset"} uses
 active-user coverage as a fixed offset and is required for
 \code{target_scale = "true_flow"}. \code{"latent_two_level"} fits an
-experimental joint latent model with a source-invariant true-flow state
-and source/time-specific MPD observation process.}
+advanced joint latent model with a source-invariant true-flow state and
+source/time-specific MPD observation process.}
 
 \item{coverage_scale}{Coverage rate used by \code{"coverage_offset"}:
 \code{"origin"} uses \eqn{c_i}, \code{"destination"} uses \eqn{c_j}, and
@@ -162,7 +162,9 @@ and source/time-specific MPD observation process.}
 \code{observation_model = "latent_two_level"}. \code{"od"} shares one
 latent flow across source/time observations of an OD pair; \code{"od_time"}
 shares one latent flow across sources within each OD-time cell.
-\code{"auto"} chooses \code{"od_time"} for S2/S4 and \code{"od"} otherwise.}
+\code{"auto"} chooses \code{"od_time"} for S2 and for S4 only when each
+OD-time latent state has repeated observed sources; otherwise it uses
+\code{"od"}.}
 
 \item{latent_coef_prior_scale, latent_bias_prior_scale}{Positive prior
 scales used by the custom \code{"stan_latent"} backend for true-flow and
@@ -172,8 +174,8 @@ observation-bias coefficients. These controls are ignored by
 \item{latent_intercept_prior_scale}{Positive prior scale for the true-flow
 intercept in the custom \code{"stan_latent"} backend.}
 
-\item{latent_state_prior_scale, latent_source_prior_scale, latent_time_prior_scale}{Positive half-normal prior scales used by the custom \code{"stan_latent"}
-backend for latent OD/OD-time, source, and time standard deviations.}
+\item{latent_state_prior_scale, latent_source_prior_scale, latent_time_prior_scale}{Positive regularization scales used by the custom \code{"stan_latent"}
+backend for centered latent OD/OD-time, source, and time effects.}
 
 \item{latent_phi_prior_rate}{Positive exponential prior rate for the
 negative-binomial overdispersion parameter in the custom
@@ -263,12 +265,12 @@ active-user coverage. The returned \code{flow_adj} is the estimated
 true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
 
 In \code{observation_model = "latent_two_level"} mode, the Bayesian path
-fits an experimental joint latent model. It estimates a source-invariant
-true-flow intensity for each OD or OD-time state, then models each MPD
-source/time row as a coverage-scaled noisy observation of that latent state.
-This model is most informative for repeated source structures (S3/S4) and
-remains weakly identified for S1/S2 designs without strong priors or
-external validation.
+fits an approved advanced joint latent model for repeated-source empirical
+workflows. It estimates a source-invariant true-flow intensity for each OD
+or OD-time state, then models each MPD source/time row as a coverage-scaled
+noisy observation of that latent state. This model is most informative for
+repeated source structures (S3/S4) and remains weakly identified for S1/S2
+designs without strong priors or external validation.
 }
 \examples{
 if (requireNamespace("lme4", quietly = TRUE)) {

@@ -8,15 +8,21 @@ data {
   matrix[N_obs, K_bias] X_bias_obs;
   matrix[N_pred, K_bias] X_bias_pred;
   int<lower=1> L;
+  int<lower=1> L_basis;
+  matrix[L, L_basis] latent_basis;
   int<lower=1, upper=L> latent_id_obs[N_obs];
   int<lower=1, upper=L> latent_id_pred[N_pred];
   int<lower=0> y[N_obs];
   vector[N_obs] log_q_obs;
   vector[N_pred] log_q_pred;
   int<lower=1> S;
+  int<lower=1> S_basis;
+  matrix[S, S_basis] source_basis;
   int<lower=1, upper=S> source_id_obs[N_obs];
   int<lower=1, upper=S> source_id_pred[N_pred];
   int<lower=1> T;
+  int<lower=1> T_basis;
+  matrix[T, T_basis] time_basis;
   int<lower=1, upper=T> time_id_obs[N_obs];
   int<lower=1, upper=T> time_id_pred[N_pred];
   int<lower=0, upper=1> use_time_effect;
@@ -35,19 +41,16 @@ data {
 parameters {
   vector[K_true] beta_true_raw;
   vector[K_bias] beta_bias;
-  vector[L] z_latent;
-  real<lower=0> sigma_latent;
-  vector[S] z_source;
-  real<lower=0> sigma_source;
-  vector[T] z_time;
-  real<lower=0> sigma_time;
+  vector[L_basis] latent_effect_raw;
+  vector[S_basis] source_effect_raw;
+  vector[T_basis] time_effect_raw;
   real<lower=0> phi;
 }
 transformed parameters {
   vector[K_true] beta_true = beta_true_raw;
-  vector[L] latent_effect = sigma_latent * z_latent;
-  vector[S] source_effect = sigma_source * (z_source - mean(z_source));
-  vector[T] time_effect = sigma_time * (z_time - mean(z_time));
+  vector[L] latent_effect = prior_latent_state_scale * (latent_basis * latent_effect_raw);
+  vector[S] source_effect = prior_source_scale * (source_basis * source_effect_raw);
+  vector[T] time_effect = prior_time_scale * (time_basis * time_effect_raw);
 
   if (true_intercept_col > 0) {
     beta_true[true_intercept_col] = intercept_loc +
@@ -63,12 +66,9 @@ model {
     }
   }
   beta_bias ~ normal(0, prior_bias_scale);
-  z_latent ~ normal(0, 1);
-  sigma_latent ~ normal(0, prior_latent_state_scale);
-  z_source ~ normal(0, 1);
-  sigma_source ~ normal(0, prior_source_scale);
-  z_time ~ normal(0, 1);
-  sigma_time ~ normal(0, prior_time_scale);
+  latent_effect_raw ~ normal(0, 1);
+  source_effect_raw ~ normal(0, 1);
+  time_effect_raw ~ normal(0, 1);
   phi ~ exponential(phi_prior_rate);
 
   for (n in 1:N_obs) {

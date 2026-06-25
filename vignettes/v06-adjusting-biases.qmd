@@ -916,7 +916,7 @@ period. `adjust_multilevel_bayes()` can also accept S2-S4 source/time
 structures through `scenario`, `source_col`, `time_col` and
 `repeated_observation`.
 
-For repeated source/time data, the latest experimental option is
+For repeated source/time data, the approved advanced option is
 `observation_model = "latent_two_level"`. In this mode, the model estimates one
 shared latent true-flow state for an OD pair or OD-time group and treats each
 source/time MPD row as an observation of that state. This is most useful for S3
@@ -925,10 +925,12 @@ mobility state. Source and time effects live in the observation layer, so
 `flow_true_pred` is source-invariant within a latent state, while
 `flow_mpd_pred` can vary by source and time.
 
-This backend is still experimental. Use it after checking that the data really
-contain repeated source/time observations and after inspecting the diagnostics,
-including divergence rate, treedepth hit rate, acceptance summaries, R-hat and
-effective sample size and posterior predictive metadata where available. The
+This backend is approved for observed-row repeated-source S3/S4 empirical
+workflows after real MPD/Census validation and prior-sensitivity checks. Use it
+only after checking that the data really contain repeated source/time
+observations and after inspecting the diagnostics, including divergence rate,
+treedepth hit rate, acceptance summaries, R-hat, effective sample size and
+posterior predictive metadata where available. The
 [advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html)
 provides deeper detail on source-time structures, reduced-form compatibility
 and latent-backend diagnostics.

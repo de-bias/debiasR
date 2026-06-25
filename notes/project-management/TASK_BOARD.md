@@ -8,21 +8,20 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Now
 
-1. Harden latent two-level Bayesian enhancement - `1-2 days`
-- Enhancement issue #18 now has a design note and an experimental custom Stan
+1. Confirm optional Bayesian CI workflow - `1-2h`
+- Enhancement issue #18 now has a design note and an approved advanced custom Stan
   backend for `observation_model = "latent_two_level"` in
   `adjust_multilevel_bayes()`.
 - The backend creates `latent_flow_id` states, estimates source-invariant OD or
   OD-time true-flow intensities, and models MPD source/time rows as
   coverage-scaled noisy observations of those latent states.
-- The branch now exposes latent prior and sampler controls, records richer
-  sampler diagnostics, and splits optional Bayesian validation into standard
-  `rstanarm-smoke`, full `rstanarm`, and latent-Stan scopes.
-- The optional runner now includes a `latent-stress` scope for larger S3
-  repeated-source and S4 source-time complete-grid synthetic fixtures. Remaining
-  work is to run and record the hosted/manual stress lane, then add prior
-  sensitivity notes before promoting the latent backend beyond experimental
-  status.
+- The branch exposes latent prior and sampler controls, records richer sampler
+  diagnostics, uses identified sum-to-zero latent/source/time contrasts, and
+  splits optional Bayesian validation into standard `rstanarm-smoke`, full
+  `rstanarm`, and latent-Stan scopes.
+- Local tests and real-data empirical validation now support approving
+  `latent_two_level` for observed-row repeated-source S3/S4 workflows. The
+  remaining workflow check is the hosted/manual GitHub Actions latent lane.
 - Local source/time flow data for empirical S1-S4 validation are now available
   outside the repository at `/Volumes/DEBIAS/data/outputs/flows`. The first
   route is the HTW branch, using `mapp1`, `mapp2`, and Census benchmark files
@@ -39,10 +38,29 @@ The staged track below is intended to be implemented one stage per chat window. 
 - The default LAD empirical route now has selected-area distance support through
   `debiasRdata::lad_centroids`.
 - The default `coverage_offset` Bayesian route is now empirically approved for
-  observed-flow LAD S1-S4 workflows; remaining Bayesian hardening is focused on
-  hosted/manual workflow confirmation and the experimental latent backend.
+  observed-flow LAD S1-S4 workflows; `latent_two_level` is approved as an
+  advanced observed-row S3/S4 repeated-source route with real-data and
+  diagnostic guardrails.
 
 ## Recently Completed
+
+1. Approve latent two-level Bayesian repeated-source implementation - `complete`
+- Completed on 2026-06-25.
+- The empirical latent approval route used real HTW MPD source/time files under
+  `/Volumes/DEBIAS/data/outputs/flows`, real Census benchmark files, and real
+  `debiasRdata::lad_centroids` OD distances. Synthetic distance fallback,
+  complete-grid MPD zero-fill rows, and zero-filled benchmark rows are rejected
+  for approval evidence.
+- Exploratory prior sensitivity fitted S3 and S4 repeated-source LAD subsets
+  with default, tighter, and wider latent priors. Confirmatory default-prior
+  fits used `iter = 1000`, `chains = 4`, and `latent_max_treedepth = 15`.
+- Result: S3 and S4 confirmatory latent fits completed with no failures, no
+  divergences, no treedepth hits, E-BFMI above 0.91, max R-hat about 1.023, and
+  minimum effective sample size about 190.
+- Decision: approve `observation_model = "latent_two_level"` as an advanced
+  Bayesian alternative for observed-row repeated-source S3/S4 workflows. It is
+  not the default route; users should still start with `coverage_offset` unless
+  they need a latent source-invariant true-flow state.
 
 1. Approve default coverage-offset Bayesian empirical implementation - `complete`
 - Completed on 2026-06-25.
@@ -56,9 +74,8 @@ The staged track below is intended to be implemented one stage per chat window. 
 - Decision: approve the default `coverage_offset` implementation as a viable
   empirical alternative for observed-flow LAD S1-S4 workflows, especially when
   benchmark OD flows are unavailable for fitting or reserved for validation.
-- Scope: this approval does not promote `latent_two_level`; the latent backend
-  remains experimental pending empirical S3/S4 latent runs and prior
-  sensitivity checks.
+- Scope: this approval covers the default `coverage_offset` route. The separate
+  latent repeated-source approval is recorded above.
 - Documentation updated to frame Bayesian validation as external validation
   against benchmark-assisted methods rather than a pure in-sample MAE contest.
 
@@ -144,17 +161,17 @@ The staged track below is intended to be implemented one stage per chat window. 
 - `validate_flow_distribution()` now supports raw-versus-benchmark,
   adjusted-versus-benchmark, and raw-versus-adjusted comparisons through the
   same origin-conditioned KL/JSD contract.
-- `adjust_multilevel_bayes()` now exposes the experimental
+- `adjust_multilevel_bayes()` then exposed the experimental
   `observation_model = "latent_two_level"` option for repeated source/time
   structures while preserving the frequentist engine for shared S1-S4 data
   contract testing.
 - This opened the path for issue #18. The follow-up `0.0.0.9002` work adds the
-  first custom Stan latent backend; empirical and diagnostic hardening remains
-  in Now.
+  first custom Stan latent backend; later 2026-06-25 work approves the
+  repeated-source S3/S4 route with real-data and diagnostic guardrails.
 - Vignettes and project notes were updated to explain the new package-level
   functions and the latent backend status. The main adjustment vignette now
   teaches the default coverage-offset Bayesian implementation, while the
-  advanced Bayesian adjustment vignette carries the experimental latent backend,
+  advanced Bayesian adjustment vignette carries the latent backend,
   reduced-form compatibility, S1-S4 source/time, and diagnostics material.
 
 1. Make repository public on GitHub - `complete`

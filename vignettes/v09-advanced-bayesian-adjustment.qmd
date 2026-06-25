@@ -37,7 +37,7 @@ most practical starting point for routine Bayesian adjustment. Start with
 [Adjusting origin-destination flows](v06-adjusting-biases.html) if you want the
 default workflow first. Here we compare the DEBIAS observation-model choices,
 show how the fast deterministic engine can be used for specification checks, and
-explain when the experimental latent two-level backend is useful.
+explain when the approved advanced latent two-level backend is useful.
 
 The guiding principle is progressive complexity: use the simplest model that
 matches the data structure and inferential goal.
@@ -219,7 +219,7 @@ be described as the same observation-process model as `coverage_offset`.
 
 ### Latent two-level route
 
-The latent two-level route is the experimental model that most directly matches
+The latent two-level route is the advanced model that most directly matches
 the phrase "two-level" in a statistical sense. It introduces a shared hidden
 true-flow state and treats repeated source/time MPD rows as observations of
 that state:
@@ -424,7 +424,7 @@ adj_default <- debiasR::adjust_multilevel_bayes(
   covariates_df = covariates,
   distance_df = distance,
   mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
-  bias_formula = ~ bias_e_origin,
+  bias_formula = ~ 0,
   target_scale = "true_flow",
   observation_model = "coverage_offset",
   coverage_scale = "origin",
@@ -539,11 +539,12 @@ where:
 - $z_{ijst}\gamma$ represents observation-layer structure such as coverage,
   source and time effects.
 
-In the current experimental backend, `adjust_multilevel_bayes()` represents
-this shared state through `latent_flow_id` and estimates it with the custom
-`stan_latent` backend. The returned `flow_adj` and `flow_true_pred` summarize
-posterior draws of the latent true-flow intensity, while `flow_mpd_pred`
-summarizes the source/time-specific MPD observation mean.
+In the approved custom Stan backend, `adjust_multilevel_bayes()` represents
+this shared state through `latent_flow_id` and estimates source-invariant
+latent effects with an identified sum-to-zero parameterization. The returned
+`flow_adj` and `flow_true_pred` summarize posterior draws of the latent
+true-flow intensity, while `flow_mpd_pred` summarizes the source/time-specific
+MPD observation mean.
 
 ```{r eval=FALSE}
 adj_latent <- debiasR::adjust_multilevel_bayes(
@@ -552,7 +553,7 @@ adj_latent <- debiasR::adjust_multilevel_bayes(
   covariates_df = covariates,
   distance_df = distance,
   mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
-  bias_formula = ~ bias_e_origin,
+  bias_formula = ~ 0,
   target_scale = "true_flow",
   observation_model = "latent_two_level",
   backend = "auto",
@@ -602,7 +603,7 @@ source_time_table <- tibble::tribble(
   "Multiple sources, one time",
   "`s3`",
   "OD state shared across sources",
-  "Best first use case for the experimental `latent_two_level` backend.",
+  "Best first use case for the approved advanced `latent_two_level` backend.",
   "Multiple sources, multiple times",
   "`s4`",
   "OD-time state shared across sources within each time period",
@@ -700,9 +701,10 @@ size, and R-hat for core model parameters. The `latent_*_prior_scale`,
 `latent_rng_eta_max` arguments are available for sensitivity checks when the
 default weakly regularizing settings are not appropriate.
 
-The latent backend should be treated as an advanced sensitivity model until
-larger repeated-source/time examples, stronger prior checks, and richer
-posterior predictive diagnostics are validated.
+The latent backend should still be treated as an advanced model: use it when
+the repeated-source structure is substantively important, keep prior checks in
+the workflow, and inspect posterior predictive diagnostics before relying on
+the fitted latent state.
 
 ## Current validation status
 
@@ -715,11 +717,12 @@ strong on RMSE, while retaining the main Bayesian advantage: the benchmark OD
 table was used for validation rather than fitting.
 
 This approval is intentionally scoped. It supports `coverage_offset` as the
-default empirical Bayesian route for S1-S4 observed-flow workflows. It does not
-promote `latent_two_level`, which remains experimental until empirical
-source/time latent fits and prior sensitivity checks are complete. The
-`reduced_form` route remains useful for compatibility and sensitivity checks,
-but it is not the recommended implementation for new Bayesian adjustment work.
+default empirical Bayesian route for S1-S4 observed-flow workflows. It also
+approves `latent_two_level` as an advanced repeated-source S3/S4 route after
+real MPD/Census empirical runs, real centroid distances, prior-sensitivity
+checks, and confirmatory sampler diagnostics. The `reduced_form` route remains
+useful for compatibility and sensitivity checks, but it is not the recommended
+implementation for new Bayesian adjustment work.
 
 ## Practical recommendation
 
