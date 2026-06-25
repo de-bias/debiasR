@@ -716,6 +716,15 @@ were competitive with benchmark-calibrated deterministic methods on MAE and
 strong on RMSE, while retaining the main Bayesian advantage: the benchmark OD
 table was used for validation rather than fitting.
 
+This is the main reason not to read the empirical table as a simple race to the
+lowest MAE. Raking, selection-rate calibration and coefficient calibration can
+use benchmark margins or benchmark OD targets while they are being fitted, so
+they are allowed to see information that the Bayesian coverage-offset model
+does not require. When the Bayesian model achieves similar benchmark
+performance without fitting to those target flows, the comparison supports it
+as a practical alternative rather than a method that must dominate every
+benchmark-trained score.
+
 This approval is intentionally scoped. It supports `coverage_offset` as the
 default empirical Bayesian route for S1-S4 observed-flow workflows. It also
 approves `latent_two_level` as an advanced repeated-source S3/S4 route after

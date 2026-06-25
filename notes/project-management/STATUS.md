@@ -294,7 +294,11 @@ Last updated: 2026-06-25
   485, and there were no R-hat, ESS, or non-convergence warnings. S4
   adjusted-versus-benchmark metrics placed Bayesian coverage-offset behind
   raking ratio and inverse penetration on MAE but ahead of coefficient OLS, and
-  lower than all three on RMSE.
+  lower than all three on RMSE. Interpret these comparisons as external
+  validation, not a pure target-fitting contest: raking and calibrated
+  deterministic methods can use benchmark margins or OD targets during fitting,
+  while the Bayesian coverage-offset route does not need benchmark OD flows and
+  reserves them for validation.
 
 ## Current Risks / Blockers
 

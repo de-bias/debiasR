@@ -909,6 +909,15 @@ significantly more runtime, dependencies and diagnostic checking when fitted
 with the full Bayesian engine. The key strength is that the model does not
 require a benchmark dataset of flows.
 
+This affects how validation scores should be read. Methods such as raking,
+selection-rate calibration and coefficient calibration can score better on a
+held-out-looking benchmark table because they are fitted with benchmark targets
+or benchmark OD flows. The Bayesian coverage-offset route does not need to see
+those target flows during fitting; it uses coverage, covariates and distance,
+then reserves the benchmark OD table for external validation. Similar
+benchmark performance is therefore meaningful even when it does not win every
+metric.
+
 *More complex Bayesian structures*
 
 The example above uses the simplest S1 structure: one source and one observation

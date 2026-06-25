@@ -47,6 +47,11 @@
   repeated-source route after real MPD/Census empirical validation, real
   centroid distances, prior-sensitivity checks, and confirmatory sampler
   diagnostics.
+- Clarified that benchmark-trained methods such as raking, selection-rate
+  calibration and coefficient calibration can score well because they use
+  benchmark margins or OD targets during fitting; Bayesian coverage-offset
+  models do not need benchmark OD flows and can reserve them for external
+  validation, so similar benchmark performance is a meaningful result.
 - Hardened the custom `stan_latent` backend with standardized design matrices,
   source/time-aware latent-unit selection, sum-to-zero latent/source/time
   contrasts, and real-data validation guards that reject synthetic distance and

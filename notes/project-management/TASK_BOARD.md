@@ -78,6 +78,11 @@ The staged track below is intended to be implemented one stage per chat window. 
   latent repeated-source approval is recorded above.
 - Documentation updated to frame Bayesian validation as external validation
   against benchmark-assisted methods rather than a pure in-sample MAE contest.
+  Raking, selection-rate and coefficient methods can use benchmark margins or
+  OD targets during fitting, while the Bayesian coverage-offset route does not
+  need benchmark OD flows and can reserve them for validation; similar
+  benchmark performance is therefore meaningful even when Bayesian does not win
+  every metric.
 
 1. Add validation visual prototype functions - `complete`
 - Completed on 2026-06-13.

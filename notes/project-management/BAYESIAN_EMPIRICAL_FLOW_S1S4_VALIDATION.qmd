@@ -1827,4 +1827,7 @@ sampling budget:
   identifiability diagnostics are acceptable;
 - which validation plot and metric should define the practical best-to-worst
   ordering;
+- whether methods that use benchmark margins or benchmark OD targets during
+  fitting are being compared fairly with Bayesian methods that reserve the
+  benchmark OD table for external validation;
 - the largest area grid that remains feasible for manual RStudio testing.
