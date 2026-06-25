@@ -46,8 +46,6 @@ navbar:
       menu:
       - text: Validation workflow
         href: articles/v07-validation.html
-      - text: Visualising flows
-        href: articles/v08-visualising-flows.html
     articles:
       text: All articles
       href: articles/index.html
@@ -72,6 +70,8 @@ articles:
   navbar: Validate
   contents:
   - v07-validation
+- title: internal
+  contents:
   - v08-visualising-flows
 
 reference:
