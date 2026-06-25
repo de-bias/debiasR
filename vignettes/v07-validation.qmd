@@ -39,6 +39,16 @@ It also enables comparisons between:
 
 The validation methods included in `debiasR` allow the assessment of adjustment outputs at five levels: (1) overall, (2) origin-destination (OD) marginal, (3) individual OD-pair, distributional allocation, and spatial/residual structure validation. The main assessment tools are error metrics, correlation coefficients, visual tools, distributional allocation metrics and residual-structure diagnostics. The allocation metrics use KL divergence and Jensen-Shannon divergence for origin-conditioned destination-share distributions. The residual-structure diagnostics check whether remaining errors retain scale, global or local spatial clustering, or covariate-linked patterns. These diagnostics provide flexibility to assess particular dimensions of the data which may vary depending on the target use of the adjusted flows.
 
+Method comparisons should distinguish external validation from
+benchmark-assisted calibration. Methods such as raking ratio and coefficient
+regression can use benchmark OD information during adjustment, so strong
+in-sample benchmark performance partly reflects the information supplied to the
+method. The Bayesian coverage-offset model does not require benchmark OD flows
+for fitting; the same benchmark table is therefore an external validation
+target. For Bayesian methods, validation should combine benchmark error
+metrics with posterior diagnostics, uncertainty summaries, residual structure,
+runtime, and the value of modelling repeated source/time observations.
+
 ## Intuition
 
 A practical way to think of assessing the output of the various adjustment methods is to adopt an overall system-wide perspective of the flow system, move to an intermediate marginal perspective, then to individual origin-destination pairs, then to the allocation of destinations within each origin, and finally to the structure of the remaining residuals. We use five levels.
@@ -568,4 +578,14 @@ The validation methods presented here offer quantitative evidence to assist in t
 
 - *Data availability*. Adjustment methods require different levels of inputs. Simpler deterministic adjustment methods generally require fewer data inputs. Yet, they often require target benchmark flow data, and these are precisely the data inputs that we often do not have. Benchmark flow data often come from censuses, which are considered the gold standard, but these data are generally collected every ten or five years and are outdated when a crisis occurs or a new evaluation of mobility is needed to support humanitarian operations, planning or policy decisions. Hence, using an adjustment method requiring census benchmark data would produce misleading results if it represented the mobility network at the time of the census rather than the mobility system during the period of interest. An adjustment method, such as the proposed Bayesian multilevel modelling approach, that is not reliant on such inputs may be more appropriate in such scenarios.
 - *Required measurement precision*. Adjustment methods have varying levels of precision in terms of scale reproducing population numbers. Historically, prior work has focused on satisfying the requirement of proportionality by assessing the linear correlation between raw and/or adjusted mobile-phone-derived flows and benchmark flows. Yet, such assessment does not guarantee that raw or adjusted flows provide an accurate estimate in population numbers. They often still represent number of devices, rather than people. Except for the selection rate II method, all the methods in `debiasR` seek to provide population numbers.
+- *Benchmark use and model purpose*. A benchmark-calibrated method may be the
+  best choice when a trusted benchmark OD table or trusted marginal totals match
+  the period being estimated. A Bayesian coverage-offset model is more
+  attractive when the benchmark is old, unavailable for fitting, or reserved for
+  validation, and when users need posterior uncertainty, covariate structure, or
+  repeated source/time modelling. In that setting, the question is not only
+  whether Bayesian adjustment has the lowest in-sample MAE, but whether it
+  converges, improves substantially on raw MPD flows, remains competitive on
+  residual diagnostics, and supplies information that deterministic methods do
+  not.
 - *Time constraint*. The adjustment methods in `debiasR` may demand more or less time. Such demand will depend on processes such as data gathering, data processing and calibrating adjustment methods. These demands normally intersect and often come into conflict with the speed at which flow estimates are needed. As suggested above, the use of digital trace data is often triggered by the rapid and urgent need to have "rough" population numbers to inform humanitarian, planning or policy decisions, to address a crisis or new intervention.

@@ -113,6 +113,153 @@ As a rule of thumb, start with `coverage_offset`. Move to
 `latent_two_level` only when the repeated-observation structure gives the model
 real information about the hidden flow state.
 
+## How the model variants differ
+
+The three Bayesian observation-model variants answer related but different
+questions. They should not all be read through the two-equation
+coverage-offset explanation used in the main adjustment vignette.
+
+```{r echo=FALSE}
+variant_structure_table <- tibble::tribble(
+  ~Variant, ~Main_question, ~Adjustment_target, ~What_is_not_estimated,
+  "`coverage_offset`",
+  "What true OD flow would have produced the observed MPD flow, given known coverage?",
+  "Census-scale true-flow prediction",
+  "Coverage is fixed as an offset; there is no separate source-invariant latent OD state.",
+  "`reduced_form`",
+  "What would the fitted MPD flow look like if the fitted bias term were neutral?",
+  "MPD-scale counterfactual prediction",
+  "It does not model MPD as coverage-scaled observations of Census-scale true flows.",
+  "`latent_two_level`",
+  "What shared hidden OD or OD-time flow state is implied by repeated source/time observations?",
+  "Latent true-flow prediction",
+  "The latent state is not source-specific; source/time variation belongs to the observation layer."
+)
+
+knitr::kable(variant_structure_table)
+```
+
+### Coverage-offset true-flow route
+
+The coverage-offset route treats the MPD count as a partial observation of an
+underlying true flow. Its observation equation is:
+
+$$
+Y^{mpd}_{ijst} \sim \mathrm{Poisson}(\mu_{ijst})
+$$
+
+$$
+\log(\mu_{ijst}) = \log(q_{ijst}) + \eta^{true}_{ijst}
+$$
+
+where $Y^{mpd}_{ijst}$ is the observed MPD flow for origin $i$, destination
+$j$, source $s$ and time $t$; $q_{ijst}$ is the coverage-derived observation
+probability; and $\eta^{true}_{ijst}$ is the true-flow linear predictor. In a
+simple S1 setting, the source and time subscripts can be dropped:
+
+$$
+\log(\mu_{ij}) = \log(q_{ij}) + \eta^{true}_{ij}
+$$
+
+The true-flow predictor can include origin covariates, destination covariates,
+distance, and optional random-effect terms:
+
+$$
+\eta^{true}_{ij}
+= \alpha + X_i\beta_o + X_j\beta_d + \gamma \log(d_{ij}) + u_i + v_j + w_{ij}
+$$
+
+The adjusted flow is the prediction after removing the fixed coverage offset:
+
+$$
+F^{adj}_{ij} = \exp(\eta^{true}_{ij})
+$$
+
+This route is not a latent-state model in the strict sense. The true-flow scale
+is recovered by fitting a count model with a fixed observation offset and then
+predicting with that offset set to zero. If source or time terms are included in
+the formula, they are fitted as predictors in this non-latent model; the route
+does not force one shared source-invariant OD state unless the formula and data
+structure imply that restriction.
+
+### Reduced-form compatibility route
+
+The reduced-form route preserves the earlier observed-flow correction logic. It
+fits the MPD observations directly:
+
+$$
+Y^{mpd}_{ijst} \sim \mathrm{Poisson}(\mu^{mpd}_{ijst})
+$$
+
+$$
+\log(\mu^{mpd}_{ijst}) =
+\eta^{mobility}_{ijst} + \eta^{bias}_{ijst}
+$$
+
+The mobility part can contain OD covariates, distance and source/time terms.
+The bias part contains fitted bias covariates, such as an origin coverage-bias
+term:
+
+$$
+\eta^{bias}_{ijst} = \delta b_i
+$$
+
+The adjustment is a counterfactual prediction in which the fitted bias term is
+set to a neutral value:
+
+$$
+F^{adj}_{ij} =
+\exp(\eta^{mobility}_{ij} + \eta^{bias}_{ij}\mid b_i = 0)
+$$
+
+This means the reduced-form route returns an MPD-scale counterfactual, not a
+Census-scale true-flow state identified through a coverage offset. It is useful
+for reproducing earlier analyses and for sensitivity checks, but it should not
+be described as the same observation-process model as `coverage_offset`.
+
+### Latent two-level route
+
+The latent two-level route is the experimental model that most directly matches
+the phrase "two-level" in a statistical sense. It introduces a shared hidden
+true-flow state and treats repeated source/time MPD rows as observations of
+that state:
+
+$$
+Y^{mpd}_{ijst} \sim \mathrm{Poisson}(\mu_{ijst})
+$$
+
+$$
+\log(\mu_{ijst}) =
+\log(q_{ijst}) + \theta_{g(i,j,t)} + z_{ijst}\gamma
+$$
+
+where $\theta_{g(i,j,t)} = \log(\lambda^{true}_{g(i,j,t)})$ is the log latent
+true-flow intensity for an OD or OD-time group, and $z_{ijst}\gamma$ captures
+observation-layer structure such as source and time effects. The latent group is
+controlled by `latent_flow_unit`: `latent_flow_unit = "od"` shares one state
+for each OD pair, while `latent_flow_unit = "od_time"` shares one state for
+each OD-time pair.
+
+The adjusted true-flow prediction is:
+
+$$
+F^{adj}_{g} = \lambda^{true}_{g} = \exp(\theta_g)
+$$
+
+The fitted MPD observation-scale prediction keeps the source/time observation
+layer:
+
+$$
+F^{mpd,pred}_{ijst} =
+\exp(\log(q_{ijst}) + \theta_{g(i,j,t)} + z_{ijst}\gamma)
+$$
+
+This route is most informative when repeated observations make the latent state
+empirically meaningful. In S3, multiple sources observe the same OD state. In
+S4, multiple source/time rows can share OD-time states. In S1, each state is
+observed only once, so the latent split is weakly identified and the
+coverage-offset route is usually clearer.
+
 ## Simulated source-time example
 
 The examples below use a small simulated dataset so the code can be read and
@@ -557,11 +704,28 @@ The latent backend should be treated as an advanced sensitivity model until
 larger repeated-source/time examples, stronger prior checks, and richer
 posterior predictive diagnostics are validated.
 
+## Current validation status
+
+The default `coverage_offset` route is the approved Bayesian implementation for
+observed-flow LAD workflows. In the empirical S4 LAD validation run, fixed and
+origin random-intercept coverage-offset models completed on the full selected
+LAD source/time table with acceptable sampler diagnostics. The Bayesian fits
+were competitive with benchmark-calibrated deterministic methods on MAE and
+strong on RMSE, while retaining the main Bayesian advantage: the benchmark OD
+table was used for validation rather than fitting.
+
+This approval is intentionally scoped. It supports `coverage_offset` as the
+default empirical Bayesian route for S1-S4 observed-flow workflows. It does not
+promote `latent_two_level`, which remains experimental until empirical
+source/time latent fits and prior sensitivity checks are complete. The
+`reduced_form` route remains useful for compatibility and sensitivity checks,
+but it is not the recommended implementation for new Bayesian adjustment work.
+
 ## Practical recommendation
 
 Use `coverage_offset` as the default Bayesian implementation. It is readable,
-fast enough for small workflows, and directly returns a true-flow scale from a
-coverage-aware observation model.
+validated for the default empirical LAD workflow, and directly returns a
+true-flow scale from a coverage-aware observation model.
 
 Use `latent_two_level` when the data structure justifies it: especially
 multiple MPD sources observing the same OD or OD-time state. Keep the older

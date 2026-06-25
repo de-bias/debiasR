@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-06-19
+Last updated: 2026-06-25
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -23,6 +23,11 @@ The staged track below is intended to be implemented one stage per chat window. 
   work is to run and record the hosted/manual stress lane, then add prior
   sensitivity notes before promoting the latent backend beyond experimental
   status.
+- Local source/time flow data for empirical S1-S4 validation are now available
+  outside the repository at `/Volumes/DEBIAS/data/outputs/flows`. The first
+  route is the HTW branch, using `mapp1`, `mapp2`, and Census benchmark files
+  at LAD/LTLA and MSOA support. Do not commit the raw flow files or bulky
+  rendered outputs into `debiasR`.
 
 2. Validate optional Bayesian CI workflow - `1-2h`
 - Fast core GitHub Actions validation passed on merged PR #11.
@@ -33,8 +38,29 @@ The staged track below is intended to be implemented one stage per chat window. 
   the frequentist engine remains available for fast testing and experimentation.
 - The default LAD empirical route now has selected-area distance support through
   `debiasRdata::lad_centroids`.
+- The default `coverage_offset` Bayesian route is now empirically approved for
+  observed-flow LAD S1-S4 workflows; remaining Bayesian hardening is focused on
+  hosted/manual workflow confirmation and the experimental latent backend.
 
 ## Recently Completed
+
+1. Approve default coverage-offset Bayesian empirical implementation - `complete`
+- Completed on 2026-06-25.
+- The full real LAD S4 validation route fitted both fixed and origin
+  random-intercept `observation_model = "coverage_offset"` Bayesian models with
+  real `debiasRdata::lad_centroids` distances, 309 LADs, 74,874 MPD rows,
+  64,162 validation pairs, `iter = 1000`, and `chains = 4`.
+- Result: both Bayesian models completed with no failures, max R-hat about
+  1.01, minimum effective sample size 485, and no R-hat, ESS, or
+  non-convergence warnings.
+- Decision: approve the default `coverage_offset` implementation as a viable
+  empirical alternative for observed-flow LAD S1-S4 workflows, especially when
+  benchmark OD flows are unavailable for fitting or reserved for validation.
+- Scope: this approval does not promote `latent_two_level`; the latent backend
+  remains experimental pending empirical S3/S4 latent runs and prior
+  sensitivity checks.
+- Documentation updated to frame Bayesian validation as external validation
+  against benchmark-assisted methods rather than a pure in-sample MAE contest.
 
 1. Add validation visual prototype functions - `complete`
 - Completed on 2026-06-13.
@@ -90,6 +116,12 @@ The staged track below is intended to be implemented one stage per chat window. 
 - The vignette keeps the S1 Bayesian example precomputed so routine renders do
   not rerun MCMC, and it points readers to the advanced Bayesian adjustment
   vignette for deeper S2-S4, reduced-form and latent-backend details.
+- Follow-up on 2026-06-25: the main adjustment vignette now avoids describing
+  all Bayesian variants as a generic two-level model. It scopes the MPD
+  observation equation and true-flow prediction equation to the
+  coverage-offset route only, keeps the coefficient-regression distinction in a
+  Quarto callout, and leaves the advanced Bayesian vignette to explain
+  `coverage_offset`, `reduced_form`, and `latent_two_level` separately.
 
 1. Post-public repository hygiene pass - `complete`
 - Completed on 2026-06-12.
@@ -167,9 +199,11 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 1. Harden the Bayesian path further - `1-2 days`
 - Validate complete-grid Bayesian prediction on real `debiasRdata` OD inputs.
-- Use the LAD route as the default empirical path; add MSOA distance assets only
-  if MSOA-specific empirical Bayesian examples are needed.
-- Record feasible empirical grid sizes and runtime expectations.
+- Keep the LAD coverage-offset route as the approved default empirical path;
+  add MSOA distance assets only if MSOA-specific empirical Bayesian examples are
+  needed.
+- Record feasible empirical grid sizes and runtime expectations for MSOA and
+  latent-backend workflows.
 - Keep the Bayesian tests in a clear optional CI lane if the scope expands.
 
 2. Prepare a release-ready maintenance pass - `1-2 days`
@@ -336,7 +370,7 @@ mobile-phone-derived input scenarios.
 
 Estimated effort: `3-5 days`
 
-Status: `in progress; Bayesian S1-S4 transfer implemented, LAD teaching examples remain`
+Status: `in progress; Bayesian S1-S4 transfer implemented, empirical HTW validation and LAD teaching examples remain`
 
 Scenario plan:
 
@@ -384,7 +418,11 @@ Software-development tasks:
 3. Test against MSOA-like and empirical inputs.
 - Use synthetic MSOA-like data for internal software tests and runtime checks
   because it is the stricter shape for grid size and repeated observations.
-  Keep real `debiasRdata` empirical tests as a separate runtime gate.
+- Use `/Volumes/DEBIAS/data/outputs/flows/htw` for the empirical S1-S4
+  validation track. Start with LAD/LTLA support for quicker manual runs, then
+  repeat stable specifications at MSOA support.
+- Treat the migration/Twitter files under `mig` as secondary until the
+  code/label harmonisation and geography support have been audited.
 - Add focused tests for scenario detection, required columns, output metadata,
   and compatibility with existing Bayesian prediction scopes.
 - Implementation update: the fast tier includes deterministic MSOA-like S1-S4
@@ -392,6 +430,10 @@ Software-development tasks:
   complete-grid prediction. Optional Bayesian tests cover repeated S2-S4
   source/time fitting with the rstanarm backend when installed, and the
   `latent-stress` scope covers synthetic S3/S4 `stan_latent` stress fixtures.
+- Next empirical step: build a local schema audit/normalisation notebook or
+  script that maps the HTW files to `origin`, `destination`, `flow`,
+  `mpd_source`, `mpd_time`, benchmark flow, geography, and coverage/covariate
+  fields without copying raw data into the repository.
 
 Vignette and teaching-material tasks:
 
@@ -417,6 +459,12 @@ Deliverables:
 - [x] a written multilevel model scenario plan
 - [x] scenario parameters for `adjust_multilevel_bayes()`
 - [x] internal MSOA-like software tests for S1-S4 data contracts
+- [ ] empirical S1-S4 schema audit for `/Volumes/DEBIAS/data/outputs/flows/htw`
+- [ ] local/manual empirical S1-S4 validation notebook or script covering
+  frequentist smoke fits, Bayesian pilots, runtime logging, and validation
+  plots
+- [ ] runtime and diagnostic summary for coverage-offset and latent two-level
+  Bayesian pilots across the available S1-S4 structures
 - [ ] LAD vignette examples for the teachable scenario path
 - [x] a documented decision on when the frequentist development engine is ready to
   transfer into the Bayesian implementation

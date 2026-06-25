@@ -1,6 +1,6 @@
 # Multilevel Model Scenario Plan
 
-Last updated: 2026-06-12
+Last updated: 2026-06-25
 
 ## Purpose
 
@@ -12,6 +12,12 @@ The Stage-1 Bayesian engine now supports S1-S4 source/time scenarios. The
 frequentist engine remains available through `model_engine = "frequentist"` for
 fast formula checks, data-shape checks, runtime-sensitive experimentation, and
 method comparison before committing to Bayesian sampling.
+
+2026-06-25 update: external empirical flow outputs are now available for
+testing the S1-S4 source/time structures at
+`/Volumes/DEBIAS/data/outputs/flows`. These files should be used for local
+validation runs only; raw files and bulky rendered outputs should not be
+committed to `debiasR`.
 
 ## Scenario Definitions
 
@@ -41,6 +47,22 @@ S4: multiple sources, multiple times.
 - Source and time identifiers are required.
 - The model should support source effects, time effects, and a later decision on
   whether a source-time interaction is needed.
+
+## Empirical S1-S4 Data Now Available
+
+The primary empirical route is the travel-to-work branch under
+`/Volumes/DEBIAS/data/outputs/flows/htw`, because it contains Census
+benchmarks and multiple mobile-phone-derived sources at LAD/LTLA and MSOA
+support. The migration branch under `mig` is useful secondary validation
+material, but should wait until the code/label harmonisation for the Twitter
+OD table has been audited.
+
+| Scenario | Primary HTW construction | Required audit before fitting |
+| --- | --- | --- |
+| S1 | One `mapp1` or `mapp2` OD table for one source/time slice, validated against the matching Census LAD or MSOA benchmark. | Standardise origin, destination, flow, source, time, geography, and benchmark fields; confirm whether the chosen file is already aggregated or has recoverable period metadata. |
+| S2 | One source observed across repeated periods, starting with `mapp1` weekly/monthly outputs when period identifiers can be recovered or constructed. | Confirm `mpd_time` values, repeated OD keys, period coverage, and whether weekly/monthly files are true repeated observations or aggregate summaries. |
+| S3 | Multiple sources for one matched period/support, starting with `mapp1` and `mapp2` monthly OD tables. | Harmonise flow columns (`count`, `trips`), source labels, geography support, and source-specific OD coverage before fitting source effects. |
+| S4 | Multiple sources over repeated periods, combining the source audit from S3 with the period audit from S2. | Confirm source-time coverage, define `mpd_source`, `mpd_time`, and `source_time`, and decide whether validation compares source-specific MPD-scale predictions or source-invariant true-flow estimates. |
 
 ## API Direction
 
@@ -110,6 +132,16 @@ contract-checking option.
 
 ## Development Data Policy
 
+Use `/Volumes/DEBIAS/data/outputs/flows` for empirical S1-S4 validation.
+
+- Treat the HTW branch as the first empirical S1-S4 testing route because it
+  has `mapp1`, `mapp2`, and Census benchmark files at LAD/LTLA and MSOA levels.
+- Use the migration/Twitter branch only after its code/label harmonisation and
+  geography support have been checked.
+- Do not commit raw external flow files, bulky rendered outputs, or local
+  caches built from the external volume unless a separate data-management
+  decision explicitly allows a small derived artifact.
+
 Use MSOA data for software development and internal testing.
 
 - MSOA inputs are better for stress testing because they expose larger grids,
@@ -155,6 +187,53 @@ Use LAD data for vignettes and teaching materials.
 - Test S3 source-column validation and source-level metadata.
 - Test S4 combined source/time validation and metadata.
 
+### Empirical S1-S4 Validation
+
+1. Audit and normalise the external HTW flow files.
+- Read only from `/Volumes/DEBIAS/data/outputs/flows`.
+- Create a local normalisation helper for validation notebooks/scripts that
+  returns `origin`, `destination`, `flow`, `mpd_source`, `mpd_time`,
+  `geography`, `mpd_observed`, and benchmark-compatible columns.
+- Record file paths, row counts, column mappings, zero/positive-flow counts,
+  geography level, source levels, and time levels in the validation output.
+
+2. Build support and benchmark joins.
+- Align each MPD source/time table with the corresponding Census LAD/LTLA or
+  MSOA benchmark.
+- Reuse existing `debiasRdata` covariate and centroid assets when possible for
+  population, active-user coverage, rural/income-like covariates, and distance.
+- Decide whether the first empirical runs use observed OD support only or
+  complete-grid prediction, then record the row-count expansion.
+
+3. Run a smoke ladder before Bayesian sampling.
+- First run each S1-S4 construction with `model_engine = "frequentist"` to
+  verify scenario detection, formula terms, random-effect eligibility, returned
+  metadata, prediction scope, and visual validation outputs.
+- Then run small Bayesian pilots for S1-S4 with conservative area and period
+  subsets before increasing area count, source/time count, iterations, or
+  chains.
+- Always record runtime, warnings, errors, posterior diagnostics, and whether
+  source/time terms were dropped because they had too few levels.
+
+4. Compare model specifications.
+- Include coverage-offset Bayesian models, the experimental
+  `latent_two_level` backend for repeated observations, and deterministic
+  baselines such as inverse penetration, selection-rate, raking, and
+  coefficient adjustment.
+- Test no random intercept, origin, destination, OD, source, time, and
+  source-time random intercepts when the scenario supports them.
+- Test a small set of random-slope formulas only after the corresponding
+  random-intercept model is stable.
+- Sort validation plots from best to worst by the chosen benchmark metric while
+  keeping the unadjusted raw MPD model visually last.
+
+5. Promote only reproducible outputs.
+- Keep raw data external.
+- Commit only the validation plan, code, and compact textual summaries unless
+  a later data-governance decision approves derived artifacts.
+- Treat long-running Bayesian output as local/manual evidence until a smaller
+  reproducible smoke subset is identified.
+
 ### Vignettes and Teaching Materials
 
 1. Build LAD-scale examples.
@@ -174,9 +253,20 @@ Use LAD data for vignettes and teaching materials.
 - Present the Bayesian model as the intended package method.
 - Keep prototype and runtime caveats visible until empirical Bayesian runtime is
   validated.
+- In teaching text, describe the MPD observation equation and true-flow
+  prediction equation as the coverage-offset route, not as a generic structure
+  for every `adjust_multilevel_bayes()` variant.
+- Use the advanced Bayesian vignette to distinguish `coverage_offset`,
+  `reduced_form`, and `latent_two_level`: coverage-offset estimates true flows
+  through a fixed coverage offset, reduced-form returns an MPD-scale
+  counterfactual by neutralising fitted bias terms, and latent two-level
+  estimates shared hidden OD or OD-time states from repeated source/time rows.
 
 ## Decision Gate
 
-Proceed to implementation only if the S1-S4 contract can be expressed with
-clear parameters, stable metadata, and focused tests. Defer any general formula
-interface until the scenario-specific path is stable.
+The software contract is implemented; the current gate is empirical evidence.
+Promote the S1-S4 path beyond experimental use only after the HTW flow files
+produce reproducible frequentist smoke results and at least one successful
+Bayesian pilot for each available structure. If the period audit shows that a
+file is an aggregate summary rather than repeated observations, treat it as an
+S1 or S3 input until the required period metadata are joined.

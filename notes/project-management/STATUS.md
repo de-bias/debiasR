@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-06-19
+Last updated: 2026-06-25
 
 ## Snapshot
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-19
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
-- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; S1-S4 source/time scenarios are supported by both Bayesian and frequentist engines, while empirical use remains dependency- and runtime-sensitive
+- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; the default `coverage_offset` Bayesian route is approved for observed-flow empirical LAD S1-S4 workflows, while `latent_two_level` remains experimental
 - Current execution board: see [TASK_BOARD.md](TASK_BOARD.md)
 
 ## Stable vs Experimental
@@ -38,6 +38,17 @@ Last updated: 2026-06-19
   - row-status metadata distinguishes observed MPD rows from zero-filled source-missing cells
   - scenario metadata now distinguishes S1 single-source/single-time, S2 single-source/multiple-time, S3 multiple-source/single-time, and S4 multiple-source/multiple-time inputs
   - S1-S4 repeated source/time scenarios can now be fitted with `model_engine = "bayesian"` or `model_engine = "frequentist"`
+  - `observation_model = "coverage_offset"` is approved as the default
+    Bayesian implementation for observed-flow LAD empirical workflows after
+    full S4 validation with real LAD centroid distances, acceptable diagnostics,
+    and competitive benchmark validation metrics
+  - `observation_model = "reduced_form"` remains a compatibility and
+    sensitivity route rather than the recommended Bayesian implementation
+  - local source/time flow data for empirical S1-S4 testing are available
+    outside the repository at `/Volumes/DEBIAS/data/outputs/flows`; use the HTW
+    branch first for `mapp1`, `mapp2`, and Census benchmark validation at
+    LAD/LTLA and MSOA support, but do not commit the raw data or rendered bulky
+    outputs into `debiasR`
   - `observation_model = "latent_two_level"` is available as an experimental Bayesian backend for repeated source/time structures; it creates `latent_flow_id` states, estimates latent true-flow intensities with a custom Stan backend, and records latent-state metadata and identifiability notes
   - `model_terms` metadata records the resolved default fixed-effect and random-effect structure for the shared S1-S4 scenario contract
   - `model_engine = "frequentist"` remains useful for fast testing, experimentation, and method comparison before committing to Bayesian runtime
@@ -46,6 +57,11 @@ Last updated: 2026-06-19
 
 ## What Changed Recently
 
+- External HTW flow outputs under `/Volumes/DEBIAS/data/outputs/flows` now
+  provide empirical source/time inputs for S1-S4 validation: Mapp1 weekly/monthly
+  files, Mapp2 monthly files, and Census travel-to-work benchmarks at LAD/LTLA
+  and MSOA support. The migration/Twitter branch remains secondary until
+  code/label harmonisation is audited.
 - The `debiasR` repository was made public on GitHub on 2026-06-04. Treat
   repository docs, vignettes, workflows, issues, pull requests, and tracked
   assets as public-facing by default.
@@ -77,7 +93,8 @@ Last updated: 2026-06-19
   OD-time latent true-flow intensities. The backend now exposes latent prior
   and sampler controls, records richer diagnostics, and splits optional
   Bayesian tests into `rstanarm-smoke`, full `rstanarm`, and latent-Stan
-  scopes; empirical stress tests remain future hardening work.
+  scopes; empirical stress tests are now the next hardening step using the
+  external HTW flow outputs.
 - `validate_flow_distribution()` now supports `comparisons = "all"` so raw
   MPD, adjusted MPD-derived, and benchmark OD-flow allocation distributions can
   be compared through the same KL/JSD contract.
@@ -98,6 +115,23 @@ Last updated: 2026-06-19
 - The advanced Bayesian adjustment vignette now explains S1-S4 source/time
   structures, the experimental `latent_two_level` backend, reduced-form
   compatibility mode, and Bayesian diagnostics.
+- The Bayesian vignette exposition was refined on 2026-06-25 so the
+  "observation equation" and "true-flow prediction equation" language is scoped
+  explicitly to the coverage-offset route. The advanced Bayesian vignette now
+  gives separate conceptual equations and interpretation for `coverage_offset`,
+  `reduced_form`, and `latent_two_level`, avoiding the earlier risk of implying
+  that all variants share the same two-equation structure.
+- Empirical approval decision recorded on 2026-06-25: the default
+  `coverage_offset` Bayesian implementation is approved as a viable empirical
+  alternative for observed-flow LAD S1-S4 workflows. The full LAD S4
+  confirmatory run used real `debiasRdata::lad_centroids` distances, 309 LADs,
+  74,874 MPD rows, 64,162 validation pairs, `iter = 1000`, and `chains = 4`.
+  Both fixed and origin random-intercept coverage-offset fits completed with no
+  failures, max R-hat about 1.01, minimum effective sample size 485, and no
+  convergence warnings. The Bayesian fits were competitive on MAE and had lower
+  RMSE than the benchmark-calibrated deterministic comparators in that S4 run.
+  This approval does not promote `latent_two_level`, which remains experimental
+  pending empirical latent runs and prior sensitivity checks.
 - The adjustment vignette now reads its compact Bayesian example output from a
   precomputed package artifact reporting posterior median and mean summaries;
   maintainers can regenerate it explicitly with
@@ -238,6 +272,17 @@ Last updated: 2026-06-19
 - Result: pass. The rendered validation article and reference page show the
   optional Local Moran/LISA diagnostics, hidden setup chunks remain hidden, and
   no new mandatory spatial dependencies were added.
+- Verified the full empirical LAD S4 `coverage_offset` Bayesian route locally
+  on 2026-06-25 with a quiet manual runner derived from
+  `notes/project-management/BAYESIAN_EMPIRICAL_FLOW_S1S4_VALIDATION.qmd`.
+- Result: pass. The run fitted fixed and origin random-intercept Bayesian
+  coverage-offset models on 309 LADs and 74,874 S4 MPD source/time rows using
+  real LAD centroid distances, `iter = 1000`, and `chains = 4`. Both Bayesian
+  fits completed; max R-hat was about 1.01, minimum effective sample size was
+  485, and there were no R-hat, ESS, or non-convergence warnings. S4
+  adjusted-versus-benchmark metrics placed Bayesian coverage-offset behind
+  raking ratio and inverse penetration on MAE but ahead of coefficient OLS, and
+  lower than all three on RMSE.
 
 ## Current Risks / Blockers
 
