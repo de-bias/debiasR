@@ -499,43 +499,66 @@ chosen model family and estimation level capture the relevant structure.
 
 Bayesian multilevel modelling adjusts origin-destination flows by fitting a
 structured count model to the observed MPD flows and estimating the underlying
-true-flow scale. This vignette focuses on the recommended default
-implementation: the coverage-offset true-flow model. This mode treats MPD flows
-as coverage-scaled observations of true flows, rather than as flows that are
-only adjusted after fitting by switching off a bias covariate. The multilevel
+true-flow scale. This section introduces the Bayesian implementation in
+`adjust_multilevel_bayes()` through the recommended default route: the
+coverage-offset true-flow model. This route treats MPD flows as
+coverage-scaled observations of true flows, rather than as flows that are only
+adjusted after fitting by switching off a bias covariate. The multilevel
 structure can borrow information across origins, destinations and corridors when
-those data structures are available. The Bayesian implementation can take time,
-so the vignette shows the model code but renders a precomputed example output.
-For analysis, run enough iterations and chains for your data and check the
-sampler diagnostics before interpreting the posterior summaries.
+those data structures are available.
 
-`adjust_multilevel_bayes()` also includes advanced Bayesian modes for repeated
-source/time data, backward compatibility and fast structure checking. The
-guide below gives the practical choice points, while the
-[advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html)
-keeps the deeper formulas and diagnostic detail.
+`adjust_multilevel_bayes()` implements four modelling routes developed within
+the DEBIAS project. They use common count-modelling and multilevel-statistical
+ideas, but package them into a DEBIAS workflow for MPD coverage, OD-flow
+prediction, source/time structures and validation. This vignette explains all
+four routes intuitively, then implements only the coverage-offset Bayesian route.
+The [advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html)
+explains the remaining routes and the wider parameter set in more detail.
+
+The Bayesian implementation can take time, so the vignette shows the model code
+but renders a precomputed example output. The function also provides a fast
+deterministic frequentist engine. Use this engine to test different model
+specifications, covariates, source/time structures, random effects and
+distributional families before committing to Bayesian sampling. The frequentist
+engine is useful for design checks and method comparison, but it does not
+replace the Bayesian fit because it does not provide posterior uncertainty. For
+applied Bayesian analysis, run enough iterations and chains for your data and
+check the sampler diagnostics before interpreting posterior summaries.
+
+::: {.callout-tip title="How to make the Bayesian comparison fair"}
+The Bayesian coverage-offset model should not be assessed only as an in-sample
+competitor to methods that use benchmark OD flows during fitting. Raking ratio
+and coefficient regression can perform very well when the validation benchmark
+is also part of the adjustment information. The Bayesian coverage-offset route
+has a different purpose: it fits MPD flows, active-user coverage, covariates and
+distance, then uses benchmark OD flows for external validation. A strong
+Bayesian result is therefore one that converges cleanly, improves substantially
+over raw MPD flows, is competitive with benchmark-calibrated methods on error
+and residual diagnostics, and provides posterior uncertainty and source/time
+structure that deterministic adjustments cannot provide.
+:::
 
 A practical guide is:
 
 ```{r echo=FALSE}
 bayesian_option_guide <- tibble::tribble(
-  ~Option, ~`Use it when`, ~`Returned scale`, ~`What it returns`,
+  ~Route, ~`Use it when`, ~`Returned scale`, ~`Intuition`,
   "`observation_model = \"coverage_offset\"`",
   "You want the default Bayesian true-flow adjustment.",
   "True-flow scale",
-  "MPD counts are treated as coverage-scaled observations of true flows. Start here.",
+  "The model estimates Census-scale true flows while treating source/time coverage as a fixed observation offset. Start here.",
   "`observation_model = \"reduced_form\"`",
   "You need backward compatibility or an MPD-scale sensitivity check.",
   "MPD-scale counterfactual",
-  "The model fits observed MPD flows directly and predicts a zero-bias counterfactual.",
+  "The model fits observed MPD flows directly and predicts a counterfactual MPD flow with the fitted bias term set to zero.",
   "`observation_model = \"latent_two_level\"`",
   "You have repeated source/time observations, especially S3 or S4 structures.",
   "Latent true-flow scale",
-  "An experimental Stan backend estimates a shared latent OD or OD-time true-flow state.",
+  "The model estimates source-invariant latent OD or OD-time true-flow states and treats observed source/time rows as noisy coverage-scaled measurements.",
   "`model_engine = \"frequentist\"`",
-  "You want to test S1-S4 data structure quickly before Bayesian sampling.",
+  "You want to test data structure, formulas or families quickly before Bayesian sampling.",
   "Fast non-posterior check",
-  "This is a fast design/checking engine, not posterior inference."
+  "The deterministic engine uses the same non-latent data contract for rapid specification checks and method comparison."
 )
 
 knitr::kable(bayesian_option_guide)
@@ -549,9 +572,13 @@ For routine adjustment, the practical default is:
 | Observation model | `observation_model = "coverage_offset"` |
 | Coverage offset | `coverage_scale = "origin"`, `"destination"` or `"both"` |
 
-In coverage-offset true-flow mode, the model can be written as:
+The coverage-offset route used in this section can be understood through two
+linked equations: an MPD observation equation and a true-flow prediction
+equation. These equations describe the coverage-offset model only. The
+`reduced_form` and `latent_two_level` routes use different observation
+structures, which are explained in the advanced Bayesian vignette.
 
-*_Level 1: MPD observation model_*
+*_MPD observation equation_*
 
 $$
 F^{mpd}_{ij} \sim \text{Poisson}(q_{ij} F^{true}_{ij})
@@ -566,7 +593,7 @@ With `coverage_scale = "origin"`, $q_{ij} = c_i = U_i/P_i$. The term
 $\log(q_{ij})$ is an offset: it fixes the observation-process scale and is not
 estimated as a regression coefficient.
 
-*_Level 2: true mobility-flow model_*
+*_True-flow prediction equation_*
 
 $$
 \eta^{true}_{ij}
@@ -578,21 +605,22 @@ where $X_i$ and $X_j$ are origin and destination covariates, $d_{ij}$ is the
 origin-destination distance, and $u_i$, $v_j$ and $w_{ij}$ capture origin,
 destination and origin-destination structure.
 
-Intuitively, Level 1 recognises that we observe MPD flows, not the true mobility
-flows themselves. The observed MPD flow $F^{mpd}_{ij}$ is treated as a
-coverage-scaled measurement of an underlying true flow $F^{true}_{ij}$. If an
-origin has 20% active-user coverage, the fitted MPD-scale expectation is the
-true-flow expectation multiplied by 0.20 under the origin-offset assumption.
-For example, if the model estimates 500 true trips from origin $i$ to
-destination $j$ and origin $i$ has 20% active-user coverage, the corresponding
-MPD observation-scale prediction is $0.20 \times 500 = 100$ trips.
+Intuitively, the observation equation recognises that we observe MPD flows, not
+the true mobility flows themselves. The observed MPD flow $F^{mpd}_{ij}$ is
+treated as a coverage-scaled measurement of an underlying true flow
+$F^{true}_{ij}$. If an origin has 20% active-user coverage, the fitted MPD-scale
+expectation is the true-flow expectation multiplied by 0.20 under the
+origin-offset assumption. For example, if the model estimates 500 true trips
+from origin $i$ to destination $j$ and origin $i$ has 20% active-user coverage,
+the corresponding MPD observation-scale prediction is
+$0.20 \times 500 = 100$ trips.
 
-Level 2 describes the underlying mobility pattern learned from covariates,
-distance and origin/destination/corridor structure. It assumes that the true flow
-$F^{true}_{ij}$ depends on origin and destination characteristics, distance, and
-persistent origin, destination and corridor structure. This gives the model a
-way to borrow information across related places instead of treating every OD
-corridor as a completely separate unit.
+The true-flow prediction equation describes the underlying mobility pattern
+learned from covariates, distance and origin/destination/corridor structure. It
+assumes that the true flow $F^{true}_{ij}$ depends on origin and destination
+characteristics, distance, and persistent origin, destination and corridor
+structure. This gives the model a way to borrow information across related
+places instead of treating every OD corridor as a completely separate unit.
 
 $F^{true}_{ij}$ is not itself a random intercept. It is the estimated true-flow
 scale for a specific origin-destination pair, computed from the full true-flow
@@ -623,6 +651,39 @@ posterior and summarised by mean or median. This means `flow_adj` is a posterior
 summary of the true-flow prediction, not a single deterministic rescaling of the
 observed MPD count.
 
+::: {.callout-note title="Coverage-offset is not coefficient regression"}
+Coefficient regression and the coverage-offset model can both return
+Census-scale adjusted flows, but they use different information to get there.
+Coefficient regression learns a direct calibration from an observed benchmark
+relationship. A simple version is:
+
+$$
+E(F^{bench}_{ij}) = \beta F^{mpd}_{ij}
+$$
+
+or, on a log scale:
+
+$$
+\log E(F^{bench}_{ij}) = \alpha + \log(F^{mpd}_{ij})
+$$
+
+The benchmark flow is therefore part of the fitting problem. The estimated
+coefficient tells the model how to transform MPD flows so they look more like
+the benchmark flows used for calibration.
+
+The coverage-offset model instead starts from the observation process. It says
+that the MPD count is a partial observation of an unobserved true flow:
+
+$$
+F^{mpd}_{ij} \sim \mathrm{Poisson}(q_{ij}F^{true}_{ij})
+$$
+
+Here $q_{ij}$ is fixed from active-user coverage. The model estimates
+$F^{true}_{ij}$ by fitting the MPD observation model and then removing the
+coverage offset. A benchmark OD table is useful for validation, but it is not
+required to fit the coverage-offset model.
+:::
+
 ### Implementation
 
 To use `debiasR::adjust_multilevel_bayes()`, input the observed MPD flows to `mpd_od_df`,
@@ -647,7 +708,29 @@ knitr::kable(
 )
 ```
 
-The equations above translate into two conceptual formula components.
+For the coverage-offset route, most users only need a small set of core
+arguments.
+
+```{r echo=FALSE}
+bayesian_parameter_guide <- tibble::tribble(
+  ~Argument, ~Role_in_the_coverage_offset_fit,
+  "`mobility_formula`", "Defines the true-flow predictor, such as origin covariates, destination covariates and distance.",
+  "`target_scale = \"true_flow\"`", "Returns adjusted flows on the estimated true-flow scale rather than on the MPD observation scale.",
+  "`observation_model = \"coverage_offset\"`", "Treats MPD flows as coverage-scaled observations of true flows.",
+  "`coverage_scale`", "Chooses whether the fixed coverage offset uses origin coverage, destination coverage or both.",
+  "`model_engine = \"bayesian\"`", "Fits the posterior model. Use `model_engine = \"frequentist\"` first when you want a fast design check.",
+  "`scenario`, `source_col`, `time_col`", "Declare the source/time data structure. The example below uses S1: one source and one time period.",
+  "`prediction_scope`", "Chooses whether predictions are returned only for observed MPD rows or for a supplied complete OD grid.",
+  "`random_intercept`", "Adds or omits origin, destination, OD, source or time pooling structure when the data support it.",
+  "`model_family`", "Chooses the count likelihood family, such as Poisson or negative binomial.",
+  "`iter`, `chains`, `seed`", "Control Bayesian sampling and reproducibility."
+)
+
+knitr::kable(bayesian_parameter_guide)
+```
+
+The coverage-offset equations above translate into two conceptual formula
+components.
 `mobility_formula` defines the true-flow model; here we use `rural_pct_o`,
 `rural_pct_d` and `log_distance` to represent origin covariates, destination
 covariates and distance. In the recommended default mode, the observation model
@@ -656,6 +739,11 @@ is selected with `target_scale = "true_flow"` and
 the offset uses origin, destination or geometric-mean coverage. The coverage
 component is represented by this fixed offset rather than by an estimated
 coverage-bias coefficient in the fitted true-flow formula.
+
+The wider parameter set, including `latent_flow_unit`, latent-prior controls and
+the `reduced_form` compatibility route, is covered in the advanced Bayesian
+vignette. Start there when you need to model repeated source/time observations
+or compare alternative DEBIAS Bayesian routes.
 
 The default coverage-offset model is the safest Bayesian starting point because
 it makes the observation process explicit while keeping the fitted structure
@@ -821,6 +909,15 @@ significantly more runtime, dependencies and diagnostic checking when fitted
 with the full Bayesian engine. The key strength is that the model does not
 require a benchmark dataset of flows.
 
+This affects how validation scores should be read. Methods such as raking,
+selection-rate calibration and coefficient calibration can score better on a
+held-out-looking benchmark table because they are fitted with benchmark targets
+or benchmark OD flows. The Bayesian coverage-offset route does not need to see
+those target flows during fitting; it uses coverage, covariates and distance,
+then reserves the benchmark OD table for external validation. Similar
+benchmark performance is therefore meaningful even when it does not win every
+metric.
+
 *More complex Bayesian structures*
 
 The example above uses the simplest S1 structure: one source and one observation
@@ -828,7 +925,7 @@ period. `adjust_multilevel_bayes()` can also accept S2-S4 source/time
 structures through `scenario`, `source_col`, `time_col` and
 `repeated_observation`.
 
-For repeated source/time data, the latest experimental option is
+For repeated source/time data, the approved advanced option is
 `observation_model = "latent_two_level"`. In this mode, the model estimates one
 shared latent true-flow state for an OD pair or OD-time group and treats each
 source/time MPD row as an observation of that state. This is most useful for S3
@@ -837,36 +934,12 @@ mobility state. Source and time effects live in the observation layer, so
 `flow_true_pred` is source-invariant within a latent state, while
 `flow_mpd_pred` can vary by source and time.
 
-```{r eval=FALSE}
-adj_latent <- adjust_multilevel_bayes(
-  mpd_od_df = mpd_repeated,
-  coverage_df = coverage_repeated,
-  covariates_df = covariates,
-  distance_df = distance,
-  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
-  bias_formula = ~ bias_e_origin,
-  target_scale = "true_flow",
-  observation_model = "latent_two_level",
-  backend = "stan_latent",
-  model_engine = "bayesian",
-  scenario = "s4",
-  source_col = "mpd_source",
-  time_col = "mpd_time",
-  repeated_observation = "source_time",
-  latent_flow_unit = "auto"
-)
-
-attr(adj_latent, "result_metadata")
-attr(adj_latent, "diagnostics")
-```
-
-`backend = "auto"` also selects the latent Stan backend for this observation
-model.
-
-This backend is still experimental. Use it after checking that the data really
-contain repeated source/time observations and after inspecting the diagnostics,
-including divergence rate, treedepth hit rate, acceptance summaries, R-hat and
-effective sample size and posterior predictive metadata where available. The
+This backend is approved for observed-row repeated-source S3/S4 empirical
+workflows after real MPD/Census validation and prior-sensitivity checks. Use it
+only after checking that the data really contain repeated source/time
+observations and after inspecting the diagnostics, including divergence rate,
+treedepth hit rate, acceptance summaries, R-hat, effective sample size and
+posterior predictive metadata where available. The
 [advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html)
 provides deeper detail on source-time structures, reduced-form compatibility
 and latent-backend diagnostics.
@@ -989,8 +1062,8 @@ method_summary <- tibble::tribble(
     "<i>F</i><sup>adj</sup><sub>ij</sub> = exp(&eta;<sup>true</sup><sub>ij</sub>)"
   ),
   "Yes", "Yes", "No", "Yes",
-  "Richer structure, no benchmark OD needed for fitting, and a path to uncertainty-aware partial pooling.",
-  "Heavier runtime and dependencies; posterior fitting requires sampler diagnostics and careful runtime checks."
+  "Richer structure, no benchmark OD needed for fitting, posterior uncertainty, and a path to source/time-aware partial pooling.",
+  "Heavier runtime and dependencies; posterior fitting requires sampler diagnostics and should be compared externally against benchmark-calibrated methods."
 )
 
 table_html <- knitr::kable(

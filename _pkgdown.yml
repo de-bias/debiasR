@@ -3,6 +3,18 @@ url: https://de-bias.github.io/debiasR/
 template:
   bootstrap: 5
 
+home:
+  sidebar:
+    structure: [links, license, community, citation, maintainers, dev]
+    components:
+      maintainers:
+        title: Developers
+        text: |
+          Francisco Rowe<br>
+          <small class="roles">Author, package maintainer</small><br><br>
+          Carmen Cabrera<br>
+          <small class="roles">Author, project maintainer</small>
+
 navbar:
   structure:
     left: [home, foundations, measure, adjust, validate, reference]
@@ -34,8 +46,6 @@ navbar:
       menu:
       - text: Validation workflow
         href: articles/v07-validation.html
-      - text: Visualising flows
-        href: articles/v08-visualising-flows.html
     articles:
       text: All articles
       href: articles/index.html
@@ -60,6 +70,8 @@ articles:
   navbar: Validate
   contents:
   - v07-validation
+- title: internal
+  contents:
   - v08-visualising-flows
 
 reference:
@@ -78,3 +90,6 @@ reference:
 - title: Validate flows
   contents:
   - starts_with("validate_flow_")
+- title: Validation plots
+  contents:
+  - starts_with("plot_validation_")

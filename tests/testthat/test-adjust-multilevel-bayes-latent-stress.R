@@ -92,7 +92,7 @@ test_that("latent Stan stress scope fits a larger S3 repeated-source fixture", {
   metadata <- attr(res, "result_metadata")
 
   expect_equal(attr(res, "backend"), "stan_latent")
-  expect_equal(attr(res, "stage"), "latent_two_level_experimental")
+  expect_equal(attr(res, "stage"), "latent_two_level_approved")
   expect_equal(attr(res, "latent_flow_unit"), "od")
   expect_equal(metadata$scenario, "s3")
   expect_equal(metadata$n_sources, 2L)
@@ -111,7 +111,7 @@ test_that("latent Stan stress scope fits a larger S3 repeated-source fixture", {
   expect_latent_stress_diagnostics(res)
 })
 
-test_that("latent Stan stress scope fits S4 source-time complete-grid predictions", {
+test_that("latent Stan stress scope fits S4 source-time complete-grid predictions with auto OD fallback", {
   skip_if_not_installed("rstan")
 
   toy <- make_multilevel_msoa_like_scenario(
@@ -161,15 +161,15 @@ test_that("latent Stan stress scope fits S4 source-time complete-grid prediction
   zero_filled <- res$mpd_zero_filled %in% TRUE
 
   expect_equal(attr(res, "backend"), "stan_latent")
-  expect_equal(attr(res, "stage"), "latent_two_level_experimental")
-  expect_equal(attr(res, "latent_flow_unit"), "od_time")
+  expect_equal(attr(res, "stage"), "latent_two_level_approved")
+  expect_equal(attr(res, "latent_flow_unit"), "od")
   expect_equal(metadata$scenario, "s4")
   expect_equal(metadata$n_sources, 2L)
   expect_equal(metadata$n_time_periods, 2L)
-  expect_equal(metadata$n_latent_flows, 32L)
+  expect_equal(metadata$n_latent_flows, 16L)
   expect_equal(metadata$n_zero_filled_prediction_rows, 1L)
   expect_equal(metadata$latent_identifiability$n_unobserved_latent_flows, 0L)
-  expect_equal(metadata$latent_identifiability$min_observations_per_latent_flow, 1L)
+  expect_equal(metadata$latent_identifiability$min_observations_per_latent_flow, 3L)
   expect_false(metadata$latent_identifiability$weak_identification_warning)
   expect_equal(metadata$latent_source_effect_layer, "observation")
   expect_equal(metadata$latent_time_effect_layer, "observation")
@@ -180,7 +180,7 @@ test_that("latent Stan stress scope fits S4 source-time complete-grid prediction
   expect_true(all(is.finite(res$flow_mpd_pred)))
   expect_true(all(is.finite(res$flow_adj[zero_filled])))
   expect_true(all(is.finite(res$flow_mpd_pred[zero_filled])))
-  expect_source_invariant_latent_true_flow(res, c("origin", "destination", "mpd_time"))
-  expect_observation_scale_varies(res, c("origin", "destination", "mpd_time"))
+  expect_source_invariant_latent_true_flow(res, c("origin", "destination"))
+  expect_observation_scale_varies(res, c("origin", "destination"))
   expect_latent_stress_diagnostics(res)
 })

@@ -46,7 +46,7 @@ test_that("Bayesian latent two-level backend fits repeated source observations",
 
   expect_equal(attr(res, "observation_model"), "latent_two_level")
   expect_equal(attr(res, "backend"), "stan_latent")
-  expect_equal(attr(res, "stage"), "latent_two_level_experimental")
+  expect_equal(attr(res, "stage"), "latent_two_level_approved")
   expect_equal(attr(res, "latent_flow_unit"), "od")
   expect_true(all(c("latent_flow_id", "latent_flow_unit") %in% names(res)))
   expect_equal(as.numeric(res$flow_adj), as.numeric(res$flow_true_pred))
@@ -75,5 +75,5 @@ test_that("Bayesian latent two-level backend fits repeated source observations",
   ) %in% names(diagnostics$convergence)))
   expect_gt(diagnostics$convergence$n_post_warmup_draws, 0)
   expect_equal(diagnostics$posterior_predictive$rng_eta_max, 18)
-  expect_match(attr(res, "prototype_notes"), "Latent two-level experimental backend")
+  expect_match(attr(res, "prototype_notes"), "Latent two-level approved advanced backend")
 })

@@ -8,11 +8,19 @@
 
 ### Validation documentation
 
+- Added prototype `plot_validation_*()` functions for validation metric
+  matrices, residual violin plots, pairwise flow scatterplots,
+  standard-deviation and quantile residual-band stacked bars, distributional
+  allocation heatmaps, residual-structure diagnostics, and optional LISA cluster
+  maps from user-supplied `sf` boundaries. The functions now use the shared
+  flow-comparison convention, default to `adjusted_vs_benchmark`, and expose
+  `error_measures`, `comparisons`, and `methods` selectors for visual
+  iteration. The longer `plot_validate_flow_*()` names remain available as
+  compatibility aliases.
 - Added a concise metadata description to the validation vignette so article
   listings and previews describe the full validation workflow.
-- Added a new optional flow-visualisation vignette showing how to prepare LAD
-  OD flows and centroids for interactive flow maps using the experimental
-  `mapgl` flow-map branch when available.
+- Kept the optional flow-visualisation vignette source available for later
+  revision, but hid it from the public pkgdown navigation and article index.
 - Added a distinct Level 5 spatial/residual structure diagnostics section to
   the validation vignette, demonstrating `validate_flow_residual_structure()`
   with residual-versus-benchmark-flow correlation, optional Moran's I, and
@@ -20,11 +28,11 @@
 - Extended `validate_flow_residual_structure()` with optional Local Moran's I
   and LISA cluster diagnostics, including permutation pseudo p-values, while
   reusing the existing user-supplied neighbour-link interface and avoiding new
-  spatial dependencies.
+  mandatory spatial dependencies.
 - Clarified the validation hierarchy so distributional allocation validation
   remains focused on origin-conditioned destination-share distributions, while
   spatial/residual structure diagnostics focus on remaining
-  adjusted-minus-benchmark residual patterns.
+  benchmark-minus-adjusted residual patterns.
 
 ### Bayesian adjustment documentation
 
@@ -36,9 +44,24 @@
 - Added compact input, option, output-column, and diagnostics guides for the
   Bayesian adjustment example, while continuing to use precomputed posterior
   median and mean summaries so routine vignette renders do not rerun MCMC.
-- Added a short S2-S4 repeated source/time callout for the experimental
+- Added a short S2-S4 repeated source/time callout for the approved advanced
   `observation_model = "latent_two_level"` backend and kept the advanced
   Bayesian vignette as the deeper companion reference.
+- Recorded the approval boundary for the Bayesian implementation:
+  `coverage_offset` is the validated default empirical LAD route, while
+  `latent_two_level` is approved as an advanced observed-row S3/S4
+  repeated-source route after real MPD/Census empirical validation, real
+  centroid distances, prior-sensitivity checks, and confirmatory sampler
+  diagnostics.
+- Clarified that benchmark-trained methods such as raking, selection-rate
+  calibration and coefficient calibration can score well because they use
+  benchmark margins or OD targets during fitting; Bayesian coverage-offset
+  models do not need benchmark OD flows and can reserve them for external
+  validation, so similar benchmark performance is a meaningful result.
+- Hardened the custom `stan_latent` backend with standardized design matrices,
+  source/time-aware latent-unit selection, sum-to-zero latent/source/time
+  contrasts, and real-data validation guards that reject synthetic distance and
+  zero-filled approval evidence.
 
 # debiasR 0.0.0.9003
 

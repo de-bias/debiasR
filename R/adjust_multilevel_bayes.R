@@ -23,12 +23,12 @@
 #' true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
 #'
 #' In \code{observation_model = "latent_two_level"} mode, the Bayesian path
-#' fits an experimental joint latent model. It estimates a source-invariant
-#' true-flow intensity for each OD or OD-time state, then models each MPD
-#' source/time row as a coverage-scaled noisy observation of that latent state.
-#' This model is most informative for repeated source structures (S3/S4) and
-#' remains weakly identified for S1/S2 designs without strong priors or
-#' external validation.
+#' fits an approved advanced joint latent model for repeated-source empirical
+#' workflows. It estimates a source-invariant true-flow intensity for each OD
+#' or OD-time state, then models each MPD source/time row as a coverage-scaled
+#' noisy observation of that latent state. This model is most informative for
+#' repeated source structures (S3/S4) and remains weakly identified for S1/S2
+#' designs without strong priors or external validation.
 #'
 #' @param mpd_od_df Data frame with at least \code{origin}, \code{destination},
 #'   and \code{flow_col}. Optional \code{mpd_source} is carried through.
@@ -108,8 +108,8 @@
 #'   the existing fitted-bias-covariate path. \code{"coverage_offset"} uses
 #'   active-user coverage as a fixed offset and is required for
 #'   \code{target_scale = "true_flow"}. \code{"latent_two_level"} fits an
-#'   experimental joint latent model with a source-invariant true-flow state
-#'   and source/time-specific MPD observation process.
+#'   advanced joint latent model with a source-invariant true-flow state and
+#'   source/time-specific MPD observation process.
 #' @param coverage_scale Coverage rate used by \code{"coverage_offset"}:
 #'   \code{"origin"} uses \eqn{c_i}, \code{"destination"} uses \eqn{c_j}, and
 #'   \code{"both"} uses \eqn{\sqrt{c_i c_j}}.
@@ -117,7 +117,9 @@
 #'   \code{observation_model = "latent_two_level"}. \code{"od"} shares one
 #'   latent flow across source/time observations of an OD pair; \code{"od_time"}
 #'   shares one latent flow across sources within each OD-time cell.
-#'   \code{"auto"} chooses \code{"od_time"} for S2/S4 and \code{"od"} otherwise.
+#'   \code{"auto"} chooses \code{"od_time"} for S2 and for S4 only when each
+#'   OD-time latent state has repeated observed sources; otherwise it uses
+#'   \code{"od"}.
 #' @param latent_coef_prior_scale,latent_bias_prior_scale Positive prior
 #'   scales used by the custom \code{"stan_latent"} backend for true-flow and
 #'   observation-bias coefficients. These controls are ignored by
@@ -125,8 +127,8 @@
 #' @param latent_intercept_prior_scale Positive prior scale for the true-flow
 #'   intercept in the custom \code{"stan_latent"} backend.
 #' @param latent_state_prior_scale,latent_source_prior_scale,latent_time_prior_scale
-#'   Positive half-normal prior scales used by the custom \code{"stan_latent"}
-#'   backend for latent OD/OD-time, source, and time standard deviations.
+#'   Positive regularization scales used by the custom \code{"stan_latent"}
+#'   backend for centered latent OD/OD-time, source, and time effects.
 #' @param latent_phi_prior_rate Positive exponential prior rate for the
 #'   negative-binomial overdispersion parameter in the custom
 #'   \code{"stan_latent"} backend.
@@ -690,7 +692,7 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     model_engine = model_engine,
     model_family = model_family,
     stage = if (observation_model == "latent_two_level") {
-      if (backend == "stan_latent") "latent_two_level_experimental" else "latent_two_level_prototype"
+      if (backend == "stan_latent") "latent_two_level_approved" else "latent_two_level_prototype"
     } else {
       "stage_1"
     },
@@ -785,16 +787,16 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   attr(out, "diagnostics") <- diagnostics
   if (observation_model == "latent_two_level") {
     attr(out, "stage") <- if (backend == "stan_latent") {
-      "latent_two_level_experimental"
+      "latent_two_level_approved"
     } else {
       "latent_two_level_prototype"
     }
     attr(out, "prototype_notes") <- if (backend == "stan_latent") {
       paste(
-        "Latent two-level experimental backend: flow_adj summarizes posterior draws",
+        "Latent two-level approved advanced backend: flow_adj summarizes posterior draws",
         "of a source-invariant OD or OD-time latent true-flow intensity.",
         "flow_mpd_pred summarizes the coverage-scaled source/time observation mean.",
-        "S1/S2 fits remain weakly identified without repeated source observations or strong priors."
+        "Use repeated-source S3/S4 designs with real distance inputs and check sampler diagnostics."
       )
     } else {
       paste(
@@ -1440,7 +1442,19 @@ adjust_multilevel_bayes <- function(mpd_od_df,
                                              latent_flow_unit = c("auto", "od", "od_time")) {
   latent_flow_unit <- match.arg(latent_flow_unit)
   if (latent_flow_unit == "auto") {
-    latent_flow_unit <- if (scenario_info$scenario %in% c("s2", "s4")) {
+    latent_flow_unit <- if (scenario_info$scenario == "s4" &&
+        .has_replicated_sources_per_candidate_latent_state(data, c("origin", "destination", "mpd_time"))) {
+      "od_time"
+    } else if (scenario_info$scenario == "s4") {
+      warning(
+        "`latent_flow_unit = 'auto'` selected `od` because at least one S4 ",
+        "OD-time latent state has fewer than two observed sources. Use ",
+        "`latent_flow_unit = 'od_time'` only for balanced source-time data, ",
+        "or after accepting the weaker local identification.",
+        call. = FALSE
+      )
+      "od"
+    } else if (scenario_info$scenario == "s2") {
       "od_time"
     } else {
       "od"
@@ -1465,30 +1479,79 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   data$latent_flow_unit <- latent_flow_unit
   data$latent_flow_id <- factor(id)
 
-  counts <- table(data$latent_flow_id)
-  weak_scenarios <- scenario_info$scenario %in% c("s1", "s2")
+  observed <- .latent_observed_rows(data)
+  counts <- table(data$latent_flow_id[observed])
+  distinct_sources <- .latent_distinct_sources_by_state(data, observed)
+  weak_local_replication <- scenario_info$scenario %in% c("s3", "s4") &&
+    length(distinct_sources) > 0L &&
+    any(distinct_sources < 2L)
+  weak_scenarios <- scenario_info$scenario %in% c("s1", "s2") ||
+    weak_local_replication
   if (weak_scenarios) {
-    warning(
-      "`observation_model = 'latent_two_level'` is weakly identified for ",
-      toupper(scenario_info$scenario),
-      " without repeated source observations or strong priors.",
-      call. = FALSE
-    )
+    if (isTRUE(weak_local_replication)) {
+      warning(
+        "`observation_model = 'latent_two_level'` has weak local identification: ",
+        "at least one latent state has fewer than two observed sources.",
+        call. = FALSE
+      )
+    } else {
+      warning(
+        "`observation_model = 'latent_two_level'` is weakly identified for ",
+        toupper(scenario_info$scenario),
+        " without repeated source observations or strong priors.",
+        call. = FALSE
+      )
+    }
   }
 
   list(
     data = data,
     latent_flow_unit = latent_flow_unit,
-    n_latent_flows = length(counts),
+    n_latent_flows = length(unique(as.character(data$latent_flow_id))),
     identifiability = list(
       scenario = scenario_info$scenario,
       repeated_observation = scenario_info$repeated_observation,
-      min_observations_per_latent_flow = min(as.integer(counts)),
-      max_observations_per_latent_flow = max(as.integer(counts)),
+      min_observations_per_latent_flow = if (length(counts) > 0L) min(as.integer(counts)) else NA_integer_,
+      max_observations_per_latent_flow = if (length(counts) > 0L) max(as.integer(counts)) else NA_integer_,
+      min_sources_per_latent_flow = if (length(distinct_sources) > 0L) min(as.integer(distinct_sources)) else NA_integer_,
+      max_sources_per_latent_flow = if (length(distinct_sources) > 0L) max(as.integer(distinct_sources)) else NA_integer_,
       weak_identification_warning = weak_scenarios,
       stronger_repeated_source_design = scenario_info$scenario %in% c("s3", "s4")
     )
   )
+}
+
+.latent_observed_rows <- function(data) {
+  if ("mpd_observed" %in% names(data)) {
+    return(data$mpd_observed %in% TRUE)
+  }
+  rep(TRUE, nrow(data))
+}
+
+.has_replicated_sources_per_candidate_latent_state <- function(data, id_cols) {
+  if (!all(id_cols %in% names(data)) || !"mpd_source" %in% names(data)) {
+    return(FALSE)
+  }
+  observed <- .latent_observed_rows(data)
+  if (!any(observed)) {
+    return(FALSE)
+  }
+  id <- do.call(paste, c(data[observed, id_cols, drop = FALSE], sep = "::"))
+  source <- as.character(data$mpd_source[observed])
+  source_counts <- tapply(source, id, function(x) length(unique(x)))
+  length(source_counts) > 0L && all(source_counts >= 2L)
+}
+
+.latent_distinct_sources_by_state <- function(data, observed) {
+  if (!"mpd_source" %in% names(data) || !any(observed)) {
+    return(integer())
+  }
+  out <- tapply(
+    as.character(data$mpd_source[observed]),
+    as.character(data$latent_flow_id[observed]),
+    function(x) length(unique(x))
+  )
+  as.integer(out)
 }
 
 .add_multilevel_latent_random_intercept <- function(formula) {
@@ -2466,9 +2529,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 
   list(
     true_formula = stats::as.formula(paste("~", true_rhs)),
-    observation_formula = stats::as.formula("~ 0 + bias_e_origin"),
+    observation_formula = stats::as.formula("~ 0"),
     mobility_variables = true_terms,
-    bias_variables = "bias_e_origin",
+    bias_variables = character(),
     ignored_random_effect_terms = character(),
     source = "default",
     interface = "default"
@@ -2508,6 +2571,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     bias_mm$prediction <- matrix(0, nrow = nrow(prediction_df), ncol = 1L)
     colnames(bias_mm$fit) <- colnames(bias_mm$prediction) <- "no_observation_bias_terms"
   }
+  true_mm <- .standardize_paired_model_matrix(true_mm)
+  bias_mm <- .standardize_paired_model_matrix(bias_mm)
 
   latent_levels <- .latent_prediction_levels(prediction_df)
   source_levels <- .latent_source_levels(prediction_df)
@@ -2538,6 +2603,9 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   obs_count <- tabulate(latent_id_obs, nbins = length(latent_levels))
+  latent_basis <- .sum_to_zero_basis(length(latent_levels))
+  source_basis <- .sum_to_zero_basis(length(source_levels))
+  time_basis <- .sum_to_zero_basis(length(time_levels))
   data <- list(
     N_obs = nrow(fit_df),
     N_pred = nrow(prediction_df),
@@ -2548,15 +2616,21 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     X_bias_obs = unname(bias_mm$fit),
     X_bias_pred = unname(bias_mm$prediction),
     L = length(latent_levels),
+    L_basis = ncol(latent_basis),
+    latent_basis = latent_basis,
     latent_id_obs = latent_id_obs,
     latent_id_pred = latent_id_pred,
     y = as.integer(round(y)),
     log_q_obs = log(q_obs),
     log_q_pred = log(q_pred),
     S = length(source_levels),
+    S_basis = ncol(source_basis),
+    source_basis = source_basis,
     source_id_obs = source_id_obs,
     source_id_pred = source_id_pred,
     T = length(time_levels),
+    T_basis = ncol(time_basis),
+    time_basis = time_basis,
     time_id_obs = time_id_obs,
     time_id_pred = time_id_pred,
     use_time_effect = as.integer(length(time_levels) > 1L),
@@ -2580,6 +2654,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
       observation_formula = paste(deparse(latent_formula_info$observation_formula), collapse = " "),
       true_terms = colnames(true_mm$fit),
       observation_terms = colnames(bias_mm$fit),
+      true_standardization = true_mm$standardization,
+      observation_standardization = bias_mm$standardization,
       latent_levels = latent_levels,
       source_levels = source_levels,
       time_levels = time_levels,
@@ -2620,6 +2696,68 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     fit = mm[source == "fit", , drop = FALSE],
     prediction = mm[source == "prediction", , drop = FALSE]
   )
+}
+
+.standardize_paired_model_matrix <- function(mm) {
+  fit <- as.matrix(mm$fit)
+  prediction <- as.matrix(mm$prediction)
+  terms <- colnames(fit)
+  if (is.null(terms)) {
+    terms <- paste0("x", seq_len(ncol(fit)))
+    colnames(fit) <- colnames(prediction) <- terms
+  }
+
+  is_intercept <- terms == "(Intercept)"
+  center <- numeric(ncol(fit))
+  scale <- rep(1, ncol(fit))
+
+  for (j in seq_len(ncol(fit))) {
+    if (isTRUE(is_intercept[[j]])) next
+
+    values <- fit[, j]
+    center[[j]] <- mean(values, na.rm = TRUE)
+    scale_j <- stats::sd(values, na.rm = TRUE)
+    if (is.finite(scale_j) && scale_j > sqrt(.Machine$double.eps)) {
+      scale[[j]] <- scale_j
+    }
+  }
+
+  fit_scaled <- sweep(fit, 2, center, "-")
+  fit_scaled <- sweep(fit_scaled, 2, scale, "/")
+  pred_scaled <- sweep(prediction, 2, center, "-")
+  pred_scaled <- sweep(pred_scaled, 2, scale, "/")
+
+  colnames(fit_scaled) <- colnames(pred_scaled) <- terms
+  list(
+    fit = fit_scaled,
+    prediction = pred_scaled,
+    standardization = tibble::tibble(
+      term = terms,
+      center = center,
+      scale = scale,
+      standardized = !is_intercept
+    )
+  )
+}
+
+.sum_to_zero_basis <- function(n) {
+  n <- as.integer(n)
+  if (!is.finite(n) || n < 1L) {
+    stop("Internal error: sum-to-zero basis needs at least one level.")
+  }
+
+  n_cols <- max(n - 1L, 1L)
+  basis <- matrix(0, nrow = n, ncol = n_cols)
+  if (n == 1L) {
+    return(basis)
+  }
+
+  for (j in seq_len(n - 1L)) {
+    denom <- sqrt(j * (j + 1))
+    basis[seq_len(j), j] <- 1 / denom
+    basis[j + 1L, j] <- -j / denom
+  }
+  basis
 }
 
 .latent_prediction_levels <- function(prediction_df) {
@@ -2666,7 +2804,14 @@ adjust_multilevel_bayes <- function(mpd_od_df,
 }
 
 .coef_summary_latent_stan <- function(fit, data_info, probs = c(0.025, 0.975)) {
-  dmat <- as.matrix(fit, pars = c("beta_true", "beta_bias", "sigma_latent", "sigma_source", "sigma_time", "phi"))
+  summary_names <- rownames(rstan::summary(fit)$summary)
+  requested_pars <- c("beta_true", "beta_bias", "source_effect", "time_effect", "phi")
+  available_pars <- requested_pars[vapply(
+    requested_pars,
+    function(par) any(summary_names == par | startsWith(summary_names, paste0(par, "["))),
+    logical(1)
+  )]
+  dmat <- as.matrix(fit, pars = available_pars)
   terms <- colnames(dmat)
   out <- tibble::tibble(
     term = terms,
@@ -2681,7 +2826,8 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   out$layer <- dplyr::case_when(
     grepl("^beta_true\\[", out$term) ~ "true_flow",
     grepl("^beta_bias\\[", out$term) ~ "observation_bias",
-    grepl("^sigma_", out$term) ~ "random_effect_sd",
+    grepl("^source_effect\\[", out$term) ~ "observation_source_effect",
+    grepl("^time_effect\\[", out$term) ~ "observation_time_effect",
     out$term == "phi" ~ "overdispersion",
     TRUE ~ "other"
   )

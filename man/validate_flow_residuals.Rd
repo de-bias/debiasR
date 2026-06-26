@@ -42,20 +42,24 @@ A list with:
 signed and absolute residual-reduction summaries, shares improved,
 worsened, unchanged, and MPD versus adjusted residual shares above 1,
 2, and 3 standard deviations,
-\item \code{data}: OD-level tibble containing original and adjusted residuals,
-benchmark-minus residuals, signed residual movement, absolute residual
-reduction, percentage residuals, standard-deviation diagnostics for MPD
-and adjusted residuals, and an \code{improvement_flag},
+\item \code{data}: OD-level tibble containing original and adjusted signed
+residuals using the package convention \code{Y - X}, signed residual
+movement, absolute residual reduction, percentage residuals,
+standard-deviation diagnostics for MPD and adjusted residuals, and an
+\code{improvement_flag},
 \item \code{top_worst}: the \code{top_n} OD pairs with the largest absolute
 residual remaining after adjustment.
 }
 
-The exact signed movement requested by the Stage 2 validation plan is stored
-as \code{signed_residual_reduction = (benchmark - mpd) - (benchmark - adjusted)}.
-Algebraically this equals \code{adjusted - mpd}: positive values mean the
-adjustment moved the OD flow upward relative to the observed MPD flow. For a
-direction-free "positive means less benchmark error" comparison, use
-\code{abs_residual_reduction} or \code{improvement_flag}.
+Signed residuals use the shared comparison convention:
+\code{adjusted_vs_benchmark} is \code{benchmark - adjusted},
+\code{raw_vs_benchmark} is \code{benchmark - raw}, and
+\code{raw_vs_adjusted} is \code{adjusted - raw}. The exact signed movement
+requested by the Stage 2 validation plan is stored as
+\code{signed_residual_reduction}; algebraically this equals
+\code{adjusted - raw}. For a direction-free "positive means less benchmark
+error" comparison, use \code{abs_residual_reduction} or
+\code{improvement_flag}.
 }
 \description{
 Extends \code{validate_flow_pairs()} with residual-style aliases, absolute and

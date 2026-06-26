@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-06-13
+Last updated: 2026-06-25
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -8,21 +8,25 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 ## Now
 
-1. Harden latent two-level Bayesian enhancement - `1-2 days`
-- Enhancement issue #18 now has a design note and an experimental custom Stan
+1. Confirm optional Bayesian CI workflow - `1-2h`
+- Enhancement issue #18 now has a design note and an approved advanced custom Stan
   backend for `observation_model = "latent_two_level"` in
   `adjust_multilevel_bayes()`.
 - The backend creates `latent_flow_id` states, estimates source-invariant OD or
   OD-time true-flow intensities, and models MPD source/time rows as
   coverage-scaled noisy observations of those latent states.
-- The branch now exposes latent prior and sampler controls, records richer
-  sampler diagnostics, and splits optional Bayesian validation into standard
-  `rstanarm-smoke`, full `rstanarm`, and latent-Stan scopes.
-- The optional runner now includes a `latent-stress` scope for larger S3
-  repeated-source and S4 source-time complete-grid synthetic fixtures. Remaining
-  work is to run and record the hosted/manual stress lane, then add prior
-  sensitivity notes before promoting the latent backend beyond experimental
-  status.
+- The branch exposes latent prior and sampler controls, records richer sampler
+  diagnostics, uses identified sum-to-zero latent/source/time contrasts, and
+  splits optional Bayesian validation into standard `rstanarm-smoke`, full
+  `rstanarm`, and latent-Stan scopes.
+- Local tests and real-data empirical validation now support approving
+  `latent_two_level` for observed-row repeated-source S3/S4 workflows. The
+  remaining workflow check is the hosted/manual GitHub Actions latent lane.
+- Local source/time flow data for empirical S1-S4 validation are now available
+  outside the repository at `/Volumes/DEBIAS/data/outputs/flows`. The first
+  route is the HTW branch, using `mapp1`, `mapp2`, and Census benchmark files
+  at LAD/LTLA and MSOA support. Do not commit the raw flow files or bulky
+  rendered outputs into `debiasR`.
 
 2. Validate optional Bayesian CI workflow - `1-2h`
 - Fast core GitHub Actions validation passed on merged PR #11.
@@ -33,16 +37,80 @@ The staged track below is intended to be implemented one stage per chat window. 
   the frequentist engine remains available for fast testing and experimentation.
 - The default LAD empirical route now has selected-area distance support through
   `debiasRdata::lad_centroids`.
+- The default `coverage_offset` Bayesian route is now empirically approved for
+  observed-flow LAD S1-S4 workflows; `latent_two_level` is approved as an
+  advanced observed-row S3/S4 repeated-source route with real-data and
+  diagnostic guardrails.
 
 ## Recently Completed
+
+1. Approve latent two-level Bayesian repeated-source implementation - `complete`
+- Completed on 2026-06-25.
+- The empirical latent approval route used real HTW MPD source/time files under
+  `/Volumes/DEBIAS/data/outputs/flows`, real Census benchmark files, and real
+  `debiasRdata::lad_centroids` OD distances. Synthetic distance fallback,
+  complete-grid MPD zero-fill rows, and zero-filled benchmark rows are rejected
+  for approval evidence.
+- Exploratory prior sensitivity fitted S3 and S4 repeated-source LAD subsets
+  with default, tighter, and wider latent priors. Confirmatory default-prior
+  fits used `iter = 1000`, `chains = 4`, and `latent_max_treedepth = 15`.
+- Result: S3 and S4 confirmatory latent fits completed with no failures, no
+  divergences, no treedepth hits, E-BFMI above 0.91, max R-hat about 1.023, and
+  minimum effective sample size about 190.
+- Decision: approve `observation_model = "latent_two_level"` as an advanced
+  Bayesian alternative for observed-row repeated-source S3/S4 workflows. It is
+  not the default route; users should still start with `coverage_offset` unless
+  they need a latent source-invariant true-flow state.
+
+1. Approve default coverage-offset Bayesian empirical implementation - `complete`
+- Completed on 2026-06-25.
+- The full real LAD S4 validation route fitted both fixed and origin
+  random-intercept `observation_model = "coverage_offset"` Bayesian models with
+  real `debiasRdata::lad_centroids` distances, 309 LADs, 74,874 MPD rows,
+  64,162 validation pairs, `iter = 1000`, and `chains = 4`.
+- Result: both Bayesian models completed with no failures, max R-hat about
+  1.01, minimum effective sample size 485, and no R-hat, ESS, or
+  non-convergence warnings.
+- Decision: approve the default `coverage_offset` implementation as a viable
+  empirical alternative for observed-flow LAD S1-S4 workflows, especially when
+  benchmark OD flows are unavailable for fitting or reserved for validation.
+- Scope: this approval covers the default `coverage_offset` route. The separate
+  latent repeated-source approval is recorded above.
+- Documentation updated to frame Bayesian validation as external validation
+  against benchmark-assisted methods rather than a pure in-sample MAE contest.
+  Raking, selection-rate and coefficient methods can use benchmark margins or
+  OD targets during fitting, while the Bayesian coverage-offset route does not
+  need benchmark OD flows and can reserve them for validation; similar
+  benchmark performance is therefore meaningful even when Bayesian does not win
+  every metric.
+
+1. Add validation visual prototype functions - `complete`
+- Completed on 2026-06-13.
+- Added exported prototype `plot_validation_*()` functions for overall metric
+  matrices, residual violin plots, pairwise flow scatterplots,
+  standard-deviation and quantile residual outlier stacked bars,
+  distributional allocation heatmaps, pairwise divergence matrices, and
+  residual-structure diagnostic summaries, plus optional LISA cluster maps from
+  user-supplied `sf` boundaries.
+- The visual functions use the shared flow-comparison convention, default to
+  `adjusted_vs_benchmark`, and expose `error_measures`, `comparisons`, and
+  `methods` selectors.
+- Added a short visual review notebook at
+  `notes/project-management/VALIDATION_VISUAL_PROTOTYPES.qmd` using
+  deterministic simulated package data so the chart designs can be iterated
+  before promotion into the public validation vignette.
+- Decision recorded on 2026-06-19: the `plot_validation_*()` functions will be
+  incorporated into the existing validation vignette. There will not be a
+  separate validation-visualisation vignette; the visual prototype notebook and
+  rendered notes are internal design/review material.
 
 1. Add Local Moran/LISA residual diagnostics - `complete`
 - Completed on 2026-06-13.
 - `validate_flow_residual_structure()` now has optional Local Moran's I and
   LISA cluster diagnostics for area-level residuals using the existing
   user-supplied neighbour-link interface.
-- The implementation keeps dependencies light by using base-R permutation
-  pseudo p-values and avoiding `sf`, `spdep`, or cartographic dependencies.
+- The validator keeps dependencies light by using base-R permutation pseudo
+  p-values and avoiding mandatory `sf`, `spdep`, or cartographic dependencies.
 - The validation vignette keeps this as part of Level 5 spatial/residual
   structure diagnostics, not a new validation level.
 
@@ -70,6 +138,12 @@ The staged track below is intended to be implemented one stage per chat window. 
 - The vignette keeps the S1 Bayesian example precomputed so routine renders do
   not rerun MCMC, and it points readers to the advanced Bayesian adjustment
   vignette for deeper S2-S4, reduced-form and latent-backend details.
+- Follow-up on 2026-06-25: the main adjustment vignette now avoids describing
+  all Bayesian variants as a generic two-level model. It scopes the MPD
+  observation equation and true-flow prediction equation to the
+  coverage-offset route only, keeps the coefficient-regression distinction in a
+  Quarto callout, and leaves the advanced Bayesian vignette to explain
+  `coverage_offset`, `reduced_form`, and `latent_two_level` separately.
 
 1. Post-public repository hygiene pass - `complete`
 - Completed on 2026-06-12.
@@ -92,17 +166,17 @@ The staged track below is intended to be implemented one stage per chat window. 
 - `validate_flow_distribution()` now supports raw-versus-benchmark,
   adjusted-versus-benchmark, and raw-versus-adjusted comparisons through the
   same origin-conditioned KL/JSD contract.
-- `adjust_multilevel_bayes()` now exposes the experimental
+- `adjust_multilevel_bayes()` then exposed the experimental
   `observation_model = "latent_two_level"` option for repeated source/time
   structures while preserving the frequentist engine for shared S1-S4 data
   contract testing.
 - This opened the path for issue #18. The follow-up `0.0.0.9002` work adds the
-  first custom Stan latent backend; empirical and diagnostic hardening remains
-  in Now.
+  first custom Stan latent backend; later 2026-06-25 work approves the
+  repeated-source S3/S4 route with real-data and diagnostic guardrails.
 - Vignettes and project notes were updated to explain the new package-level
   functions and the latent backend status. The main adjustment vignette now
   teaches the default coverage-offset Bayesian implementation, while the
-  advanced Bayesian adjustment vignette carries the experimental latent backend,
+  advanced Bayesian adjustment vignette carries the latent backend,
   reduced-form compatibility, S1-S4 source/time, and diagnostics material.
 
 1. Make repository public on GitHub - `complete`
@@ -147,9 +221,11 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 1. Harden the Bayesian path further - `1-2 days`
 - Validate complete-grid Bayesian prediction on real `debiasRdata` OD inputs.
-- Use the LAD route as the default empirical path; add MSOA distance assets only
-  if MSOA-specific empirical Bayesian examples are needed.
-- Record feasible empirical grid sizes and runtime expectations.
+- Keep the LAD coverage-offset route as the approved default empirical path;
+  add MSOA distance assets only if MSOA-specific empirical Bayesian examples are
+  needed.
+- Record feasible empirical grid sizes and runtime expectations for MSOA and
+  latent-backend workflows.
 - Keep the Bayesian tests in a clear optional CI lane if the scope expands.
 
 2. Prepare a release-ready maintenance pass - `1-2 days`
@@ -196,8 +272,8 @@ Tasks:
 - Implemented residual-versus-user-selected-covariate Pearson correlation and optional scatter plot.
 - Decision: covariates are passed as a plain area-level data frame plus explicit area and covariate column names.
 - Maintainer review decision: treat `validate_flow_residual_structure()` as stable public API immediately.
-- Maintainer review decision: keep optional diagnostic plots inside the helper for now because they are dependency-light and useful for review; split plotting into separate helpers later only if the plotting surface grows.
-- Maintainer review decision: keep `sf`-aware cartographic support outside the package for now.
+- Maintainer review decision: keep optional diagnostic plots inside the helper for now because they are dependency-light and useful for review; split plotting into separate helpers later only if the plotting surface grows. The current visual prototype now begins that split with package-level `plot_validation_*()` functions.
+- Updated visual-prototype decision: expose LISA cluster mapping separately through `plot_validation_lisa_map()`, requiring users to provide `sf` boundaries rather than bundling or inferring geometries.
 
 5. Add distributional allocation diagnostics.
 - Implemented destination-share distributions by origin for benchmark and adjusted flows.
@@ -242,7 +318,7 @@ Deliverables:
 Decision gate:
 
 - Do we have a validation layer that compares methods on fit, residual structure, and spatial allocation fidelity, and do we know whether the Zenodo-based data can be used in-package?
-- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; optional diagnostic plots remain inside validation helpers for now; `sf`-aware cartographic support is deferred; empirical examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
+- Stage 2 answer: yes, maintainer reviewed on 2026-05-08. The implementation covers fit, residual behavior, residual structure, allocation fidelity, and the Zenodo redistribution/data-package decision. `validate_flow_residual_structure()` is stable public API; the current visual prototype adds separate package-level plotting functions, including optional LISA mapping from user-supplied `sf` boundaries; empirical examples use the optional `debiasRdata` package rather than bundling Zenodo data in `debiasR`.
 
 ### Stage 3: Measure Bias
 
@@ -316,7 +392,7 @@ mobile-phone-derived input scenarios.
 
 Estimated effort: `3-5 days`
 
-Status: `in progress; Bayesian S1-S4 transfer implemented, LAD teaching examples remain`
+Status: `in progress; Bayesian S1-S4 transfer implemented, empirical HTW validation and LAD teaching examples remain`
 
 Scenario plan:
 
@@ -364,7 +440,11 @@ Software-development tasks:
 3. Test against MSOA-like and empirical inputs.
 - Use synthetic MSOA-like data for internal software tests and runtime checks
   because it is the stricter shape for grid size and repeated observations.
-  Keep real `debiasRdata` empirical tests as a separate runtime gate.
+- Use `/Volumes/DEBIAS/data/outputs/flows/htw` for the empirical S1-S4
+  validation track. Start with LAD/LTLA support for quicker manual runs, then
+  repeat stable specifications at MSOA support.
+- Treat the migration/Twitter files under `mig` as secondary until the
+  code/label harmonisation and geography support have been audited.
 - Add focused tests for scenario detection, required columns, output metadata,
   and compatibility with existing Bayesian prediction scopes.
 - Implementation update: the fast tier includes deterministic MSOA-like S1-S4
@@ -372,6 +452,10 @@ Software-development tasks:
   complete-grid prediction. Optional Bayesian tests cover repeated S2-S4
   source/time fitting with the rstanarm backend when installed, and the
   `latent-stress` scope covers synthetic S3/S4 `stan_latent` stress fixtures.
+- Next empirical step: build a local schema audit/normalisation notebook or
+  script that maps the HTW files to `origin`, `destination`, `flow`,
+  `mpd_source`, `mpd_time`, benchmark flow, geography, and coverage/covariate
+  fields without copying raw data into the repository.
 
 Vignette and teaching-material tasks:
 
@@ -397,6 +481,12 @@ Deliverables:
 - [x] a written multilevel model scenario plan
 - [x] scenario parameters for `adjust_multilevel_bayes()`
 - [x] internal MSOA-like software tests for S1-S4 data contracts
+- [ ] empirical S1-S4 schema audit for `/Volumes/DEBIAS/data/outputs/flows/htw`
+- [ ] local/manual empirical S1-S4 validation notebook or script covering
+  frequentist smoke fits, Bayesian pilots, runtime logging, and validation
+  plots
+- [ ] runtime and diagnostic summary for coverage-offset and latent two-level
+  Bayesian pilots across the available S1-S4 structures
 - [ ] LAD vignette examples for the teachable scenario path
 - [x] a documented decision on when the frequentist development engine is ready to
   transfer into the Bayesian implementation
