@@ -2,6 +2,15 @@
 
 ### Validation documentation
 
+- Reworked the validation vignette around a shared-data method comparison that
+  evaluates deterministic adjustment methods and precomputed Bayesian
+  coverage-offset specifications on the same OD support, with row-audit checks,
+  Bayesian artifact fingerprints, visible MCMC diagnostics, and exported
+  `validate_flow_*()` / `plot_validation_*()` workflows across the five
+  validation levels.
+- Streamlined validation vignette tables so the broader method comparison is
+  compact, the level-by-level walkthrough prints only the most relevant rows
+  and columns, and the first two tables use smaller text for readability.
 - Added prototype `plot_validation_*()` functions for validation metric
   matrices, residual violin plots, pairwise flow scatterplots,
   standard-deviation and quantile residual-band stacked bars, distributional

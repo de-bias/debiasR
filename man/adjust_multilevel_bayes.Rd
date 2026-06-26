@@ -265,10 +265,10 @@ active-user coverage. The returned \code{flow_adj} is the estimated
 true-flow scale \eqn{\exp(\eta^{true}_{ij})}.
 
 In \code{observation_model = "latent_two_level"} mode, the Bayesian path
-fits an approved advanced joint latent model for repeated-source empirical
-workflows. It estimates a source-invariant true-flow intensity for each OD
-or OD-time state, then models each MPD source/time row as a coverage-scaled
-noisy observation of that latent state. This model is most informative for
+fits a joint latent model for repeated-source empirical workflows. It
+estimates a source-invariant true-flow intensity for each OD or OD-time
+state, then models each MPD source/time row as a coverage-scaled noisy
+observation of that latent state. This model is most informative for
 repeated source structures (S3/S4) and remains weakly identified for S1/S2
 designs without strong priors or external validation.
 }

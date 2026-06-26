@@ -32,60 +32,51 @@ main table td {
 
 This vignette explains the advanced implementation routes in
 `adjust_multilevel_bayes()`. The main adjustment vignette introduces the
-recommended default, `observation_model = "coverage_offset"`, because it is the
-most practical starting point for routine Bayesian adjustment. Start with
-[Adjusting origin-destination flows](v06-adjusting-biases.html) if you want the
-default workflow first. Here we compare the DEBIAS observation-model choices,
-show how the fast deterministic engine can be used for specification checks, and
-explain when the approved advanced latent two-level backend is useful.
+coverage-offset route first because it is the most practical starting point:
+take the observed MPD flow, use measured coverage as an observation offset, and
+predict the underlying true-flow scale. Start with
+[Adjusting origin-destination flows](v06-adjusting-biases.html) if you want that
+default workflow first.
+
+Here we slow down and look across the modelling routes. The useful question is
+what you think the MPD data are measuring. Sometimes you have one source and one
+time period, and a coverage-offset model is the clearest route. Sometimes more
+than one source observes the same OD or OD-time pattern, and it becomes possible
+to estimate a shared hidden flow behind those observations.
+Sometimes you need to reproduce the earlier MPD-scale correction logic, where
+the model asks what the fitted MPD flow would look like if the fitted bias term
+were neutral.
 
 The guiding principle is progressive complexity: use the simplest model that
 matches the data structure and inferential goal.
 
 ## Why more than one implementation route?
 
-`adjust_multilevel_bayes()` supports three Bayesian observation-model ideas and
-one fast non-posterior engine:
+`adjust_multilevel_bayes()` gives three ways to connect the observed MPD flow to
+an adjusted flow. They are related, but they do not answer exactly the same
+question.
 
-```{r echo=FALSE}
-bayesian_modes <- tibble::tribble(
-  ~Route, ~Status, ~Main_use, ~Core_idea,
-  "`coverage_offset`",
-  "Recommended default",
-  "Routine true-flow adjustment and teaching examples",
-  "Treat MPD flows as coverage-scaled observations of true flows, with coverage fixed as an offset.",
-  "`latent_two_level`",
-  "Experimental advanced backend",
-  "Repeated source/time data where multiple MPD observations can share a hidden OD or OD-time state",
-  "Create a latent-flow state and treat repeated MPD rows as observations of that state.",
-  "`reduced_form`",
-  "Legacy/backward-compatible",
-  "Reproducing earlier analyses or sensitivity checks on the MPD observation scale",
-  "Fit observed MPD flows directly and adjust by setting fitted bias terms to zero.",
-  "`model_engine = \"frequentist\"`",
-  "Fast deterministic scaffold",
-  "Testing formulas, covariates, source/time structures and count families before Bayesian sampling",
-  "Use the same non-latent data contract without posterior sampling."
-)
+The coverage-offset and latent two-level routes both return a true-flow scale,
+but they get there differently. The coverage-offset route uses coverage as a
+known adjustment in the observation equation. The latent route estimates a
+hidden state and is only really interesting when repeated MPD rows give the
+model something to learn about that state.
 
-knitr::kable(bayesian_modes)
-```
+The reduced-form route is different. It stays on the MPD observation scale and
+asks for a counterfactual fitted MPD flow. That makes it valuable for
+continuity with earlier analyses, but it should not be read as the same
+true-flow model as the coverage-offset route.
 
-The default coverage-offset model and the latent two-level model both return
-adjusted flows on a true-flow scale. They differ in what is estimated inside the
-model. The coverage-offset model estimates the true-flow scale by removing a
-fixed coverage offset from an observed-flow likelihood. The latent backend
-estimates a shared latent-flow intensity directly, so it is most useful when the
-same underlying OD or OD-time flow is observed by multiple sources. The
-frequentist engine is not a Bayesian model. It is a fast way to check whether
-the data contract, formulas and distributional choices are sensible before
-running a slower Bayesian implementation.
+There is also a fast `model_engine = "frequentist"` option for non-latent
+models. It is not a Bayesian model. It is a practical preflight check: use it to
+test joins, formulas, source/time declarations and count families before paying
+the runtime cost of posterior sampling.
 
 ## Choosing a Bayesian model
 
 ```{r echo=FALSE}
 decision_table <- tibble::tribble(
-  ~Data_or_goal, ~Recommended_mode, ~Reason,
+  ~If_your_data_or_goal_looks_like_this, ~Start_with, ~Why,
   "One source and one time period, or a small teaching example",
   "`coverage_offset`",
   "The latent split is weakly identified when each OD pair is observed once.",
@@ -98,9 +89,6 @@ decision_table <- tibble::tribble(
   "Multiple sources and multiple time periods",
   "`latent_two_level` with care",
   "Repeated source observations can share OD-time states, but time and source effects need careful interpretation.",
-  "Fast design, tests or method comparison",
-  "`model_engine = \"frequentist\"` with non-latent modes",
-  "The frequentist engine preserves the S1-S4 data contract but does not fit the latent Bayesian backend.",
   "Backward compatibility with earlier reduced-form analyses",
   "`reduced_form`",
   "This preserves the older MPD-scale counterfactual behaviour."
@@ -113,31 +101,46 @@ As a rule of thumb, start with `coverage_offset`. Move to
 `latent_two_level` only when the repeated-observation structure gives the model
 real information about the hidden flow state.
 
+## Source-time structures
+
+The same S1-S4 language is used throughout the function. It is simply a compact
+way to say how much repeated observation structure the MPD data contain.
+
+```{r echo=FALSE}
+source_time_table <- tibble::tribble(
+  ~Structure, ~Scenario, ~What_the_model_sees, ~Practical_guidance,
+  "One source, one time",
+  "`s1`",
+  "One MPD row for each observed OD pair.",
+  "Use `coverage_offset` unless you have a specific reason to run a sensitivity check.",
+  "One source, multiple times",
+  "`s2`",
+  "The same source is observed across periods.",
+  "Be careful: time variation may be real mobility change, not only observation bias.",
+  "Multiple sources, one time",
+  "`s3`",
+  "More than one source observes the same OD pairs.",
+  "`latent_two_level` becomes useful because sources can share an OD state.",
+  "Multiple sources, multiple times",
+  "`s4`",
+  "Source-time rows can observe the same OD or OD-time structure.",
+  "Useful for latent modelling, but source and time effects need careful diagnostics."
+)
+
+knitr::kable(source_time_table)
+```
+
 ## How the model variants differ
 
 The three Bayesian observation-model variants answer related but different
 questions. They should not all be read through the two-equation
 coverage-offset explanation used in the main adjustment vignette.
 
-```{r echo=FALSE}
-variant_structure_table <- tibble::tribble(
-  ~Variant, ~Main_question, ~Adjustment_target, ~What_is_not_estimated,
-  "`coverage_offset`",
-  "What true OD flow would have produced the observed MPD flow, given known coverage?",
-  "Census-scale true-flow prediction",
-  "Coverage is fixed as an offset; there is no separate source-invariant latent OD state.",
-  "`reduced_form`",
-  "What would the fitted MPD flow look like if the fitted bias term were neutral?",
-  "MPD-scale counterfactual prediction",
-  "It does not model MPD as coverage-scaled observations of Census-scale true flows.",
-  "`latent_two_level`",
-  "What shared hidden OD or OD-time flow state is implied by repeated source/time observations?",
-  "Latent true-flow prediction",
-  "The latent state is not source-specific; source/time variation belongs to the observation layer."
-)
-
-knitr::kable(variant_structure_table)
-```
+The coverage-offset route asks: what true OD flow would have produced the MPD
+flow we observed, given measured coverage? The reduced-form route asks: what
+would the fitted MPD flow look like if the fitted bias term were neutral? The
+latent route asks: what shared hidden OD or OD-time flow state is implied by
+repeated source/time observations?
 
 ### Coverage-offset true-flow route
 
@@ -213,7 +216,7 @@ F^{adj}_{ij} =
 $$
 
 This means the reduced-form route returns an MPD-scale counterfactual, not a
-Census-scale true-flow state identified through a coverage offset. It is useful
+true-flow state identified through a coverage offset. It is useful
 for reproducing earlier analyses and for sensitivity checks, but it should not
 be described as the same observation-process model as `coverage_offset`.
 
@@ -262,13 +265,13 @@ coverage-offset route is usually clearer.
 
 ## Simulated source-time example
 
-The examples below use a small simulated dataset so the code can be read and
+The examples below use a small simulated dataset so the calls can be read and
 adapted without requiring external empirical files. The simulation creates five
-areas, a hidden true OD-flow surface, two MPD sources and two time periods.
-Coverage differs by area, source and time. The observed MPD rows are generated
-as coverage-scaled measurements of the hidden true flows.
+areas, a true OD-flow surface, two MPD sources and two time periods. Coverage
+differs by area, source and time. The observed MPD rows are generated as
+coverage-scaled measurements of the true flows.
 
-```{r simulated-source-time-data}
+```{r simulated-source-time-data, echo=FALSE}
 set.seed(20260625)
 
 areas <- paste0("area_", LETTERS[1:5])
@@ -386,12 +389,29 @@ two sources for one time period. The S4 object contains two sources and two time
 periods. These small objects are intentionally simple, but they exercise the
 same parameter contracts used by empirical source/time flow data.
 
-The Bayesian model-fitting chunks below are shown but not evaluated during
-ordinary vignette rendering. Run them manually in RStudio when you want posterior
-summaries, and inspect `attr(result, "diagnostics")` before interpreting the
-adjusted flows. The deterministic frequentist check in this vignette is
-evaluated because it is fast and is useful for confirming that the simulated
-source/time structure has been declared correctly.
+```{r echo=FALSE}
+example_objects <- tibble::tribble(
+  ~Object, ~Scenario, ~Description,
+  "`mpd_s1`, `coverage_s1`",
+  "`s1`",
+  "One source and one time period.",
+  "`mpd_s3`, `coverage_s3`",
+  "`s3`",
+  "Two sources observing the same OD pairs in one period.",
+  "`mpd_s4`, `coverage_s4`",
+  "`s4`",
+  "Two sources observed across two periods."
+)
+
+knitr::kable(example_objects)
+```
+
+The Bayesian model-fitting chunks below are useful to run interactively when
+you want posterior summaries. They are not evaluated when the vignette is
+rendered, and you should inspect `attr(result, "diagnostics")` before
+interpreting the adjusted flows. The deterministic frequentist check in this
+vignette is evaluated because it is fast and is useful for confirming that the
+simulated source/time structure has been declared correctly.
 
 ## Default coverage-offset model
 
@@ -444,11 +464,10 @@ adj_default <- debiasR::adjust_multilevel_bayes(
 ```
 
 With richer data, the coverage-offset model can include multilevel structure in
-the true-flow formula. Random-effect terms represent origin, destination and
-corridor structure: `(1 | origin)` for an origin intercept, `(1 | destination)`
-for a destination intercept, and `(1 | od_id)` for an OD-corridor intercept.
-Use these terms when the data contain enough repeated information to estimate
-the pooling structure.
+the true-flow formula. In an S1 setting, that usually means origin and
+destination pooling: `(1 | origin)` for an origin intercept and
+`(1 | destination)` for a destination intercept. Use these terms when the data
+contain enough repeated information to estimate the pooling structure.
 
 ```{r eval=FALSE}
 adj_default_multilevel <- debiasR::adjust_multilevel_bayes(
@@ -457,8 +476,8 @@ adj_default_multilevel <- debiasR::adjust_multilevel_bayes(
   covariates_df = covariates,
   distance_df = distance,
   mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
-    (1 | origin) + (1 | destination) + (1 | od_id),
-  bias_formula = ~ bias_e_origin,
+    (1 | origin) + (1 | destination),
+  bias_formula = ~ 0,
   target_scale = "true_flow",
   observation_model = "coverage_offset",
   coverage_scale = "origin",
@@ -494,7 +513,7 @@ adj_fast_s4 <- debiasR::adjust_multilevel_bayes(
   distance_df = distance,
   mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
     mpd_source + mpd_time,
-  bias_formula = ~ bias_e_origin,
+  bias_formula = ~ 0,
   target_scale = "true_flow",
   observation_model = "coverage_offset",
   coverage_scale = "origin",
@@ -514,6 +533,37 @@ knitr::kable(head(adj_fast_s4, 8), digits = 2)
 The frequentist result should be interpreted as a fast design check. It tells
 you whether the scenario, coverage joins, formulas and prediction scope are
 working, but it is not posterior inference.
+
+Once that preflight passes, the same S4 structure can be fitted with the
+Bayesian engine. This chunk is useful to run interactively because MCMC runtime
+depends on the data size and local sampler setup.
+
+```{r eval=FALSE}
+adj_bayes_s4 <- debiasR::adjust_multilevel_bayes(
+  mpd_od_df = mpd_s4,
+  coverage_df = coverage_s4,
+  covariates_df = covariates,
+  distance_df = distance,
+  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
+    mpd_source + mpd_time + (1 | origin),
+  bias_formula = ~ 0,
+  target_scale = "true_flow",
+  observation_model = "coverage_offset",
+  coverage_scale = "origin",
+  model_engine = "bayesian",
+  scenario = "s4",
+  source_col = "mpd_source",
+  time_col = "mpd_time",
+  repeated_observation = "source_time",
+  prediction_scope = "observed",
+  model_family = "poisson",
+  flow_adj_summary = "median",
+  iter = 1000,
+  chains = 4,
+  seed = 123,
+  refresh = 0
+)
+```
 
 ## Latent two-level backend
 
@@ -536,15 +586,14 @@ where:
 - $q_{ijst}$ is the coverage-derived observation probability.
 - $\theta_{g(i,j,t)} = \log(\lambda^{true}_{g(i,j,t)})$ is the log shared
   latent true-flow intensity for an OD or OD-time group.
-- $z_{ijst}\gamma$ represents observation-layer structure such as coverage,
-  source and time effects.
+- $z_{ijst}\gamma$ represents observation-layer structure such as source and
+  time effects.
 
-In the approved custom Stan backend, `adjust_multilevel_bayes()` represents
-this shared state through `latent_flow_id` and estimates source-invariant
-latent effects with an identified sum-to-zero parameterization. The returned
-`flow_adj` and `flow_true_pred` summarize posterior draws of the latent
-true-flow intensity, while `flow_mpd_pred` summarizes the source/time-specific
-MPD observation mean.
+In this backend, `adjust_multilevel_bayes()` represents the shared state through
+`latent_flow_id` and estimates source-invariant latent effects with an
+identified sum-to-zero parameterization. The returned `flow_adj` and
+`flow_true_pred` summarize posterior draws of the latent true-flow intensity,
+while `flow_mpd_pred` summarizes the source/time-specific MPD observation mean.
 
 ```{r eval=FALSE}
 adj_latent <- debiasR::adjust_multilevel_bayes(
@@ -576,42 +625,14 @@ adj_latent <- debiasR::adjust_multilevel_bayes(
 
 The returned table includes `latent_flow_id`, `latent_flow_unit`,
 `flow_adj_mean`, `flow_adj_median`, and 95% interval columns for the true-flow
-and MPD observation scales. The result metadata also records the custom backend,
-the number of latent states, the true-flow and observation formulas, latent
-prior/sampler controls, ignored formula random-effect terms, and identifiability
-notes.
+and MPD observation scales. For most users, these are the first things to
+check: which rows share a latent state, what true-flow summary the model
+returns, and how the source/time-specific MPD prediction compares with the
+observed MPD flow.
 Because this mode relies on repeated observations, it is most informative for
-S3 and S4 designs. In S1 and S2, use it mainly as a sensitivity or compatibility
-check.
-
-## Source-time structures
-
-The same S1-S4 scenario language is used across the Bayesian and frequentist
-engines.
-
-```{r echo=FALSE}
-source_time_table <- tibble::tribble(
-  ~Structure, ~Scenario, ~Latent_state, ~Bayesian_guidance,
-  "One source, one time",
-  "`s1`",
-  "OD state, but each state is observed once",
-  "Prefer `coverage_offset`; latent mode is weakly identified.",
-  "One source, multiple times",
-  "`s2`",
-  "OD or OD-time state, depending on the research question",
-  "Use care: time variation can reflect true mobility change rather than observation bias.",
-  "Multiple sources, one time",
-  "`s3`",
-  "OD state shared across sources",
-  "Best first use case for the approved advanced `latent_two_level` backend.",
-  "Multiple sources, multiple times",
-  "`s4`",
-  "OD-time state shared across sources within each time period",
-  "Useful but more demanding; inspect source and time diagnostics carefully."
-)
-
-knitr::kable(source_time_table)
-```
+S3 and S4 designs. In S1, the latent split is usually too weak. In S2, use it
+only when treating repeated time periods as observations of a stable underlying
+OD state is substantively defensible.
 
 To move the latent example from S3 to S4, use the full repeated source/time
 table and share latent states within OD-time groups.
@@ -623,7 +644,7 @@ adj_latent_s4 <- debiasR::adjust_multilevel_bayes(
   covariates_df = covariates,
   distance_df = distance,
   mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
-  bias_formula = ~ bias_e_origin,
+  bias_formula = ~ 0,
   target_scale = "true_flow",
   observation_model = "latent_two_level",
   backend = "auto",
@@ -673,9 +694,44 @@ adj_reduced_form <- debiasR::adjust_multilevel_bayes(
 )
 ```
 
-Use this mode only when you need to reproduce older analyses or compare the
-newer true-flow scale against the earlier MPD-scale counterfactual. For most
-new analyses, prefer `coverage_offset`.
+Use this mode when you need to reproduce older analyses or compare the newer
+true-flow scale against the earlier MPD-scale counterfactual. For most new
+analyses, the coverage-offset route is the clearer starting point.
+
+## What the returned columns mean
+
+The returned object is a tibble with the original OD identifiers, the observed
+MPD flow, adjusted-flow summaries, and model metadata attached as attributes.
+The same column name can carry slightly different meaning across routes, so it
+is worth reading the output through the model you fitted.
+
+```{r echo=FALSE}
+output_columns <- tibble::tribble(
+  ~Column_or_attribute, ~Coverage_offset, ~Latent_two_level, ~Reduced_form,
+  "`flow_adj`",
+  "Posterior summary of the coverage-adjusted true-flow prediction.",
+  "Posterior summary of the latent true-flow state.",
+  "Posterior summary of the MPD-scale counterfactual with fitted bias neutralised.",
+  "`flow_true_pred`",
+  "Same true-flow-scale quantity as `flow_adj`.",
+  "Same latent true-flow-scale quantity as `flow_adj`.",
+  "`NA`, because this route is not a true-flow model.",
+  "`flow_mpd_pred`",
+  "Posterior prediction on the MPD observation scale, with the coverage offset included.",
+  "Source/time-specific MPD observation mean implied by the latent state and observation layer.",
+  "`NA` for the reduced-form counterfactual route.",
+  "`latent_flow_id`",
+  "Not used.",
+  "Identifier for the shared OD or OD-time latent state.",
+  "Not used.",
+  "`attr(result, \"diagnostics\")`",
+  "Sampler diagnostics for the fitted Bayesian count model.",
+  "Sampler diagnostics for the custom latent Stan fit, including convergence summaries.",
+  "Sampler diagnostics for the fitted Bayesian count model."
+)
+
+knitr::kable(output_columns)
+```
 
 ## Diagnostics
 
@@ -703,42 +759,41 @@ default weakly regularizing settings are not appropriate.
 
 The latent backend should still be treated as an advanced model: use it when
 the repeated-source structure is substantively important, keep prior checks in
-the workflow, and inspect posterior predictive diagnostics before relying on
-the fitted latent state.
+the workflow, and inspect sampler diagnostics and prediction summaries before
+relying on the fitted latent state.
 
-## Current validation status
+## Reading empirical comparisons
 
-The default `coverage_offset` route is the approved Bayesian implementation for
-observed-flow LAD workflows. In the empirical S4 LAD validation run, fixed and
-origin random-intercept coverage-offset models completed on the full selected
-LAD source/time table with acceptable sampler diagnostics. The Bayesian fits
-were competitive with benchmark-calibrated deterministic methods on MAE and
-strong on RMSE, while retaining the main Bayesian advantage: the benchmark OD
-table was used for validation rather than fitting.
+When you compare Bayesian adjustment with deterministic methods, it helps to
+remember what information each method is allowed to use. Raking,
+selection-rate calibration and coefficient calibration can use benchmark
+margins or benchmark OD targets while they are being fitted. The
+coverage-offset Bayesian route does not need benchmark OD flows for fitting, so
+the benchmark can be held back for validation.
 
-This is the main reason not to read the empirical table as a simple race to the
-lowest MAE. Raking, selection-rate calibration and coefficient calibration can
-use benchmark margins or benchmark OD targets while they are being fitted, so
-they are allowed to see information that the Bayesian coverage-offset model
-does not require. When the Bayesian model achieves similar benchmark
-performance without fitting to those target flows, the comparison supports it
-as a practical alternative rather than a method that must dominate every
-benchmark-trained score.
+That changes the interpretation of the comparison. The aim is not simply to win
+the lowest MAE in every table. If a coverage-offset Bayesian model gets close
+to benchmark-trained methods while fitting without the benchmark OD targets,
+that is already a useful result. It means the coverage-aware observation model
+is recovering much of the same flow structure from MPD counts, coverage and
+covariates alone.
 
-This approval is intentionally scoped. It supports `coverage_offset` as the
-default empirical Bayesian route for S1-S4 observed-flow workflows. It also
-approves `latent_two_level` as an advanced repeated-source S3/S4 route after
-real MPD/Census empirical runs, real centroid distances, prior-sensitivity
-checks, and confirmatory sampler diagnostics. The `reduced_form` route remains
-useful for compatibility and sensitivity checks, but it is not the recommended
-implementation for new Bayesian adjustment work.
+The latent route should be read in the same spirit, but with one extra question:
+do the repeated source/time observations give the model enough information to
+separate the hidden flow state from the observation layer? In S3 and S4 data,
+that question is empirical. In S1 data, the answer is usually no, because each
+OD flow is only observed once.
 
-## Practical recommendation
+## Putting the routes together
 
-Use `coverage_offset` as the default Bayesian implementation. It is readable,
-validated for the default empirical LAD workflow, and directly returns a
-true-flow scale from a coverage-aware observation model.
+In most applications, begin with `coverage_offset`. It gives a direct
+true-flow-scale adjustment and keeps the role of active-user coverage explicit.
 
-Use `latent_two_level` when the data structure justifies it: especially
-multiple MPD sources observing the same OD or OD-time state. Keep the older
-`reduced_form` mode for reproducibility and backward compatibility.
+Move to `latent_two_level` when the data structure earns the extra complexity:
+more than one MPD source, or source-time observations that can plausibly share
+an underlying OD or OD-time flow.
+
+Keep `reduced_form` for continuity with earlier analyses and for sensitivity
+checks. It is still useful, but its adjusted value is an MPD-scale
+counterfactual, so it should not be interpreted as the same true-flow quantity
+returned by the coverage-offset and latent routes.
