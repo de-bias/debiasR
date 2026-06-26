@@ -473,7 +473,7 @@ destination level. Additional options, such as `fit_intercept` and `by_source`, 
 users decide whether to estimate an intercept or source-specific coefficients.
 
 ```{r}
-adj_coefficient <- debiasR::adjust_coefficient(
+adj_coefficient <- adjust_coefficient(
   mpd_od_df = mpd_od,
   benchmark_od_df = benchmark_od,
   model_family = "ols",
@@ -535,25 +535,25 @@ is also part of the adjustment information, and provide deterministic flow estim
 The Bayesian coverage-offset model variant is designed to be deployed particularly in these contexts. It does not require benchmark flow data for training and enables measuring the uncertainty of estimates. It fits MPD flows, active-user coverage, covariates and distance. Benchmark OD flows can be used for external validation, but again not required for training. The performance of the Bayesian variants should only be assessed on better error performance over benchmark-calibrated methods. Additional parameters are needed, such as model convergence, flow estimate improvement over raw MPD flows, measures of uncertainty and flexibility to accommodate multiple MPD data structures from different sources, time granularity and frequency.
 :::
 
-A practical guide is:
+A practical guide:
 
 ```{r echo=FALSE}
 bayesian_option_guide <- tibble::tribble(
-  ~`Model option`, ~`Use it when`, ~`Returned scale`, ~`Intuition`,
+  ~`Model variant`, ~`Use it when`, ~`Returned scale`, ~`Intuition`,
   "`observation_model = \"coverage_offset\"`",
-  "You want the default Bayesian true-flow adjustment.",
+  "Estimate real population flows from phone counts, accounting for how well each area is represented in the mobile-phone data.",
   "True-flow scale",
-  "The model estimates Census-scale true flows while treating source/time coverage as a fixed observation offset. Start here.",
+  "The model estimates Census-scale true flows while treating source/time coverage as a fixed observation offset.",
   "`observation_model = \"reduced_form\"`",
-  "You need backward compatibility or an MPD-scale sensitivity check.",
+  "Adjust the observed phone counts directly, instead of using coverage rates to estimate how many people those phone counts represent.",
   "MPD-scale counterfactual",
   "The model fits observed MPD flows directly and predicts a counterfactual MPD flow with the fitted bias term set to zero.",
   "`observation_model = \"latent_two_level\"`",
-  "You have repeated source/time observations, especially S3 or S4 structures.",
+  "Estimate shared population flows when the same OD pairs are observed more than once, such as across different data sources or time periods.",
   "Latent true-flow scale",
   "The model estimates source-invariant latent OD or OD-time true-flow states and treats observed source/time rows as noisy coverage-scaled measurements.",
   "`model_engine = \"frequentist\"`",
-  "You want to test data structure, formulas or families quickly before Bayesian sampling.",
+  "Run a faster version of the model to check that the data, formulas and assumptions work before running the full Bayesian model.",
   "Fast non-posterior check",
   "The deterministic engine uses the same non-latent data contract for rapid specification checks and method comparison."
 )
@@ -567,7 +567,7 @@ For routine adjustment, the practical default is:
 |:--|:--|
 | Adjustment scale | `target_scale = "true_flow"` |
 | Observation model | `observation_model = "coverage_offset"` |
-| Coverage offset | `coverage_scale = "origin"`, `"destination"` or `"both"` |
+| Coverage offset | `coverage_scale = "origin"` |
 
 The coverage-offset model variant used in this section can be understood
 through two linked equations: an MPD observation equation and a true-flow prediction
@@ -575,7 +575,15 @@ equation. These equations describe the coverage-offset model only. The
 `reduced_form` and `latent_two_level` model variants use different observation
 structures, which are explained in the advanced Bayesian vignette.
 
-*_MPD observation equation_*
+Together, the two equations also show where the multilevel idea enters. The
+coverage-offset part describes the observation process: MPD flows are partial
+observations of mobility because only a fraction of the population appears in
+the MPD data. The true-flow predictor describes the underlying mobility pattern
+that we want to recover. That predictor can be a simple fixed-effect count model,
+or it can become a multilevel model by borrowing information across origins,
+destinations, OD corridors, sources or time periods.
+
+*_MPD observation equation: what the MPD data observe_*
 
 $$
 F^{mpd}_{ij} \sim \text{Poisson}(q_{ij} F^{true}_{ij})
@@ -590,7 +598,13 @@ With `coverage_scale = "origin"`, $q_{ij} = c_i = U_i/P_i$. The term
 $\log(q_{ij})$ is an offset: it fixes the observation-process scale and is not
 estimated as a regression coefficient.
 
-*_True-flow prediction equation_*
+In plain terms, this first equation says: if active-user coverage is 20%, we do
+not expect the MPD data to observe all true trips. We expect the MPD count to be
+roughly one fifth of the true flow, before allowing for random sampling noise.
+The offset is the part of the model that tells us how much of the true flow the
+MPD system is expected to see.
+
+*_True-flow prediction equation: where the multilevel structure lives_*
 
 $$
 \eta^{true}_{ij}
@@ -602,33 +616,29 @@ where $X_i$ and $X_j$ are origin and destination covariates, $d_{ij}$ is the
 origin-destination distance, and $u_i$, $v_j$ and $w_{ij}$ capture origin,
 destination and origin-destination structure.
 
-Intuitively, the observation equation recognises that we observe MPD flows, not
-the true mobility flows themselves. The observed MPD flow $F^{mpd}_{ij}$ is
-treated as a coverage-scaled measurement of an underlying true flow
-$F^{true}_{ij}$. If an origin has 20% active-user coverage, the fitted MPD-scale
-expectation is the true-flow expectation multiplied by 0.20 under the
-origin-offset assumption. For example, if the model estimates 500 true trips
-from origin $i$ to destination $j$ and origin $i$ has 20% active-user coverage,
-the corresponding MPD observation-scale prediction is
-$0.20 \times 500 = 100$ trips.
+This second equation says what kind of mobility pattern we believe exists behind
+the observed MPD counts. Flows may be higher from some types of origins, lower
+to some types of destinations, and lower over longer distances. They may also
+share persistent structure. For example, all flows leaving the same origin may
+be systematically high or low, all flows arriving at the same destination may
+share a destination effect, and a specific OD corridor may have its own
+additional tendency.
 
-The true-flow prediction equation describes the underlying mobility pattern
-learned from covariates, distance and origin/destination/corridor structure. It
-assumes that the true flow $F^{true}_{ij}$ depends on origin and destination
-characteristics, distance, and persistent origin, destination and corridor
-structure. This gives the model a way to borrow information across related
-places instead of treating every OD corridor as a completely separate unit.
+This is the multilevel part of the model. Instead of estimating every OD
+corridor in isolation, the model can partially pool information across related
+places. An origin random effect $u_i$ lets flows from the same origin learn from
+one another. A destination random effect $v_j$ does the same for flows arriving
+at the same destination. An OD-corridor effect $w_{ij}$ can capture a persistent
+relationship between a specific origin and destination. With repeated
+source/time data, the same idea can extend to source and time structure.
 
-$F^{true}_{ij}$ is not itself a random intercept. It is the estimated true-flow
-scale for a specific origin-destination pair, computed from the full true-flow
-linear predictor $\eta^{true}_{ij}$. Random intercepts, when included, are
-components of that predictor. An origin random intercept $u_i$ shifts all flows
-leaving origin $i$ up or down; a destination random intercept $v_j$ shifts flows
-arriving at destination $j$; and an OD random intercept $w_{ij}$ captures a
-corridor-specific deviation. In the small S1 example below we set
-`random_intercept = "none"` because each corridor appears once, so
-$F^{true}_{ij}$ is estimated from the fixed-effect predictors and the coverage
-offset rather than from random intercepts.
+The estimated true flow $F^{true}_{ij}$ is therefore not itself a random
+intercept. It is the final flow quantity implied by the whole true-flow
+predictor. Random effects, when included, are ingredients inside that predictor.
+In the small S1 example below we set `random_intercept = "none"` because each
+corridor appears once, so the example is a fixed-effect coverage-offset fit. The
+same model variant becomes explicitly multilevel when the formula or arguments
+add origin, destination, OD, source or time pooling structure.
 
 The model adjusts flows by predicting on two scales. The fitted MPD-scale
 prediction keeps the coverage offset:
@@ -711,7 +721,7 @@ arguments.
 ```{r echo=FALSE}
 bayesian_parameter_guide <- tibble::tribble(
   ~Argument, ~Role_in_the_coverage_offset_fit,
-  "`mobility_formula`", "Defines the true-flow predictor, such as origin covariates, destination covariates and distance.",
+  "`mobility_formula`", "Defines the true-flow predictor, such as origin covariates, destination covariates, distance and optional multilevel terms.",
   "`target_scale = \"true_flow\"`", "Returns adjusted flows on the estimated true-flow scale rather than on the MPD observation scale.",
   "`observation_model = \"coverage_offset\"`", "Treats MPD flows as coverage-scaled observations of true flows.",
   "`coverage_scale`", "Chooses whether the fixed coverage offset uses origin coverage, destination coverage or both.",
@@ -730,24 +740,27 @@ The coverage-offset equations above translate into two conceptual formula
 components.
 `mobility_formula` defines the true-flow model; here we use `rural_pct_o`,
 `rural_pct_d` and `log_distance` to represent origin covariates, destination
-covariates and distance. In the recommended default mode, the observation model
-is selected with `target_scale = "true_flow"` and
-`observation_model = "coverage_offset"`, while `coverage_scale` selects whether
-the offset uses origin, destination or geometric-mean coverage. The coverage
-component is represented by this fixed offset rather than by an estimated
-coverage-bias coefficient in the fitted true-flow formula.
+covariates and distance. This example keeps the predictor fixed-effect for
+readability, but the same formula interface can include multilevel terms such
+as `(1 | origin)` or `(1 | destination)` when the data support pooling. In the
+recommended default mode, the observation model is selected with
+`target_scale = "true_flow"` and `observation_model = "coverage_offset"`, while
+`coverage_scale` selects whether the offset uses origin, destination or
+geometric-mean coverage. The coverage component is represented by this fixed
+offset rather than by an estimated coverage-bias coefficient in the fitted
+true-flow formula.
 
 The wider parameter set, including `latent_flow_unit`, latent-prior controls and
 the `reduced_form` compatibility model variant, is covered in the advanced Bayesian
 vignette. Start there when you need to model repeated source/time observations
 or compare alternative DEBIAS Bayesian model variants.
 
-The default coverage-offset model is the safest Bayesian starting point because
-it makes the observation process explicit while keeping the fitted structure
-readable. `adjust_multilevel_bayes()` does not need benchmark OD flows to fit
-this model. In this vignette, benchmark flows are shown next to the raw and
-adjusted MPD-derived estimates so that readers can interpret and validate the
-adjustment.
+The default coverage-offset model variant is the safest Bayesian starting point
+because it makes the observation process explicit while keeping the fitted
+structure readable. `adjust_multilevel_bayes()` does not need benchmark OD flows
+to fit this model. In this vignette, benchmark flows are shown next to the raw
+and adjusted MPD-derived estimates so that readers can interpret and validate
+the adjustment.
 
 The example below therefore uses a Bayesian fixed-effect true-flow model with
 an origin coverage offset. The model code is shown for reproducibility, while
@@ -767,7 +780,7 @@ coverage_s1 <- coverage_adjustment |>
     mpd_time = "2021_q1"
   )
 
-adj_multilevel <- debiasR::adjust_multilevel_bayes(
+adj_multilevel <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s1,
   coverage_df = coverage_s1,
   covariates_df = covariates_adjustment,
@@ -1075,7 +1088,7 @@ cat("<div class='method-table-wrap'>", table_html, "</div>")
 
 <style>
 main table {
-  font-size: 0.9rem;
+  font-size: calc(0.9rem - 1.5px);
   line-height: 1.45;
 }
 

@@ -59,6 +59,13 @@ Last updated: 2026-06-26
   - performance and dependency footprint are heavy relative to fixed-rule adjustment methods
   - backend guidance: `rstanarm` is the default package dependency for standard Poisson / negative-binomial models because it is lighter and easier to fit in a package workflow; use optional `brms` when you need extra flexibility, especially zero-inflated or more complex Bayesian specifications
 
+## Documentation Style Rules
+
+- Compact explanatory vignette tables with long wrapped text or inline-code
+  cells should use a table font 1.5px smaller than the default table size. This
+  applies to option-guide and method-summary tables like the Bayesian
+  model-variant guide.
+
 ## What Changed Recently
 
 - External HTW flow outputs under `/Volumes/DEBIAS/data/outputs/flows` now
