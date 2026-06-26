@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-06-19
+Last updated: 2026-06-25
 
 ## Snapshot
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-19
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
-- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; S1-S4 source/time scenarios are supported by both Bayesian and frequentist engines, while empirical use remains dependency- and runtime-sensitive
+- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; the default `coverage_offset` Bayesian route is approved for observed-flow empirical LAD S1-S4 workflows, while `latent_two_level` is approved as an advanced observed-row repeated-source S3/S4 route
 - Current execution board: see [TASK_BOARD.md](TASK_BOARD.md)
 
 ## Stable vs Experimental
@@ -38,7 +38,22 @@ Last updated: 2026-06-19
   - row-status metadata distinguishes observed MPD rows from zero-filled source-missing cells
   - scenario metadata now distinguishes S1 single-source/single-time, S2 single-source/multiple-time, S3 multiple-source/single-time, and S4 multiple-source/multiple-time inputs
   - S1-S4 repeated source/time scenarios can now be fitted with `model_engine = "bayesian"` or `model_engine = "frequentist"`
-  - `observation_model = "latent_two_level"` is available as an experimental Bayesian backend for repeated source/time structures; it creates `latent_flow_id` states, estimates latent true-flow intensities with a custom Stan backend, and records latent-state metadata and identifiability notes
+  - `observation_model = "coverage_offset"` is approved as the default
+    Bayesian implementation for observed-flow LAD empirical workflows after
+    full S4 validation with real LAD centroid distances, acceptable diagnostics,
+    and competitive benchmark validation metrics
+  - `observation_model = "reduced_form"` remains a compatibility and
+    sensitivity route rather than the recommended Bayesian implementation
+  - local source/time flow data for empirical S1-S4 testing are available
+    outside the repository at `/Volumes/DEBIAS/data/outputs/flows`; use the HTW
+    branch first for `mapp1`, `mapp2`, and Census benchmark validation at
+    LAD/LTLA and MSOA support, but do not commit the raw data or rendered bulky
+    outputs into `debiasR`
+  - `observation_model = "latent_two_level"` is available as an approved
+    advanced Bayesian backend for observed-row repeated source/time structures;
+    it creates `latent_flow_id` states, estimates latent true-flow intensities
+    with a custom Stan backend, records latent-state metadata and
+    identifiability notes, and requires sampler diagnostics for applied use
   - `model_terms` metadata records the resolved default fixed-effect and random-effect structure for the shared S1-S4 scenario contract
   - `model_engine = "frequentist"` remains useful for fast testing, experimentation, and method comparison before committing to Bayesian runtime
   - performance and dependency footprint are heavy relative to fixed-rule adjustment methods
@@ -46,6 +61,11 @@ Last updated: 2026-06-19
 
 ## What Changed Recently
 
+- External HTW flow outputs under `/Volumes/DEBIAS/data/outputs/flows` now
+  provide empirical source/time inputs for S1-S4 validation: Mapp1 weekly/monthly
+  files, Mapp2 monthly files, and Census travel-to-work benchmarks at LAD/LTLA
+  and MSOA support. The migration/Twitter branch remains secondary until
+  code/label harmonisation is audited.
 - The `debiasR` repository was made public on GitHub on 2026-06-04. Treat
   repository docs, vignettes, workflows, issues, pull requests, and tracked
   assets as public-facing by default.
@@ -73,11 +93,11 @@ Last updated: 2026-06-19
 - Enhancement issue #18 records the genuinely latent two-level Bayesian model,
   where `F_true_ij` is estimated explicitly rather than recovered only through
   a zero-bias counterfactual prediction. The current branch includes a first
-  experimental custom Stan `latent_two_level` backend that estimates OD or
+  approved advanced custom Stan `latent_two_level` backend that estimates OD or
   OD-time latent true-flow intensities. The backend now exposes latent prior
-  and sampler controls, records richer diagnostics, and splits optional
-  Bayesian tests into `rstanarm-smoke`, full `rstanarm`, and latent-Stan
-  scopes; empirical stress tests remain future hardening work.
+  and sampler controls, records richer diagnostics, uses identified
+  sum-to-zero latent/source/time contrasts, and splits optional Bayesian tests
+  into `rstanarm-smoke`, full `rstanarm`, and latent-Stan scopes.
 - `validate_flow_distribution()` now supports `comparisons = "all"` so raw
   MPD, adjusted MPD-derived, and benchmark OD-flow allocation distributions can
   be compared through the same KL/JSD contract.
@@ -96,8 +116,34 @@ Last updated: 2026-06-19
   default coverage-offset example with constant source/time columns and
   raw/adjusted/benchmark comparison columns.
 - The advanced Bayesian adjustment vignette now explains S1-S4 source/time
-  structures, the experimental `latent_two_level` backend, reduced-form
+  structures, the approved advanced `latent_two_level` backend, reduced-form
   compatibility mode, and Bayesian diagnostics.
+- The Bayesian vignette exposition was refined on 2026-06-25 so the
+  "observation equation" and "true-flow prediction equation" language is scoped
+  explicitly to the coverage-offset route. The advanced Bayesian vignette now
+  gives separate conceptual equations and interpretation for `coverage_offset`,
+  `reduced_form`, and `latent_two_level`, avoiding the earlier risk of implying
+  that all variants share the same two-equation structure.
+- Empirical approval decision recorded on 2026-06-25: the default
+  `coverage_offset` Bayesian implementation is approved as a viable empirical
+  alternative for observed-flow LAD S1-S4 workflows. The full LAD S4
+  confirmatory run used real `debiasRdata::lad_centroids` distances, 309 LADs,
+  74,874 MPD rows, 64,162 validation pairs, `iter = 1000`, and `chains = 4`.
+  Both fixed and origin random-intercept coverage-offset fits completed with no
+  failures, max R-hat about 1.01, minimum effective sample size 485, and no
+  convergence warnings. The Bayesian fits were competitive on MAE and had lower
+  RMSE than the benchmark-calibrated deterministic comparators in that S4 run.
+  A separate real-data approval now promotes `latent_two_level` as an advanced
+  repeated-source route for observed-row S3/S4 workflows with diagnostic
+  guardrails.
+- Empirical latent approval decision recorded on 2026-06-25:
+  `observation_model = "latent_two_level"` is approved as an advanced
+  repeated-source S3/S4 route after real HTW MPD source/time runs, real Census
+  benchmark validation, real `debiasRdata::lad_centroids` distances, and
+  prior-sensitivity checks. The confirmatory default-prior run used
+  `iter = 1000`, `chains = 4`, and `latent_max_treedepth = 15`; S3 and S4 both
+  completed with no divergences, no treedepth hits, E-BFMI above 0.91, max
+  R-hat about 1.023, and minimum effective sample size about 190.
 - The adjustment vignette now reads its compact Bayesian example output from a
   precomputed package artifact reporting posterior median and mean summaries;
   maintainers can regenerate it explicitly with
@@ -108,7 +154,7 @@ Last updated: 2026-06-19
   default coverage-offset true-flow model, clarifies that active-user coverage
   enters as a fixed observation offset rather than a fitted bias coefficient,
   maps rendered Bayesian example columns to returned object columns, and gives
-  a short S2-S4 repeated source/time callout for the experimental
+  a short S2-S4 repeated source/time callout for the approved advanced
   `latent_two_level` backend. The advanced Bayesian adjustment vignette remains
   the deeper companion reference for formulas, backend choices, and diagnostics.
 - Issue #56 added a distinct Level 5 spatial/residual structure diagnostics
@@ -209,8 +255,8 @@ Last updated: 2026-06-19
   fixtures with the custom `stan_latent` backend and checks latent true-flow
   invariance, observation-scale variation, zero-filled prediction rows, and
   sampler diagnostics. It also corrects the custom Stan intercept prior scale.
-  Hosted/manual `latent-stress` results still need to be run and recorded
-  before promoting `latent_two_level` beyond experimental status.
+  The later 2026-06-25 real-data approval supersedes the earlier experimental
+  promotion gate for `latent_two_level`.
 - Verified locally on 2026-06-13 with
   `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_fast_tests.R`,
   `/Library/Frameworks/R.framework/Resources/bin/Rscript scripts/run_bayesian_tests.R latent-stress`,
@@ -238,6 +284,21 @@ Last updated: 2026-06-19
 - Result: pass. The rendered validation article and reference page show the
   optional Local Moran/LISA diagnostics, hidden setup chunks remain hidden, and
   no new mandatory spatial dependencies were added.
+- Verified the full empirical LAD S4 `coverage_offset` Bayesian route locally
+  on 2026-06-25 with a quiet manual runner derived from
+  `notes/project-management/BAYESIAN_EMPIRICAL_FLOW_S1S4_VALIDATION.qmd`.
+- Result: pass. The run fitted fixed and origin random-intercept Bayesian
+  coverage-offset models on 309 LADs and 74,874 S4 MPD source/time rows using
+  real LAD centroid distances, `iter = 1000`, and `chains = 4`. Both Bayesian
+  fits completed; max R-hat was about 1.01, minimum effective sample size was
+  485, and there were no R-hat, ESS, or non-convergence warnings. S4
+  adjusted-versus-benchmark metrics placed Bayesian coverage-offset behind
+  raking ratio and inverse penetration on MAE but ahead of coefficient OLS, and
+  lower than all three on RMSE. Interpret these comparisons as external
+  validation, not a pure target-fitting contest: raking and calibrated
+  deterministic methods can use benchmark margins or OD targets during fitting,
+  while the Bayesian coverage-offset route does not need benchmark OD flows and
+  reserves them for validation.
 
 ## Current Risks / Blockers
 
@@ -258,8 +319,8 @@ Last updated: 2026-06-19
    `rstanarm-smoke`, full `rstanarm`, `latent-smoke`, and `latent-stress`
    scopes.
 4. Keep top-level docs synchronized with exported API (`NAMESPACE`).
-5. Record feasible LAD empirical grid sizes and runtime expectations before promoting Bayesian examples beyond prototype guidance.
-6. Harden enhancement issue #18 beyond the current experimental
-   `latent_two_level` backend with hosted/manual S3/S4 stress runs and prior
-   sensitivity notes.
+5. Record additional LAD/MSOA runtime expectations as larger empirical latent
+   grids are attempted.
+6. Confirm the optional/manual Bayesian workflow on GitHub Actions for the
+   `latent-smoke` and `latent-stress` scopes.
 7. Use MSOA-scale inputs for software/runtime stress tests and LAD-scale inputs for vignettes and teaching material as the S1-S4 scenario work develops.

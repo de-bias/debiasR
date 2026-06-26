@@ -86,6 +86,45 @@ test_that("latent-state keys are source-invariant across S1-S4 scenarios", {
   }
 })
 
+test_that("S4 latent auto unit avoids weak unbalanced OD-time source replication", {
+  toy <- make_multilevel_scenario_toy(
+    sources = c("src1", "src2"),
+    periods = c("t1", "t2")
+  )
+  keep <- !(toy$mpd_od$mpd_source == "src2" & toy$mpd_od$mpd_time == "t2")
+  toy$mpd_od <- toy$mpd_od[keep, , drop = FALSE]
+  toy$coverage <- toy$coverage[!(toy$coverage$mpd_source == "src2" & toy$coverage$mpd_time == "t2"), , drop = FALSE]
+
+  scenario_info <- debiasR:::.resolve_multilevel_scenario(
+    toy$mpd_od,
+    scenario = "s4"
+  )
+  prep <- debiasR:::.prepare_multilevel_bayes_data(
+    mpd_od_df = toy$mpd_od,
+    coverage_df = toy$coverage,
+    covariates_df = toy$covariates,
+    distance_df = toy$distance,
+    flow_col = "flow",
+    income_col = "income_norm",
+    pop_col = "population",
+    distance_col = "distance_km",
+    scenario_info = scenario_info
+  )
+
+  expect_warning(
+    latent <- debiasR:::.prepare_multilevel_latent_state(
+      data = prep$model_df,
+      scenario_info = scenario_info,
+      latent_flow_unit = "auto"
+    ),
+    "selected `od`"
+  )
+
+  expect_equal(latent$latent_flow_unit, "od")
+  expect_equal(latent$identifiability$min_sources_per_latent_flow, 2L)
+  expect_false(latent$identifiability$weak_identification_warning)
+})
+
 test_that("latent formula partitioning separates true-flow and observation layers", {
   info <- debiasR:::.resolve_multilevel_user_formula(
     mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance + (1 | origin),
@@ -151,7 +190,7 @@ test_that("latent Stan data contract records state, formula, and prediction dime
   latent <- debiasR:::.prepare_multilevel_latent_state(
     data = prep$model_df,
     scenario_info = scenario_info,
-    latent_flow_unit = "auto"
+    latent_flow_unit = "od_time"
   )
   prediction_df <- debiasR:::.set_multilevel_observation_probability(
     latent$data,
@@ -205,6 +244,22 @@ test_that("latent Stan data contract records state, formula, and prediction dime
   expect_equal(stan_data$summary$n_unobserved_latent_flows, 0L)
   expect_equal(stan_data$summary$true_formula, "~rural_pct_o + rural_pct_d + log_distance")
   expect_equal(stan_data$summary$observation_formula, "~bias_e_origin - 1")
+  expect_true(all(c("(Intercept)", "rural_pct_o", "rural_pct_d", "log_distance") %in% stan_data$summary$true_standardization$term))
+  expect_equal(
+    stan_data$summary$true_standardization$standardized[
+      stan_data$summary$true_standardization$term == "(Intercept)"
+    ],
+    FALSE
+  )
+  true_non_intercept <- which(stan_data$summary$true_standardization$term != "(Intercept)")
+  expect_lt(max(abs(colMeans(stan_data$data$X_true_obs[, true_non_intercept, drop = FALSE]))), 1e-12)
+  expect_equal(
+    as.numeric(apply(stan_data$data$X_true_obs[, true_non_intercept, drop = FALSE], 2, stats::sd)),
+    rep(1, length(true_non_intercept)),
+    tolerance = 1e-12
+  )
+  expect_lt(abs(mean(stan_data$data$X_bias_obs[, 1])), 1e-12)
+  expect_equal(stats::sd(stan_data$data$X_bias_obs[, 1]), 1, tolerance = 1e-12)
   expect_equal(stan_data$summary$source_effect_layer, "observation")
   expect_equal(stan_data$summary$time_effect_layer, "observation")
   expect_true(all(stan_data$data$latent_id_obs %in% seq_len(stan_data$data$L)))

@@ -1,0 +1,1833 @@
+---
+title: "Bayesian Empirical Flow S1-S4 Validation"
+format:
+  html:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: true
+  message: true
+---
+
+## Purpose
+
+This notebook is the manual RStudio validation runner for the empirical
+source/time structures now available under `/Volumes/DEBIAS/data/outputs/flows`.
+It uses the HTW flow outputs first because that branch contains mobile-phone
+sources (`mapp1`, `mapp2`) and Census travel-to-work benchmarks at LAD/LTLA and
+MSOA support.
+
+The notebook tests whether `adjust_multilevel_bayes()` can run on real
+empirical S1-S4 inputs, records runtime and diagnostics, and compares the
+Bayesian outputs with deterministic baselines using the exported `debiasR`
+validation and visualisation functions. The default run is intentionally small.
+It runs LTLA frequentist smoke tests and leaves Bayesian sampling off until the
+schema audit succeeds.
+
+The empirical scenario constructions are:
+
+- S1: `mapp1` month, one source and one aggregation window.
+- S2: `mapp1` week plus month, one source and multiple aggregation windows.
+- S3: `mapp1` month plus `mapp2` month, multiple sources and one aggregation
+  window.
+- S4: all available `mapp1` and `mapp2` week/month files for the selected
+  geography, multiple sources and multiple aggregation windows. This is
+  currently unbalanced because no `mapp2` week file is present in the inspected
+  HTW folder.
+
+Treat `mpd_time` here as the empirical time or aggregation-window identifier
+available in the files. If a later metadata file supplies actual dates or
+period IDs, replace the filename-derived `mpd_time` values before fitting S2
+and S4.
+
+## Manual Run Protocol
+
+1. Run the notebook once with the defaults. Confirm that the file manifest,
+   scenario audit, deterministic baselines, and frequentist smoke fits complete.
+2. If the frequentist smoke tests pass, set `run_bayesian_pilots <- TRUE` and
+   keep `area_grid <- c(6, 8)` or another small grid.
+3. If the coverage-offset Bayesian pilots pass for S3 and S4, set
+   `run_latent_bayesian_pilots <- TRUE` to test the advanced
+   `latent_two_level` backend.
+4. Increase `area_grid`, `iter_exploratory`, and `chains_exploratory` only after
+   runtime and diagnostics are acceptable on the smaller grids.
+5. Treat complete-grid outputs as sensitivity checks only. Approval evidence
+   must use observed MPD rows, observed Census benchmark rows, and real
+   centroid-derived OD distances.
+6. Do not commit raw flow files, local caches, or bulky rendered outputs from
+   this external volume.
+
+## Controls
+
+```{r}
+flow_root <- "/Volumes/DEBIAS/data/outputs/flows"
+
+install_from_github <- FALSE
+use_local_source <- FALSE
+
+geography <- "lad" # "lad" or "msoa"
+include_self_flows <- TRUE
+prediction_scope_default <- "observed" # use "complete_grid" only after smoke tests pass
+
+scenario_ids <- c("s1", "s2", "s3", "s4")
+area_grid <- c(6, 8)
+plot_scenario <- "s4"
+plot_n_areas <- max(area_grid)
+
+primary_source <- "mapp1"
+primary_time <- "month"
+
+run_deterministic_baselines <- TRUE
+run_frequentist_smoke <- TRUE
+run_bayesian_pilots <- FALSE
+run_latent_bayesian_pilots <- FALSE
+run_random_intercept_specs <- TRUE
+run_random_slope_specs <- TRUE
+run_complete_grid_sensitivity <- FALSE
+
+iter_exploratory <- 200
+chains_exploratory <- 2
+iter_confirmatory <- 1000
+chains_confirmatory <- 2
+use_confirmatory_settings <- FALSE
+
+flow_adj_summary <- "median"
+seed_base <- 25062026
+max_model_runtime_minutes <- Inf
+validation_drop_zeros <- TRUE
+require_observed_validation_rows <- TRUE
+require_latent_repeated_source_support <- TRUE
+
+selection_r_grid <- seq(0, 3, by = 0.25)
+selection_k_grid <- seq(0.1, 5, by = 0.25)
+coverage_user_floor <- 1
+coverage_cap <- 0.98
+```
+
+## Setup
+
+```{r}
+if (isTRUE(install_from_github)) {
+  if (!requireNamespace("remotes", quietly = TRUE)) {
+    stop("Install `remotes` before setting `install_from_github <- TRUE`.")
+  }
+  remotes::install_github(
+    "de-bias/debiasR",
+    dependencies = c("Depends", "Imports", "LinkingTo"),
+    upgrade = "never",
+    build_vignettes = FALSE
+  )
+}
+
+if (isTRUE(use_local_source)) {
+  if (!requireNamespace("devtools", quietly = TRUE)) {
+    stop("Install `devtools` or set `use_local_source <- FALSE`.")
+  }
+  devtools::load_all(".", quiet = TRUE)
+} else {
+  library(debiasR)
+}
+
+required_packages <- c("dplyr", "tibble", "tidyr", "purrr", "ggplot2", "debiasRdata")
+missing_packages <- required_packages[!vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing_packages) > 0L) {
+  stop("Install required package(s): ", paste(missing_packages, collapse = ", "))
+}
+
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+
+if (!dir.exists(flow_root)) {
+  stop("The external flow root is not mounted or does not exist: ", flow_root)
+}
+
+if (!geography %in% c("lad", "msoa")) {
+  stop("`geography` must be either 'lad' or 'msoa'.")
+}
+```
+
+```{r}
+package_version_or_na <- function(pkg) {
+  if (requireNamespace(pkg, quietly = TRUE)) {
+    as.character(utils::packageVersion(pkg))
+  } else {
+    NA_character_
+  }
+}
+
+tibble(
+  item = c(
+    "R",
+    "debiasR",
+    "rstanarm",
+    "rstan",
+    "brms",
+    "debiasRdata",
+    "platform",
+    "flow_root",
+    "geography"
+  ),
+  value = c(
+    as.character(getRversion()),
+    package_version_or_na("debiasR"),
+    package_version_or_na("rstanarm"),
+    package_version_or_na("rstan"),
+    package_version_or_na("brms"),
+    package_version_or_na("debiasRdata"),
+    R.version$platform,
+    flow_root,
+    geography
+  )
+)
+```
+
+## Helper Functions
+
+```{r}
+`%||%` <- function(x, y) {
+  if (is.null(x) || length(x) == 0L) y else x
+}
+
+compact_formula <- function(x) {
+  if (is.null(x)) return(NA_character_)
+  paste(deparse(x), collapse = " ")
+}
+
+capture_run <- function(expr) {
+  warnings <- character()
+  messages <- character()
+  start <- Sys.time()
+
+  value <- tryCatch(
+    withCallingHandlers(
+      force(expr),
+      warning = function(w) {
+        warnings <<- c(warnings, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      },
+      message = function(m) {
+        messages <<- c(messages, conditionMessage(m))
+        invokeRestart("muffleMessage")
+      }
+    ),
+    error = function(e) {
+      structure(list(message = conditionMessage(e)), class = "captured_error")
+    }
+  )
+
+  elapsed_seconds <- as.numeric(difftime(Sys.time(), start, units = "secs"))
+  success <- !inherits(value, "captured_error")
+
+  list(
+    success = success,
+    result = if (success) value else NULL,
+    error = if (success) NA_character_ else value$message,
+    warnings = warnings,
+    messages = messages,
+    elapsed_seconds = elapsed_seconds
+  )
+}
+
+read_flow_csv <- function(path, n_max = Inf) {
+  nrows <- if (is.finite(n_max)) as.integer(n_max) else -1L
+  out <- utils::read.csv(path, nrows = nrows, check.names = FALSE)
+  blank_names <- !nzchar(names(out))
+  if (any(blank_names)) {
+    names(out)[blank_names] <- paste0("unnamed_", which(blank_names))
+  }
+  tibble::as_tibble(out)
+}
+
+count_csv_rows <- function(path) {
+  nrow(read_flow_csv(path))
+}
+
+first_existing_col <- function(df, candidates, label) {
+  hit <- candidates[candidates %in% names(df)]
+  if (length(hit) == 0L) {
+    stop(
+      "Could not find ", label, " column. Candidate names were: ",
+      paste(candidates, collapse = ", "),
+      ". Available names are: ",
+      paste(names(df), collapse = ", ")
+    )
+  }
+  hit[[1]]
+}
+
+valid_area_code <- function(x) {
+  !is.na(x) & grepl("^E[0-9]+$", as.character(x))
+}
+
+flow_file_manifest <- function(root) {
+  htw_root <- file.path(root, "htw")
+  files <- list.files(htw_root, pattern = "csv$", recursive = TRUE, full.names = TRUE)
+  files <- files[!grepl("/census/", files)]
+
+  tibble(path = files) |>
+    mutate(
+      file = basename(.data$path),
+      source_folder = basename(dirname(.data$path)),
+      mpd_source = case_when(
+        grepl("mapp1", .data$file, ignore.case = TRUE) ~ "mapp1",
+        grepl("mapp2", .data$file, ignore.case = TRUE) ~ "mapp2",
+        TRUE ~ NA_character_
+      ),
+      geography = case_when(
+        grepl("_lad_", .data$file, ignore.case = TRUE) ~ "lad",
+        grepl("_msoa_", .data$file, ignore.case = TRUE) ~ "msoa",
+        grepl("_lsoa_", .data$file, ignore.case = TRUE) ~ "lsoa",
+        TRUE ~ NA_character_
+      ),
+      mpd_time = case_when(
+        grepl("_week", .data$file, ignore.case = TRUE) ~ "week",
+        grepl("_month", .data$file, ignore.case = TRUE) ~ "month",
+        TRUE ~ NA_character_
+      )
+    ) |>
+    filter(!is.na(.data$mpd_source), !is.na(.data$geography), !is.na(.data$mpd_time)) |>
+    arrange(.data$geography, .data$mpd_source, .data$mpd_time, .data$file)
+}
+
+census_path_for_geography <- function(root, geography) {
+  suffix <- switch(
+    geography,
+    lad = "LTLA",
+    msoa = "MSOA",
+    stop("Unsupported geography: ", geography)
+  )
+  path <- file.path(root, "htw", "census", paste0("ODWP01EW_", suffix, ".csv"))
+  if (!file.exists(path)) {
+    stop("Missing Census benchmark file: ", path)
+  }
+  path
+}
+
+normalise_mpd_htw <- function(path, mpd_source, mpd_time, geography, include_self_flows = TRUE) {
+  raw <- read_flow_csv(path)
+
+  if (geography == "lad") {
+    origin_col <- first_existing_col(raw, c("LAD22CD_home", "home_LAD22CD", "origin", "home"), "MPD origin")
+    destination_col <- first_existing_col(raw, c("LAD22CD_work", "work_LAD22CD", "destination", "work"), "MPD destination")
+  } else if (geography == "msoa") {
+    origin_col <- first_existing_col(raw, c("MSOA21CD_home", "home_MSOA21CD", "origin", "home"), "MPD origin")
+    destination_col <- first_existing_col(raw, c("MSOA21CD_work", "work_MSOA21CD", "destination", "work"), "MPD destination")
+  } else {
+    stop("Unsupported geography: ", geography)
+  }
+
+  flow_col <- first_existing_col(raw, c("flow", "count", "trips", "total_flow"), "MPD flow")
+
+  out <- raw |>
+    transmute(
+      origin = as.character(.data[[origin_col]]),
+      destination = as.character(.data[[destination_col]]),
+      flow = suppressWarnings(as.numeric(.data[[flow_col]])),
+      mpd_source = mpd_source,
+      mpd_time = mpd_time,
+      geography = geography,
+      source_file = basename(path)
+    ) |>
+    filter(
+      valid_area_code(.data$origin),
+      valid_area_code(.data$destination),
+      is.finite(.data$flow),
+      .data$flow >= 0
+    )
+
+  if (!isTRUE(include_self_flows)) {
+    out <- out |>
+      filter(.data$origin != .data$destination)
+  }
+
+  out |>
+    group_by(.data$origin, .data$destination, .data$mpd_source, .data$mpd_time, .data$geography, .data$source_file) |>
+    summarise(flow = sum(.data$flow, na.rm = TRUE), .groups = "drop") |>
+    arrange(.data$mpd_source, .data$mpd_time, .data$origin, .data$destination)
+}
+
+normalise_census_htw <- function(path, geography, include_self_flows = TRUE) {
+  raw <- read_flow_csv(path)
+
+  if (geography == "lad") {
+    origin_col <- first_existing_col(raw, c("Lower tier local authorities code", "LTLA code", "origin"), "Census origin")
+    destination_col <- first_existing_col(raw, c("LTLA of workplace code", "workplace LTLA code", "destination"), "Census destination")
+  } else if (geography == "msoa") {
+    origin_col <- first_existing_col(raw, c("Middle layer Super Output Areas code", "MSOA code", "origin"), "Census origin")
+    destination_col <- first_existing_col(raw, c("MSOA of workplace code", "workplace MSOA code", "destination"), "Census destination")
+  } else {
+    stop("Unsupported geography: ", geography)
+  }
+
+  flow_col <- first_existing_col(raw, c("flow", "Count", "count"), "Census flow")
+
+  out <- raw |>
+    transmute(
+      origin = as.character(.data[[origin_col]]),
+      destination = as.character(.data[[destination_col]]),
+      flow = suppressWarnings(as.numeric(.data[[flow_col]]))
+    ) |>
+    filter(
+      valid_area_code(.data$origin),
+      valid_area_code(.data$destination),
+      is.finite(.data$flow),
+      .data$flow >= 0
+    )
+
+  if (!isTRUE(include_self_flows)) {
+    out <- out |>
+      filter(.data$origin != .data$destination)
+  }
+
+  out |>
+    group_by(.data$origin, .data$destination) |>
+    summarise(flow = sum(.data$flow, na.rm = TRUE), .groups = "drop") |>
+    arrange(.data$origin, .data$destination)
+}
+
+manifest_for_scenario <- function(manifest, scenario, geography, primary_source = "mapp1", primary_time = "month") {
+  manifest <- manifest |>
+    filter(.data$geography == !!geography)
+
+  out <- switch(
+    scenario,
+    s1 = manifest |>
+      filter(.data$mpd_source == !!primary_source, .data$mpd_time == !!primary_time),
+    s2 = manifest |>
+      filter(.data$mpd_source == !!primary_source),
+    s3 = manifest |>
+      filter(.data$mpd_time == !!primary_time, .data$mpd_source %in% c("mapp1", "mapp2")),
+    s4 = manifest |>
+      filter(.data$mpd_source %in% c("mapp1", "mapp2")),
+    stop("Unknown scenario: ", scenario)
+  )
+
+  out |>
+    arrange(.data$mpd_source, .data$mpd_time, .data$file)
+}
+
+scenario_available <- function(manifest, scenario) {
+  n_sources <- dplyr::n_distinct(manifest$mpd_source)
+  n_times <- dplyr::n_distinct(manifest$mpd_time)
+  switch(
+    scenario,
+    s1 = nrow(manifest) >= 1L && n_sources == 1L && n_times == 1L,
+    s2 = nrow(manifest) >= 2L && n_sources == 1L && n_times >= 2L,
+    s3 = nrow(manifest) >= 2L && n_sources >= 2L && n_times == 1L,
+    s4 = nrow(manifest) >= 2L && n_sources >= 2L && n_times >= 2L,
+    FALSE
+  )
+}
+
+complete_benchmark_grid <- function(benchmark, areas, include_self_flows = TRUE) {
+  grid <- tidyr::expand_grid(
+    origin = areas,
+    destination = areas
+  )
+  if (!isTRUE(include_self_flows)) {
+    grid <- filter(grid, .data$origin != .data$destination)
+  }
+
+  grid |>
+    left_join(benchmark, by = c("origin", "destination")) |>
+    mutate(
+      benchmark_observed = is.finite(.data$flow),
+      benchmark_zero_filled = !.data$benchmark_observed,
+      flow = coalesce(.data$flow, 0)
+    ) |>
+    arrange(.data$origin, .data$destination)
+}
+
+complete_mpd_grid <- function(mpd, areas, include_self_flows = TRUE, fill_missing_flow = 0) {
+  scenario_grid <- mpd |>
+    distinct(.data$mpd_source, .data$mpd_time, .data$geography, .data$source_file)
+
+  grid <- tidyr::expand_grid(
+    scenario_grid,
+    origin = areas,
+    destination = areas
+  )
+  if (!isTRUE(include_self_flows)) {
+    grid <- filter(grid, .data$origin != .data$destination)
+  }
+
+  grid |>
+    left_join(
+      mpd,
+      by = c("origin", "destination", "mpd_source", "mpd_time", "geography", "source_file")
+    ) |>
+    mutate(
+      mpd_observed = is.finite(.data$flow),
+      mpd_zero_filled = !.data$mpd_observed,
+      mpd_row_status = if_else(.data$mpd_observed, "observed", "zero_filled"),
+      flow = if_else(.data$mpd_observed, .data$flow, fill_missing_flow)
+    ) |>
+    arrange(.data$mpd_source, .data$mpd_time, .data$origin, .data$destination)
+}
+
+select_area_set <- function(mpd, benchmark, n_areas) {
+  common_areas <- intersect(
+    union(mpd$origin, mpd$destination),
+    union(benchmark$origin, benchmark$destination)
+  )
+  if (length(common_areas) < 2L) {
+    stop("Fewer than two overlapping areas were found between MPD and Census.")
+  }
+
+  scores <- bind_rows(
+    mpd |> transmute(area = .data$origin, score = .data$flow),
+    mpd |> transmute(area = .data$destination, score = .data$flow),
+    benchmark |> transmute(area = .data$origin, score = .data$flow),
+    benchmark |> transmute(area = .data$destination, score = .data$flow)
+  ) |>
+    filter(.data$area %in% common_areas) |>
+    group_by(.data$area) |>
+    summarise(score = sum(.data$score, na.rm = TRUE), .groups = "drop") |>
+    arrange(desc(.data$score), .data$area)
+
+  if (!is.null(n_areas) && is.finite(n_areas)) {
+    scores <- slice_head(scores, n = as.integer(n_areas))
+  }
+
+  sort(scores$area)
+}
+
+build_coverage_table <- function(mpd, benchmark_complete, areas, coverage_user_floor = 1, coverage_cap = 0.98) {
+  population <- benchmark_complete |>
+    group_by(.data$origin) |>
+    summarise(population = sum(.data$flow, na.rm = TRUE), .groups = "drop") |>
+    filter(.data$origin %in% areas)
+
+  scenario_grid <- mpd |>
+    distinct(.data$mpd_source, .data$mpd_time)
+
+  user_counts <- mpd |>
+    group_by(.data$origin, .data$mpd_source, .data$mpd_time) |>
+    summarise(user_count_raw = sum(.data$flow, na.rm = TRUE), .groups = "drop")
+
+  tidyr::expand_grid(
+    origin = areas,
+    scenario_grid
+  ) |>
+    left_join(population, by = "origin") |>
+    left_join(user_counts, by = c("origin", "mpd_source", "mpd_time")) |>
+    mutate(
+      population = coalesce(.data$population, 0),
+      user_count_raw = coalesce(.data$user_count_raw, 0),
+      population = pmax(.data$population, coverage_user_floor + 1),
+      user_count = pmax(.data$user_count_raw, coverage_user_floor),
+      user_count = pmin(.data$user_count, .data$population * coverage_cap),
+      coverage_score = .data$user_count / .data$population,
+      coverage_bias = 1 - .data$coverage_score,
+      coverage_was_floored = .data$user_count_raw < coverage_user_floor
+    ) |>
+    arrange(.data$mpd_source, .data$mpd_time, .data$origin)
+}
+
+build_covariates_table <- function(coverage) {
+  coverage |>
+    group_by(.data$origin) |>
+    summarise(
+      population = max(.data$population, na.rm = TRUE),
+      user_count_mean = mean(.data$user_count, na.rm = TRUE),
+      coverage_score_mean = mean(.data$coverage_score, na.rm = TRUE),
+      coverage_score_min = min(.data$coverage_score, na.rm = TRUE),
+      coverage_bias_mean = mean(.data$coverage_bias, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    transmute(
+      area = .data$origin,
+      population = .data$population,
+      log_population = log(pmax(.data$population, .Machine$double.eps)),
+      user_count_mean = .data$user_count_mean,
+      coverage_score_mean = .data$coverage_score_mean,
+      coverage_score_min = .data$coverage_score_min,
+      coverage_bias_mean = .data$coverage_bias_mean
+    )
+}
+
+build_distance_table <- function(areas, geography) {
+  centroid_object <- switch(
+    geography,
+    lad = "lad_centroids",
+    msoa = "msoa_centroids",
+    NA_character_
+  )
+  if (is.na(centroid_object)) {
+    stop("No real centroid object is configured for geography: ", geography)
+  }
+  if (!requireNamespace("debiasRdata", quietly = TRUE)) {
+    stop("Install `debiasRdata` before running empirical validation with real OD distances.")
+  }
+
+  env <- new.env(parent = emptyenv())
+  suppressWarnings(utils::data(list = centroid_object, package = "debiasRdata", envir = env))
+  if (!exists(centroid_object, envir = env, inherits = FALSE)) {
+    stop("`debiasRdata::", centroid_object, "` is required for real OD distances.")
+  }
+
+  centroids <- get(centroid_object, envir = env) |>
+    as_tibble() |>
+    filter(.data$area %in% areas)
+
+  if (!all(areas %in% centroids$area)) {
+    missing_areas <- setdiff(areas, centroids$area)
+    stop(
+      "Centroid data are missing selected empirical areas: ",
+      paste(utils::head(missing_areas, 10), collapse = ", ")
+    )
+  }
+
+  origin_coords <- centroids |>
+    transmute(origin = .data$area, lon_o = .data$longitude, lat_o = .data$latitude, east_o = .data$easting, north_o = .data$northing)
+  destination_coords <- centroids |>
+    transmute(destination = .data$area, lon_d = .data$longitude, lat_d = .data$latitude, east_d = .data$easting, north_d = .data$northing)
+
+  distance <- tidyr::expand_grid(origin = areas, destination = areas) |>
+    left_join(origin_coords, by = "origin") |>
+    left_join(destination_coords, by = "destination")
+
+  if (all(c("lon_o", "lat_o", "lon_d", "lat_d") %in% names(distance)) &&
+      all(is.finite(distance$lon_o), is.finite(distance$lat_o), is.finite(distance$lon_d), is.finite(distance$lat_d))) {
+    radius_km <- 6371.0088
+    to_rad <- function(x) x * pi / 180
+    dlon <- to_rad(distance$lon_d - distance$lon_o)
+    dlat <- to_rad(distance$lat_d - distance$lat_o)
+    lat_o <- to_rad(distance$lat_o)
+    lat_d <- to_rad(distance$lat_d)
+    a <- sin(dlat / 2)^2 + cos(lat_o) * cos(lat_d) * sin(dlon / 2)^2
+    distance_km <- radius_km * 2 * atan2(sqrt(a), sqrt(pmax(0, 1 - a)))
+  } else {
+    distance_km <- sqrt((distance$east_d - distance$east_o)^2 + (distance$north_d - distance$north_o)^2) / 1000
+  }
+
+  tibble(
+    origin = distance$origin,
+    destination = distance$destination,
+    distance_km = distance_km,
+    distance_source = paste0("debiasRdata_", centroid_object)
+  ) |>
+    filter(is.finite(.data$distance_km), .data$distance_km >= 0)
+}
+
+build_scenario_example <- function(manifest,
+                                   census_path,
+                                   scenario,
+                                   geography,
+                                   n_areas,
+                                   prediction_scope = "observed",
+                                   include_self_flows = TRUE) {
+  scenario_manifest <- manifest_for_scenario(
+    manifest = manifest,
+    scenario = scenario,
+    geography = geography,
+    primary_source = primary_source,
+    primary_time = primary_time
+  )
+
+  if (!scenario_available(scenario_manifest, scenario)) {
+    return(list(
+      available = FALSE,
+      scenario = scenario,
+      n_areas = n_areas,
+      prediction_scope = prediction_scope,
+      error = paste0("Insufficient files to construct ", toupper(scenario), "."),
+      manifest = scenario_manifest
+    ))
+  }
+
+  mpd_all <- purrr::pmap_dfr(
+    scenario_manifest,
+    function(path, file, source_folder, mpd_source, geography, mpd_time, ...) {
+      normalise_mpd_htw(
+        path = path,
+        mpd_source = mpd_source,
+        mpd_time = mpd_time,
+        geography = geography,
+        include_self_flows = include_self_flows
+      )
+    }
+  )
+
+  benchmark <- normalise_census_htw(
+    path = census_path,
+    geography = geography,
+    include_self_flows = include_self_flows
+  )
+
+  areas <- select_area_set(mpd_all, benchmark, n_areas = n_areas)
+
+  mpd_selected <- mpd_all |>
+    filter(.data$origin %in% areas, .data$destination %in% areas) |>
+    group_by(.data$origin, .data$destination, .data$mpd_source, .data$mpd_time, .data$geography, .data$source_file) |>
+    summarise(flow = sum(.data$flow, na.rm = TRUE), .groups = "drop")
+
+  if (isTRUE(run_latent_bayesian_pilots) &&
+      isTRUE(require_latent_repeated_source_support) &&
+      scenario %in% c("s3", "s4")) {
+    replicated_od <- mpd_selected |>
+      distinct(.data$origin, .data$destination, .data$mpd_source) |>
+      count(.data$origin, .data$destination, name = "n_sources_observed") |>
+      filter(.data$n_sources_observed >= 2L) |>
+      select(.data$origin, .data$destination)
+
+    mpd_selected <- mpd_selected |>
+      semi_join(replicated_od, by = c("origin", "destination"))
+
+    if (nrow(mpd_selected) == 0L) {
+      stop("Latent approval run found no real repeated-source OD support for ", toupper(scenario), ".")
+    }
+  }
+
+  benchmark_complete <- benchmark |>
+    filter(.data$origin %in% areas, .data$destination %in% areas) |>
+    complete_benchmark_grid(areas = areas, include_self_flows = include_self_flows)
+
+  mpd_model <- if (identical(prediction_scope, "complete_grid")) {
+    complete_mpd_grid(
+      mpd = mpd_selected,
+      areas = areas,
+      include_self_flows = include_self_flows
+    )
+  } else {
+    mpd_selected |>
+      mutate(
+        mpd_observed = TRUE,
+        mpd_zero_filled = FALSE,
+        mpd_row_status = "observed"
+      )
+  }
+
+  coverage <- build_coverage_table(
+    mpd = mpd_selected,
+    benchmark_complete = benchmark_complete,
+    areas = areas,
+    coverage_user_floor = coverage_user_floor,
+    coverage_cap = coverage_cap
+  )
+  covariates <- build_covariates_table(coverage)
+  distance <- build_distance_table(areas, geography)
+
+  list(
+    available = TRUE,
+    scenario = scenario,
+    n_areas = length(areas),
+    prediction_scope = prediction_scope,
+    manifest = scenario_manifest,
+    census_path = census_path,
+    areas = areas,
+    mpd_od = mpd_model,
+    mpd_observed_only = mpd_selected,
+    benchmark_od = benchmark_complete,
+    coverage = coverage,
+    covariates = covariates,
+    distance = distance
+  )
+}
+
+assert_real_empirical_example <- function(example) {
+  if (!isTRUE(example$available)) {
+    return(invisible(example))
+  }
+
+  flow_root_norm <- normalizePath(flow_root, mustWork = TRUE)
+  manifest_paths <- normalizePath(example$manifest$path, mustWork = FALSE)
+  census_path_norm <- normalizePath(example$census_path, mustWork = FALSE)
+
+  if (!all(file.exists(example$manifest$path))) {
+    stop("One or more MPD source files are missing for ", toupper(example$scenario), ".")
+  }
+  if (!file.exists(example$census_path)) {
+    stop("The Census benchmark file is missing for ", toupper(example$scenario), ": ", example$census_path)
+  }
+  if (!all(startsWith(manifest_paths, flow_root_norm)) || !startsWith(census_path_norm, flow_root_norm)) {
+    stop("Empirical validation must use files under `flow_root`: ", flow_root)
+  }
+  if (nrow(example$mpd_observed_only) == 0L || nrow(example$benchmark_od) == 0L) {
+    stop("Empirical validation needs non-empty MPD and Census benchmark inputs.")
+  }
+  if (is.null(example$distance) || nrow(example$distance) == 0L) {
+    stop("Empirical validation needs real centroid-derived OD distances.")
+  }
+  if (nrow(example$distance) != length(example$areas)^2) {
+    stop("Empirical validation needs a complete centroid distance table for the selected areas.")
+  }
+  if (any(!is.finite(example$distance$distance_km))) {
+    stop("Empirical validation cannot use missing or non-finite OD distances.")
+  }
+  if (!"distance_source" %in% names(example$distance) ||
+      any(grepl("synthetic|simulated", example$distance$distance_source, ignore.case = TRUE))) {
+    stop("Empirical validation cannot use synthetic or simulated OD distances.")
+  }
+  if (!all(grepl("^debiasRdata_", example$distance$distance_source))) {
+    stop("Empirical validation distances must come from `debiasRdata` centroids.")
+  }
+
+  missing_distance <- example$mpd_od |>
+    distinct(.data$origin, .data$destination) |>
+    anti_join(example$distance, by = c("origin", "destination"))
+  if (nrow(missing_distance) > 0L) {
+    stop("Centroid distance table is missing OD rows used by the empirical MPD data.")
+  }
+  if (isTRUE(run_latent_bayesian_pilots) && identical(example$prediction_scope, "complete_grid")) {
+    stop("Latent approval runs must use observed MPD rows; complete-grid mode is sensitivity-only.")
+  }
+  if (isTRUE(run_latent_bayesian_pilots) &&
+      any(example$mpd_od$mpd_zero_filled %in% TRUE, na.rm = TRUE)) {
+    stop("Latent approval runs cannot include zero-filled MPD rows.")
+  }
+
+  invisible(example)
+}
+
+benchmark_for_validation <- function(example) {
+  benchmark <- example$benchmark_od
+  if (isTRUE(require_observed_validation_rows) && "benchmark_observed" %in% names(benchmark)) {
+    benchmark <- benchmark |>
+      filter(.data$benchmark_observed %in% TRUE)
+  }
+  if (nrow(benchmark) == 0L) {
+    stop("Validation requires non-empty observed Census benchmark rows.")
+  }
+  benchmark
+}
+
+adjusted_for_validation <- function(adj) {
+  out <- adj
+  if (isTRUE(require_observed_validation_rows) && "mpd_zero_filled" %in% names(out)) {
+    out <- out |>
+      filter(!(.data$mpd_zero_filled %in% TRUE))
+  }
+  if (nrow(out) == 0L) {
+    stop("Validation requires non-empty observed adjusted-flow rows.")
+  }
+  out
+}
+
+scenario_repeated_observation <- function(scenario) {
+  switch(
+    scenario,
+    s1 = "none",
+    s2 = "time",
+    s3 = "source",
+    s4 = "source_time",
+    "auto"
+  )
+}
+
+scenario_random_intercepts <- function(scenario) {
+  base <- c("none", "origin", "destination", "od")
+  if (scenario %in% c("s3", "s4")) base <- c(base, "source")
+  if (scenario %in% c("s2", "s4")) base <- c(base, "time")
+  if (scenario == "s4") base <- c(base, "source_time")
+  base
+}
+```
+
+## File Manifest
+
+```{r}
+manifest <- flow_file_manifest(flow_root)
+census_path <- census_path_for_geography(flow_root, geography)
+
+manifest |>
+  mutate(
+    selected_geography = .data$geography == !!geography,
+    file_exists = file.exists(.data$path)
+  )
+```
+
+```{r}
+manifest_audit <- manifest |>
+  filter(.data$geography == !!geography) |>
+  mutate(
+    n_rows = purrr::map_int(.data$path, count_csv_rows)
+  ) |>
+  select(geography, mpd_source, mpd_time, file, n_rows, path)
+
+manifest_audit
+```
+
+## Scenario Construction Audit
+
+```{r}
+prediction_scopes <- if (isTRUE(run_complete_grid_sensitivity)) {
+  c(prediction_scope_default, "complete_grid") |> unique()
+} else {
+  prediction_scope_default
+}
+
+scenario_examples <- list()
+
+for (scenario in scenario_ids) {
+  for (n_area in area_grid) {
+    for (scope in prediction_scopes) {
+      key <- paste(scenario, paste0("n", n_area), scope, sep = "__")
+      scenario_examples[[key]] <- build_scenario_example(
+        manifest = manifest,
+        census_path = census_path,
+        scenario = scenario,
+        geography = geography,
+        n_areas = n_area,
+        prediction_scope = scope,
+        include_self_flows = include_self_flows
+      )
+    }
+  }
+}
+
+invisible(lapply(scenario_examples, assert_real_empirical_example))
+
+scenario_audit <- bind_rows(lapply(names(scenario_examples), function(key) {
+  ex <- scenario_examples[[key]]
+  if (!isTRUE(ex$available)) {
+    return(tibble(
+      run_key = key,
+      scenario = ex$scenario,
+      n_areas = ex$n_areas,
+      prediction_scope = ex$prediction_scope,
+      available = FALSE,
+      error = ex$error,
+      n_mpd_rows = NA_integer_,
+      n_benchmark_rows = NA_integer_,
+      n_coverage_rows = NA_integer_,
+      n_distance_rows = NA_integer_,
+      distance_source = NA_character_,
+      n_sources = dplyr::n_distinct(ex$manifest$mpd_source),
+      n_time_periods = dplyr::n_distinct(ex$manifest$mpd_time),
+      source_levels = paste(sort(unique(ex$manifest$mpd_source)), collapse = ", "),
+      time_levels = paste(sort(unique(ex$manifest$mpd_time)), collapse = ", "),
+      source_time_cells = NA_integer_,
+      n_zero_filled = NA_integer_
+    ))
+  }
+
+  tibble(
+    run_key = key,
+    scenario = ex$scenario,
+    n_areas = ex$n_areas,
+    prediction_scope = ex$prediction_scope,
+    available = TRUE,
+    error = NA_character_,
+    n_mpd_rows = nrow(ex$mpd_od),
+    n_benchmark_rows = nrow(ex$benchmark_od),
+    n_coverage_rows = nrow(ex$coverage),
+    n_distance_rows = nrow(ex$distance),
+    distance_source = paste(sort(unique(ex$distance$distance_source)), collapse = ", "),
+    n_sources = dplyr::n_distinct(ex$mpd_od$mpd_source),
+    n_time_periods = dplyr::n_distinct(ex$mpd_od$mpd_time),
+    source_levels = paste(sort(unique(ex$mpd_od$mpd_source)), collapse = ", "),
+    time_levels = paste(sort(unique(ex$mpd_od$mpd_time)), collapse = ", "),
+    source_time_cells = nrow(distinct(ex$mpd_od, .data$mpd_source, .data$mpd_time)),
+    n_zero_filled = sum(ex$mpd_od$mpd_zero_filled %in% TRUE, na.rm = TRUE)
+  )
+}))
+
+scenario_audit
+```
+
+```{r}
+coverage_audit <- bind_rows(lapply(names(scenario_examples), function(key) {
+  ex <- scenario_examples[[key]]
+  if (!isTRUE(ex$available)) return(tibble())
+
+  ex$coverage |>
+    summarise(
+      run_key = key,
+      scenario = ex$scenario,
+      n_areas = ex$n_areas,
+      prediction_scope = ex$prediction_scope,
+      min_coverage = min(.data$coverage_score, na.rm = TRUE),
+      median_coverage = stats::median(.data$coverage_score, na.rm = TRUE),
+      max_coverage = max(.data$coverage_score, na.rm = TRUE),
+      floored_rows = sum(.data$coverage_was_floored, na.rm = TRUE),
+      .groups = "drop"
+    )
+}))
+
+coverage_audit
+```
+
+## Model Specification Registry
+
+The coverage-offset models estimate Census-scale true flows while treating
+source/time-specific coverage as a fixed observation offset. The reduced-form
+models estimate a counterfactual MPD-to-benchmark correction from the fitted
+bias covariate rather than using the coverage offset. The latent two-level
+models are the advanced repeated-source path. They estimate source-invariant latent
+true OD or OD-time flow states and model observed source/time rows as noisy
+coverage-scaled observations of those latent states.
+
+```{r}
+make_adjustment_specs <- function(scenario) {
+  specs <- list()
+
+  add_spec <- function(spec_id,
+                       model_engine,
+                       observation_model,
+                       target_scale,
+                       coverage_scale = "origin",
+                       model_family = "poisson",
+                       random_intercept = "none",
+                       mobility_formula = ~ log_pop_o + log_pop_d + log_distance,
+                       bias_formula = ~ bias_e_origin,
+                       backend = "auto",
+                       latent_flow_unit = "auto",
+                       run = TRUE,
+                       max_n_areas = Inf) {
+    specs[[length(specs) + 1L]] <<- list(
+      spec_id = spec_id,
+      model_engine = model_engine,
+      observation_model = observation_model,
+      target_scale = target_scale,
+      coverage_scale = coverage_scale,
+      model_family = model_family,
+      random_intercept = random_intercept,
+      mobility_formula = mobility_formula,
+      bias_formula = bias_formula,
+      backend = backend,
+      latent_flow_unit = latent_flow_unit,
+      run = run,
+      max_n_areas = max_n_areas
+    )
+  }
+
+  if (isTRUE(run_frequentist_smoke)) {
+    add_spec(
+      spec_id = "frequentist__coverage_offset__fixed",
+      model_engine = "frequentist",
+      observation_model = "coverage_offset",
+      target_scale = "true_flow"
+    )
+
+    add_spec(
+      spec_id = "frequentist__reduced_form__fixed",
+      model_engine = "frequentist",
+      observation_model = "reduced_form",
+      target_scale = "mpd_counterfactual",
+      coverage_scale = NA_character_
+    )
+
+    if (isTRUE(run_random_intercept_specs)) {
+      for (ri in setdiff(scenario_random_intercepts(scenario), c("none", "od"))) {
+        add_spec(
+          spec_id = paste("frequentist__coverage_offset__ri", ri, sep = "__"),
+          model_engine = "frequentist",
+          observation_model = "coverage_offset",
+          target_scale = "true_flow",
+          random_intercept = ri
+        )
+      }
+    }
+
+    if (isTRUE(run_random_slope_specs)) {
+      add_spec(
+        spec_id = "frequentist__coverage_offset__rs_log_distance_origin",
+        model_engine = "frequentist",
+        observation_model = "coverage_offset",
+        target_scale = "true_flow",
+        random_intercept = "none",
+        mobility_formula = ~ log_pop_o + log_pop_d + log_distance + (1 + log_distance | origin),
+        max_n_areas = max(area_grid)
+      )
+    }
+  }
+
+  if (isTRUE(run_bayesian_pilots)) {
+    add_spec(
+      spec_id = "bayesian__coverage_offset__fixed",
+      model_engine = "bayesian",
+      observation_model = "coverage_offset",
+      target_scale = "true_flow",
+      backend = "auto"
+    )
+
+    if (isTRUE(run_random_intercept_specs)) {
+      add_spec(
+        spec_id = "bayesian__coverage_offset__ri_origin",
+        model_engine = "bayesian",
+        observation_model = "coverage_offset",
+        target_scale = "true_flow",
+        random_intercept = "origin",
+        backend = "auto",
+        max_n_areas = min(max(area_grid), 8)
+      )
+    }
+  }
+
+  if (isTRUE(run_latent_bayesian_pilots) && scenario %in% c("s3", "s4")) {
+    add_spec(
+      spec_id = "bayesian__latent_two_level__fixed",
+      model_engine = "bayesian",
+      observation_model = "latent_two_level",
+      target_scale = "true_flow",
+      backend = "stan_latent",
+      bias_formula = ~ 0,
+      latent_flow_unit = "auto",
+      max_n_areas = min(max(area_grid), 8)
+    )
+  }
+
+  specs
+}
+
+spec_registry <- bind_rows(lapply(scenario_ids, function(scenario) {
+  bind_rows(lapply(make_adjustment_specs(scenario), function(spec) {
+    tibble(
+      scenario = scenario,
+      spec_id = spec$spec_id,
+      model_engine = spec$model_engine,
+      observation_model = spec$observation_model,
+      target_scale = spec$target_scale,
+      coverage_scale = spec$coverage_scale,
+      model_family = spec$model_family,
+      random_intercept = spec$random_intercept,
+      backend = spec$backend,
+      latent_flow_unit = spec$latent_flow_unit,
+      mobility_formula = compact_formula(spec$mobility_formula),
+      bias_formula = compact_formula(spec$bias_formula),
+      max_n_areas = spec$max_n_areas,
+      run = spec$run
+    )
+  }))
+}))
+
+spec_registry
+```
+
+## Deterministic Baselines
+
+The deterministic baselines are run within each source-time slice and then
+bound back together. This keeps `adjust_selection_rate()` and
+`adjust_selection_rate2()` in the comparison while avoiding unsupported
+time-aware joins inside methods that were originally source-level.
+
+```{r}
+baseline_method_label <- c(
+  raw_mpd = "Unadjusted raw MPD",
+  inverse_penetration_both = "Inverse penetration",
+  selection_rate = "Selection rate",
+  selection_rate2 = "Selection rate II",
+  raking_ratio = "Raking ratio",
+  coefficient_ols = "Coefficient OLS"
+)
+
+as_adjusted_slice <- function(result, source_value, time_value) {
+  result |>
+    mutate(
+      mpd_source = source_value,
+      mpd_time = time_value
+    ) |>
+    select(origin, destination, mpd_source, mpd_time, flow, flow_adj, everything())
+}
+
+run_baselines_for_slice <- function(mpd_slice, coverage_slice, covariates, benchmark) {
+  source_value <- unique(mpd_slice$mpd_source)[[1]]
+  time_value <- unique(mpd_slice$mpd_time)[[1]]
+  coverage_slice_source <- coverage_slice |>
+    select(origin, mpd_source, population, user_count)
+
+  baseline_calls <- list(
+    raw_mpd = function() {
+      mpd_slice |>
+        mutate(flow_adj = .data$flow)
+    },
+    inverse_penetration_both = function() {
+      debiasR::adjust_inverse_penetration(
+        mpd_od_df = mpd_slice,
+        coverage_df = coverage_slice_source,
+        weight_by = "both"
+      )
+    },
+    selection_rate = function() {
+      debiasR::adjust_selection_rate(
+        mpd_od_df = mpd_slice,
+        coverage_df = coverage_slice_source,
+        covariates_df = covariates,
+        covariate_col = "coverage_score_mean",
+        weight_by = "origin",
+        benchmark_od_df = benchmark,
+        calibration_aggregate = "origin",
+        r_grid = selection_r_grid
+      )
+    },
+    selection_rate2 = function() {
+      debiasR::adjust_selection_rate2(
+        mpd_od_df = mpd_slice,
+        coverage_df = coverage_slice_source,
+        weight_by = "origin",
+        benchmark_od_df = benchmark,
+        calibration_aggregate = "origin",
+        k_grid = selection_k_grid
+      )
+    },
+    raking_ratio = function() {
+      debiasR::adjust_raking_ratio(
+        mpd_od_df = mpd_slice,
+        benchmark_od_df = benchmark
+      )
+    },
+    coefficient_ols = function() {
+      debiasR::adjust_coefficient(
+        mpd_od_df = mpd_slice,
+        benchmark_od_df = benchmark,
+        model_family = "ols",
+        level = "od"
+      )
+    }
+  )
+
+  lapply(names(baseline_calls), function(method_name) {
+    run <- capture_run(baseline_calls[[method_name]]())
+    if (isTRUE(run$success)) {
+      run$result <- as_adjusted_slice(run$result, source_value, time_value)
+    }
+    list(method_name = method_name, run = run)
+  }) |>
+    stats::setNames(names(baseline_calls))
+}
+
+run_baselines_for_example <- function(example) {
+  split_keys <- example$mpd_od |>
+    distinct(.data$mpd_source, .data$mpd_time)
+
+  slice_runs <- purrr::pmap(split_keys, function(mpd_source, mpd_time) {
+    mpd_slice <- example$mpd_od |>
+      filter(.data$mpd_source == !!mpd_source, .data$mpd_time == !!mpd_time)
+    coverage_slice <- example$coverage |>
+      filter(.data$mpd_source == !!mpd_source, .data$mpd_time == !!mpd_time)
+    run_baselines_for_slice(
+      mpd_slice = mpd_slice,
+      coverage_slice = coverage_slice,
+      covariates = example$covariates,
+      benchmark = benchmark_for_validation(example)
+    )
+  })
+
+  method_names <- names(slice_runs[[1]])
+  stats::setNames(lapply(method_names, function(method_name) {
+    runs <- lapply(slice_runs, `[[`, method_name)
+    success <- all(vapply(runs, function(x) isTRUE(x$run$success), logical(1)))
+    list(
+      method_name = method_name,
+      run = list(
+        success = success,
+        result = if (success) bind_rows(lapply(runs, function(x) x$run$result)) else NULL,
+        error = if (success) NA_character_ else paste(na.omit(vapply(runs, function(x) x$run$error, character(1))), collapse = " | "),
+        warnings = unlist(lapply(runs, function(x) x$run$warnings), use.names = FALSE),
+        messages = unlist(lapply(runs, function(x) x$run$messages), use.names = FALSE),
+        elapsed_seconds = sum(vapply(runs, function(x) x$run$elapsed_seconds, numeric(1)), na.rm = TRUE)
+      )
+    )
+  }), method_names)
+}
+
+baseline_runs <- list()
+
+if (isTRUE(run_deterministic_baselines)) {
+  for (key in names(scenario_examples)) {
+    ex <- scenario_examples[[key]]
+    if (isTRUE(ex$available)) {
+      baseline_runs[[key]] <- run_baselines_for_example(ex)
+    }
+  }
+}
+
+baseline_summary <- bind_rows(lapply(names(baseline_runs), function(key) {
+  ex <- scenario_examples[[key]]
+  bind_rows(lapply(baseline_runs[[key]], function(item) {
+    tibble(
+      run_key = key,
+      scenario = ex$scenario,
+      n_areas = ex$n_areas,
+      prediction_scope = ex$prediction_scope,
+      method = item$method_name,
+      model_class = "deterministic_baseline",
+      success = item$run$success,
+      elapsed_seconds = item$run$elapsed_seconds,
+      n_rows = if (isTRUE(item$run$success)) nrow(item$run$result) else NA_integer_,
+      error = item$run$error,
+      warnings = paste(unique(item$run$warnings), collapse = " | ")
+    )
+  }))
+}))
+
+baseline_summary
+```
+
+## Multilevel Runs
+
+```{r}
+run_multilevel_spec <- function(example, spec, spec_index) {
+  if (!isTRUE(spec$run) || example$n_areas > spec$max_n_areas) {
+    return(list(
+      success = FALSE,
+      result = NULL,
+      error = "Skipped by notebook controls or max_n_areas.",
+      warnings = character(),
+      messages = character(),
+      elapsed_seconds = 0
+    ))
+  }
+  assert_real_empirical_example(example)
+
+  iter <- if (isTRUE(use_confirmatory_settings)) iter_confirmatory else iter_exploratory
+  chains <- if (isTRUE(use_confirmatory_settings)) chains_confirmatory else chains_exploratory
+  seed <- seed_base + spec_index + example$n_areas + match(example$scenario, scenario_ids) * 100L
+
+  run <- capture_run(
+    debiasR::adjust_multilevel_bayes(
+      mpd_od_df = example$mpd_od,
+      coverage_df = example$coverage,
+      covariates_df = example$covariates,
+      distance_df = example$distance,
+      source_col = "mpd_source",
+      time_col = "mpd_time",
+      scenario = example$scenario,
+      repeated_observation = scenario_repeated_observation(example$scenario),
+      random_intercept = spec$random_intercept,
+      mobility_formula = spec$mobility_formula,
+      bias_formula = spec$bias_formula,
+      model_family = spec$model_family,
+      model_engine = spec$model_engine,
+      backend = spec$backend,
+      target_scale = spec$target_scale,
+      observation_model = spec$observation_model,
+      coverage_scale = if (is.na(spec$coverage_scale)) "origin" else spec$coverage_scale,
+      latent_flow_unit = spec$latent_flow_unit,
+      prediction_scope = example$prediction_scope,
+      flow_adj_summary = flow_adj_summary,
+      iter = iter,
+      chains = chains,
+      seed = seed,
+      refresh = 0,
+      include_flow_adj_draws = FALSE
+    )
+  )
+  if (isTRUE(run$success)) {
+    distance_source <- attr(run$result, "distance_source") %||% NA_character_
+    if (identical(distance_source, "synthetic") ||
+        any(grepl("synthetic index-based distance", run$warnings, ignore.case = TRUE))) {
+      run$success <- FALSE
+      run$error <- "Rejected empirical model run because it used synthetic OD distance."
+      run$result <- NULL
+    }
+  }
+  run
+}
+
+multilevel_runs <- list()
+
+for (key in names(scenario_examples)) {
+  ex <- scenario_examples[[key]]
+  if (!isTRUE(ex$available)) next
+
+  specs <- make_adjustment_specs(ex$scenario)
+  for (spec_i in seq_along(specs)) {
+    spec <- specs[[spec_i]]
+    run_id <- paste(key, spec$spec_id, sep = "__")
+    multilevel_runs[[run_id]] <- list(
+      run_key = key,
+      scenario = ex$scenario,
+      n_areas = ex$n_areas,
+      prediction_scope = ex$prediction_scope,
+      spec = spec,
+      run = run_multilevel_spec(ex, spec, spec_i)
+    )
+
+    if (is.finite(max_model_runtime_minutes)) {
+      elapsed_minutes <- multilevel_runs[[run_id]]$run$elapsed_seconds / 60
+      if (elapsed_minutes > max_model_runtime_minutes) {
+        warning(
+          "Model runtime exceeded `max_model_runtime_minutes`: ",
+          run_id,
+          " elapsed minutes = ",
+          round(elapsed_minutes, 2)
+        )
+      }
+    }
+  }
+}
+
+summarise_multilevel_run <- function(run_id, item) {
+  result <- item$run$result
+  metadata <- if (!is.null(result)) attr(result, "result_metadata") else NULL
+  diagnostics <- if (!is.null(result)) attr(result, "diagnostics") else NULL
+  convergence <- if (!is.null(diagnostics)) diagnostics$convergence else NULL
+
+  tibble(
+    run_id = run_id,
+    run_key = item$run_key,
+    scenario = item$scenario,
+    n_areas = item$n_areas,
+    prediction_scope = item$prediction_scope,
+    method = item$spec$spec_id,
+    model_class = item$spec$model_engine,
+    observation_model = item$spec$observation_model,
+    random_intercept = item$spec$random_intercept,
+    backend = item$spec$backend,
+    latent_flow_unit = item$spec$latent_flow_unit,
+    success = item$run$success,
+    elapsed_seconds = item$run$elapsed_seconds,
+    n_rows = if (!is.null(result)) nrow(result) else NA_integer_,
+    n_fit_rows = metadata$n_fit_rows %||% NA_integer_,
+    n_prediction_rows = metadata$n_prediction_rows %||% NA_integer_,
+    n_sources = metadata$n_sources %||% NA_integer_,
+    n_time_periods = metadata$n_time_periods %||% NA_integer_,
+    resolved_scenario = metadata$scenario %||% NA_character_,
+    rhat_max = convergence$rhat_max %||% diagnostics$rhat_max %||% NA_real_,
+    ess_bulk_min = convergence$ess_bulk_min %||% diagnostics$ess_bulk_min %||% NA_real_,
+    ess_tail_min = convergence$ess_tail_min %||% diagnostics$ess_tail_min %||% NA_real_,
+    n_eff_min = convergence$n_eff_min %||% diagnostics$n_eff_min %||% NA_real_,
+    error = item$run$error,
+    warnings = paste(unique(item$run$warnings), collapse = " | ")
+  )
+}
+
+multilevel_summary <- bind_rows(lapply(names(multilevel_runs), function(run_id) {
+  summarise_multilevel_run(run_id, multilevel_runs[[run_id]])
+}))
+
+multilevel_summary
+```
+
+## Validation Against Census Benchmark
+
+```{r}
+collect_adjusted_results <- function() {
+  baseline_results <- bind_rows(lapply(names(baseline_runs), function(key) {
+    bind_rows(lapply(baseline_runs[[key]], function(item) {
+      if (!isTRUE(item$run$success)) return(tibble())
+      item$run$result |>
+        mutate(
+          run_key = key,
+          method = item$method_name,
+          model_class = "deterministic_baseline",
+          scenario = scenario_examples[[key]]$scenario,
+          n_areas = scenario_examples[[key]]$n_areas,
+          prediction_scope = scenario_examples[[key]]$prediction_scope
+        )
+    }))
+  }))
+
+  multilevel_results <- bind_rows(lapply(multilevel_runs, function(item) {
+    if (!isTRUE(item$run$success)) return(tibble())
+    item$run$result |>
+      mutate(
+        run_key = item$run_key,
+        method = item$spec$spec_id,
+        model_class = item$spec$model_engine,
+        scenario = item$scenario,
+        n_areas = item$n_areas,
+        prediction_scope = item$prediction_scope
+      )
+  }))
+
+  bind_rows(baseline_results, multilevel_results)
+}
+
+adjusted_results <- collect_adjusted_results()
+
+adjusted_results |>
+  count(.data$scenario, .data$n_areas, .data$prediction_scope, .data$method, .data$model_class, name = "rows") |>
+  arrange(.data$scenario, .data$n_areas, .data$prediction_scope, .data$model_class, .data$method)
+```
+
+```{r}
+validate_one_method <- function(adj, benchmark, method_name) {
+  overall <- capture_run(
+    debiasR::validate_flow_overall(
+      adj_df = adj,
+      benchmark_od_df = benchmark,
+      method_name = method_name,
+      comparisons = "adjusted_vs_benchmark",
+      drop_zeros = validation_drop_zeros
+    )
+  )
+
+  residuals <- capture_run(
+    debiasR::validate_flow_residuals(
+      adj_df = adj,
+      benchmark_od_df = benchmark,
+      method_name = method_name,
+      top_n = 10
+    )
+  )
+
+  distribution <- capture_run(
+    debiasR::validate_flow_distribution(
+      adj_df = adj,
+      benchmark_od_df = benchmark,
+      method_name = method_name,
+      comparisons = "adjusted_vs_benchmark",
+      weight_by = "benchmark_origin_total"
+    )
+  )
+
+  structure <- capture_run(
+    debiasR::validate_flow_residual_structure(
+      adj_df = adj,
+      benchmark_od_df = benchmark,
+      method_name = method_name,
+      covariate_df = NULL,
+      covariate_col = NULL
+    )
+  )
+
+  list(
+    overall = overall,
+    residuals = residuals,
+    distribution = distribution,
+    structure = structure
+  )
+}
+
+overall_summary_tbl <- function(result) {
+  if (!is.null(result$summary) && inherits(result$summary, "data.frame")) {
+    return(tibble::as_tibble(result$summary))
+  }
+
+  scalar_fields <- vapply(
+    result,
+    function(x) length(x) == 1L && !inherits(x, "data.frame"),
+    logical(1)
+  )
+  tibble::as_tibble(result[scalar_fields])
+}
+
+residual_data_tbl <- function(result) {
+  data <- result$residuals %||% result$data
+  if (is.null(data)) return(tibble())
+  tibble::as_tibble(data)
+}
+
+validation_runs <- list()
+validation_metadata <- list()
+
+for (key in names(scenario_examples)) {
+  ex <- scenario_examples[[key]]
+  if (!isTRUE(ex$available)) next
+
+  method_data <- adjusted_results |>
+    filter(.data$run_key == !!key) |>
+    group_split(.data$method)
+
+  for (method_tbl in method_data) {
+    method_name <- unique(method_tbl$method)[[1]]
+    validation_key <- paste(key, method_name, sep = "__")
+    validation_runs[[validation_key]] <- validate_one_method(
+      adj = adjusted_for_validation(method_tbl),
+      benchmark = benchmark_for_validation(ex),
+      method_name = method_name
+    )
+    validation_metadata[[validation_key]] <- tibble(
+      validation_key = validation_key,
+      run_key = key,
+      method = method_name
+    )
+  }
+}
+
+validation_metrics <- bind_rows(lapply(names(validation_runs), function(key) {
+  run <- validation_runs[[key]]$overall
+  meta <- validation_metadata[[key]]
+  if (!isTRUE(run$success)) {
+    return(meta |> mutate(validation_error = run$error))
+  }
+  overall_summary_tbl(run$result) |>
+    mutate(
+      validation_key = key,
+      run_key = meta$run_key,
+      .before = 1
+    )
+}))
+
+validation_residuals <- bind_rows(lapply(names(validation_runs), function(key) {
+  run <- validation_runs[[key]]$residuals
+  meta <- validation_metadata[[key]]
+  if (!isTRUE(run$success)) return(tibble())
+  residual_data_tbl(run$result) |>
+    mutate(
+      validation_key = key,
+      run_key = meta$run_key,
+      .before = 1
+    )
+}))
+
+validation_distribution <- bind_rows(lapply(names(validation_runs), function(key) {
+  run <- validation_runs[[key]]$distribution
+  meta <- validation_metadata[[key]]
+  if (!isTRUE(run$success)) return(tibble())
+  run$result$summary |>
+    mutate(
+      validation_key = key,
+      run_key = meta$run_key,
+      .before = 1
+    )
+}))
+
+validation_structure <- bind_rows(lapply(names(validation_runs), function(key) {
+  run <- validation_runs[[key]]$structure
+  meta <- validation_metadata[[key]]
+  if (!isTRUE(run$success)) return(tibble())
+  run$result$summary |>
+    mutate(
+      validation_key = key,
+      run_key = meta$run_key,
+      .before = 1
+    )
+}))
+
+validation_metrics <- validation_metrics |>
+  left_join(
+    adjusted_results |>
+      distinct(.data$run_key, .data$scenario, .data$n_areas, .data$prediction_scope, .data$method, .data$model_class),
+    by = c("run_key", "method")
+  ) |>
+  distinct()
+
+validation_metrics |>
+  arrange(.data$scenario, .data$n_areas, .data$prediction_scope, .data$mae)
+```
+
+## Runtime And Diagnostics
+
+```{r}
+runtime_table <- bind_rows(
+  baseline_summary |>
+    transmute(
+      scenario,
+      n_areas,
+      prediction_scope,
+      method,
+      model_class,
+      success,
+      elapsed_seconds,
+      n_rows,
+      n_fit_rows = NA_integer_,
+      n_prediction_rows = NA_integer_,
+      backend = NA_character_,
+      observation_model = NA_character_,
+      random_intercept = NA_character_,
+      error,
+      warnings
+    ),
+  multilevel_summary |>
+    transmute(
+      scenario,
+      n_areas,
+      prediction_scope,
+      method,
+      model_class,
+      success,
+      elapsed_seconds,
+      n_rows,
+      n_fit_rows,
+      n_prediction_rows,
+      backend,
+      observation_model,
+      random_intercept,
+      error,
+      warnings
+    )
+) |>
+  arrange(.data$scenario, .data$n_areas, .data$prediction_scope, desc(.data$success), .data$elapsed_seconds)
+
+runtime_table
+```
+
+```{r}
+diagnostic_table <- multilevel_summary |>
+  filter(.data$model_class == "bayesian") |>
+  select(
+    scenario,
+    n_areas,
+    prediction_scope,
+    method,
+    backend,
+    observation_model,
+    random_intercept,
+    success,
+    rhat_max,
+    ess_bulk_min,
+    ess_tail_min,
+    n_eff_min,
+    elapsed_seconds,
+    error,
+    warnings
+  )
+
+diagnostic_table
+```
+
+## Visual Summary
+
+The plots use exported `debiasR::plot_validation_*()` functions. Methods are
+ordered from best to worst by MAE for the selected scenario and area grid, with
+the unadjusted raw MPD baseline kept at the end.
+
+```{r}
+prepare_plot_bundle <- function(metrics, residuals, distribution, structure, scenario, n_areas) {
+  metric_slice <- metrics |>
+    filter(.data$scenario == !!scenario, .data$n_areas == !!n_areas)
+
+  if (nrow(metric_slice) == 0L) {
+    return(NULL)
+  }
+
+  method_rank <- metric_slice |>
+    filter(.data$comparison == "adjusted_vs_benchmark") |>
+    group_by(.data$method) |>
+    summarise(mae = min(.data$mae, na.rm = TRUE), .groups = "drop") |>
+    arrange(.data$mae, .data$method) |>
+    mutate(
+      is_raw = .data$method == "raw_mpd",
+      rank = row_number()
+    )
+
+  raw_methods <- method_rank$method[method_rank$is_raw]
+  ordered_methods <- c(setdiff(method_rank$method, raw_methods), raw_methods)
+  selected_run_keys <- unique(metric_slice$run_key)
+  method_labels <- baseline_method_label
+  missing_labels <- setdiff(ordered_methods, names(method_labels))
+  method_labels <- c(method_labels, stats::setNames(missing_labels, missing_labels))
+
+  order_tbl <- tibble(
+    method = ordered_methods,
+    method_order = seq_along(ordered_methods)
+  )
+
+  list(
+    method_labels = method_labels,
+    metrics = metric_slice |>
+      left_join(order_tbl, by = "method") |>
+      arrange(.data$method_order),
+    residuals = residuals |>
+      filter(.data$run_key %in% selected_run_keys, .data$method %in% ordered_methods) |>
+      left_join(order_tbl, by = "method") |>
+      arrange(.data$method_order),
+    distribution = distribution |>
+      filter(.data$run_key %in% selected_run_keys, .data$method %in% ordered_methods) |>
+      left_join(order_tbl, by = "method") |>
+      arrange(.data$method_order),
+    structure = structure |>
+      filter(.data$run_key %in% selected_run_keys, .data$method %in% ordered_methods) |>
+      left_join(order_tbl, by = "method") |>
+      arrange(.data$method_order),
+    ordered_methods = ordered_methods
+  )
+}
+
+plot_bundle <- prepare_plot_bundle(
+  metrics = validation_metrics,
+  residuals = validation_residuals,
+  distribution = validation_distribution,
+  structure = validation_structure,
+  scenario = plot_scenario,
+  n_areas = plot_n_areas
+)
+
+if (is.null(plot_bundle)) {
+  message("No validation results available for plot_scenario = ", plot_scenario, " and plot_n_areas = ", plot_n_areas)
+} else {
+  n_pairs_col <- if ("n_pairs" %in% names(plot_bundle$metrics)) "n_pairs" else "n"
+  plot_bundle$metrics |>
+    select(method, mae, rmse, mape, n_pairs = all_of(n_pairs_col)) |>
+    distinct()
+}
+```
+
+### Overall Error Matrix
+
+```{r}
+if (!is.null(plot_bundle) && nrow(plot_bundle$metrics) > 0L) {
+  debiasR::plot_validation_metrics(
+    plot_bundle$metrics,
+    error_measures = c("mae", "rmse", "mape"),
+    method_labels = plot_bundle$method_labels
+  )
+}
+```
+
+### Residual Distributions
+
+```{r}
+if (!is.null(plot_bundle) && nrow(plot_bundle$residuals) > 0L) {
+  debiasR::plot_validation_residuals(
+    plot_bundle$residuals,
+    residual = "absolute",
+    method_labels = plot_bundle$method_labels,
+    max_points = 2500
+  )
+}
+```
+
+### Flow Scatterplots
+
+```{r}
+if (!is.null(plot_bundle) && nrow(plot_bundle$residuals) > 0L) {
+  debiasR::plot_validation_scatter(
+    plot_bundle$residuals,
+    method_labels = plot_bundle$method_labels
+  )
+}
+```
+
+### Residual Severity Bands
+
+```{r}
+if (!is.null(plot_bundle) && nrow(plot_bundle$residuals) > 0L) {
+  debiasR::plot_validation_residual_bands(
+    plot_bundle$residuals,
+    method_labels = plot_bundle$method_labels,
+    band_method = "sd",
+    orientation = "horizontal"
+  )
+}
+```
+
+### Distributional Allocation
+
+```{r}
+if (!is.null(plot_bundle) && nrow(plot_bundle$distribution) > 0L) {
+  debiasR::plot_validation_distribution(
+    plot_bundle$distribution,
+    method_labels = plot_bundle$method_labels
+  )
+}
+```
+
+### Residual Structure
+
+```{r}
+if (!is.null(plot_bundle) && nrow(plot_bundle$structure) > 0L) {
+  debiasR::plot_validation_structure(
+    plot_bundle$structure,
+    method_labels = plot_bundle$method_labels
+  )
+}
+```
+
+## Decision Notes To Record
+
+After each manual run, record the following points before increasing the grid or
+sampling budget:
+
+- which S1-S4 constructions were available for the selected geography;
+- whether S4 was balanced or unbalanced across source-time cells;
+- whether deterministic baselines, including selection-rate methods, completed;
+- which frequentist smoke specifications failed and why;
+- which Bayesian coverage-offset pilots completed, with runtime, warnings,
+  `rhat_max`, `ess_bulk_min`, and `ess_tail_min`;
+- whether the latent two-level backend completed for S3/S4 and whether its
+  identifiability diagnostics are acceptable;
+- which validation plot and metric should define the practical best-to-worst
+  ordering;
+- whether methods that use benchmark margins or benchmark OD targets during
+  fitting are being compared fairly with Bayesian methods that reserve the
+  benchmark OD table for external validation;
+- the largest area grid that remains feasible for manual RStudio testing.
