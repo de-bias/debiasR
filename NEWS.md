@@ -1,5 +1,11 @@
 # debiasR 0.0.0.9004
 
+### Bias-measurement documentation
+
+- Clarified the proportional baseline explanation in the coverage-bias vignette
+  with a two-panel visual showing observed user counts against the
+  constant-coverage baseline and residual departures from that baseline.
+
 ### Validation documentation
 
 - Added prototype `plot_validation_*()` functions for validation metric

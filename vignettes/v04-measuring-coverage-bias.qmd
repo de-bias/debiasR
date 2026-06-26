@@ -180,29 +180,92 @@ distribution_bias$area_level |>
   head(10)
 ```
 
-Another simple check is whether coverage bias changes with area population size. This does not prove representativeness, but it helps show whether small or large areas behave differently.
+Before looking at residuals, it is useful to check the basic relationship
+between benchmark population and observed digital trace user counts. Larger LADs
+should generally have larger user counts. If they did not, the data would be a
+poor population proxy from the start.
+
+The figure below turns this check into a proportional baseline. The line shows
+the user count we would expect if every LAD had the same overall active-user
+coverage rate. The points do follow the line reasonably well, which is
+reassuring. But the second panel also shows that some LADs sit above or below
+that expectation. These departures are the beginning of the residual bias
+question.
 
 ```{r}
-ggplot(bias_lad, aes(x = population, y = coverage_bias)) +
+#| echo: false
+#| fig-width: 10
+#| fig-height: 4.5
+#| fig-cap: "Observed user counts broadly increase with Census population, but some LADs depart from the constant-coverage baseline."
+baseline_plot_data <- bias_lad |>
+  mutate(
+    overall_coverage_score = sum(user_count) / sum(population),
+    expected_user_count = population * overall_coverage_score,
+    baseline_coverage_bias = 1 - overall_coverage_score,
+    residual_bias = coverage_bias - baseline_coverage_bias
+  )
+
+baseline_line <- baseline_plot_data |>
+  select(population, expected_user_count) |>
+  arrange(population)
+
+plot_baseline <- ggplot(baseline_plot_data, aes(x = population, y = user_count)) +
   geom_point(alpha = 0.7, colour = "#356859") +
-  geom_smooth(method = "loess", se = FALSE, colour = "#8B3A3A") +
+  geom_line(
+    data = baseline_line,
+    aes(y = expected_user_count),
+    colour = "#8B3A3A",
+    linewidth = 1
+  ) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    x = expression("Census population, " * P[i]),
+    y = expression("Observed user count, " * U[i]),
+    title = "Observed counts and baseline"
+  ) +
+  theme_minimal()
+
+plot_residuals <- ggplot(baseline_plot_data, aes(x = population, y = residual_bias)) +
+  geom_hline(yintercept = 0, colour = "grey50") +
+  geom_point(alpha = 0.7, colour = "#356859") +
   scale_x_log10() +
   labs(
     x = expression("Census population, " * P[i]),
-    y = expression("Coverage bias, " * b[i]),
-    title = "Coverage bias can vary with area population size"
+    y = expression("Bias residual, " * b[i] - bar(b)),
+    title = "Departures from baseline"
   ) +
   theme_minimal()
+
+grid::grid.newpage()
+grid::pushViewport(grid::viewport(layout = grid::grid.layout(1, 2)))
+print(
+  plot_baseline,
+  vp = grid::viewport(layout.pos.row = 1, layout.pos.col = 1)
+)
+print(
+  plot_residuals,
+  vp = grid::viewport(layout.pos.row = 1, layout.pos.col = 2)
+)
 ```
 
 ## Proportional baseline
 
-A common approach to assess whether digital trace data are a reasonable population proxy is to check whether observed user counts are proportional to benchmark population counts across areas. The logic is that areas with larger benchmark populations should also have larger observed user counts.
+The proportional baseline is useful because it gives us a simple expectation:
+if the digital trace data captured the same share of the population in every
+LAD, then differences in user counts would mainly reflect differences in Census
+population size.
 
-We refer to this as the proportional baseline because it assumes that the digital trace data capture the same share of the population in every LAD. Under this assumption, observed user counts should increase in proportion to benchmark population counts and differences in observed user counts should mainly reflect differences in population size. The comparison above showed, however, that active-user coverage rates vary across LADs. This means that a proportional relationship is useful to check, but it does not fully describe whether the data represent all areas equally.
+That is a sensible first check, but it is not the same as saying the data are
+representative. A dataset can scale well with population overall while still
+covering some places better than others. The residuals from the baseline show
+where those local departures occur.
 
-We can use the function `validate_bias_residual_structure()` from `debiasR` to estimate this proportional baseline and inspect the
-residual structure, i.e. the differences between observed and expected user counts.
+`debiasR::validate_bias_residual_structure()` calculates this baseline and
+returns expected user counts plus several residual measures for each LAD. These
+include count residuals, defined as observed user counts minus the counts
+expected under constant coverage, and the default `coverage_score_residual`,
+defined as local coverage minus overall coverage.
 
 ```{r}
 bias_residuals <- debiasR::validate_bias_residual_structure(
