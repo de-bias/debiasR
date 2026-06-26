@@ -262,9 +262,10 @@ covering some places better than others. The residuals from the baseline show
 where those local departures occur.
 
 `debiasR::validate_bias_residual_structure()` calculates this baseline and
-returns the residuals for each LAD. In this vignette, these residuals are the
-differences between observed user counts and the counts expected under constant
-coverage.
+returns expected user counts plus several residual measures for each LAD. These
+include count residuals, defined as observed user counts minus the counts
+expected under constant coverage, and the default `coverage_score_residual`,
+defined as local coverage minus overall coverage.
 
 ```{r}
 bias_residuals <- debiasR::validate_bias_residual_structure(
