@@ -51,10 +51,10 @@
   `observation_model = "latent_two_level"` backend and kept the advanced
   Bayesian vignette as the deeper companion reference.
 - Recorded the approval boundary for the Bayesian implementation:
-  `coverage_offset` is the validated default empirical LAD route, while
-  `latent_two_level` is approved as an advanced observed-row S3/S4
-  repeated-source route after real MPD/Census empirical validation, real
-  centroid distances, prior-sensitivity checks, and confirmatory sampler
+  `coverage_offset` is the validated default empirical LAD model variant,
+  while `latent_two_level` is approved as an advanced observed-row S3/S4
+  repeated-source model variant after real MPD/Census empirical validation,
+  real centroid distances, prior-sensitivity checks, and confirmatory sampler
   diagnostics.
 - Clarified that benchmark-trained methods such as raking, selection-rate
   calibration and coefficient calibration can score well because they use

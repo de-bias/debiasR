@@ -37,9 +37,9 @@ The staged track below is intended to be implemented one stage per chat window. 
   the frequentist engine remains available for fast testing and experimentation.
 - The default LAD empirical route now has selected-area distance support through
   `debiasRdata::lad_centroids`.
-- The default `coverage_offset` Bayesian route is now empirically approved for
+- The default `coverage_offset` Bayesian model variant is now empirically approved for
   observed-flow LAD S1-S4 workflows; `latent_two_level` is approved as an
-  advanced observed-row S3/S4 repeated-source route with real-data and
+  advanced observed-row S3/S4 repeated-source model variant with real-data and
   diagnostic guardrails.
 
 ## Recently Completed
@@ -59,8 +59,8 @@ The staged track below is intended to be implemented one stage per chat window. 
   minimum effective sample size about 190.
 - Decision: approve `observation_model = "latent_two_level"` as an advanced
   Bayesian alternative for observed-row repeated-source S3/S4 workflows. It is
-  not the default route; users should still start with `coverage_offset` unless
-  they need a latent source-invariant true-flow state.
+  not the default model variant; users should still start with
+  `coverage_offset` unless they need a latent source-invariant true-flow state.
 
 1. Approve default coverage-offset Bayesian empirical implementation - `complete`
 - Completed on 2026-06-25.
@@ -74,13 +74,13 @@ The staged track below is intended to be implemented one stage per chat window. 
 - Decision: approve the default `coverage_offset` implementation as a viable
   empirical alternative for observed-flow LAD S1-S4 workflows, especially when
   benchmark OD flows are unavailable for fitting or reserved for validation.
-- Scope: this approval covers the default `coverage_offset` route. The separate
-  latent repeated-source approval is recorded above.
+- Scope: this approval covers the default `coverage_offset` model variant. The
+  separate latent repeated-source approval is recorded above.
 - Documentation updated to frame Bayesian validation as external validation
   against benchmark-assisted methods rather than a pure in-sample MAE contest.
   Raking, selection-rate and coefficient methods can use benchmark margins or
-  OD targets during fitting, while the Bayesian coverage-offset route does not
-  need benchmark OD flows and can reserve them for validation; similar
+  OD targets during fitting, while the Bayesian coverage-offset model variant
+  does not need benchmark OD flows and can reserve them for validation; similar
   benchmark performance is therefore meaningful even when Bayesian does not win
   every metric.
 
@@ -141,9 +141,9 @@ The staged track below is intended to be implemented one stage per chat window. 
 - Follow-up on 2026-06-25: the main adjustment vignette now avoids describing
   all Bayesian variants as a generic two-level model. It scopes the MPD
   observation equation and true-flow prediction equation to the
-  coverage-offset route only, keeps the coefficient-regression distinction in a
-  Quarto callout, and leaves the advanced Bayesian vignette to explain
-  `coverage_offset`, `reduced_form`, and `latent_two_level` separately.
+  coverage-offset model variant only, keeps the coefficient-regression
+  distinction in a Quarto callout, and leaves the advanced Bayesian vignette to
+  explain `coverage_offset`, `reduced_form`, and `latent_two_level` separately.
 
 1. Post-public repository hygiene pass - `complete`
 - Completed on 2026-06-12.
@@ -221,7 +221,8 @@ The staged track below is intended to be implemented one stage per chat window. 
 
 1. Harden the Bayesian path further - `1-2 days`
 - Validate complete-grid Bayesian prediction on real `debiasRdata` OD inputs.
-- Keep the LAD coverage-offset route as the approved default empirical path;
+- Keep the LAD coverage-offset model variant as the approved default empirical
+  path;
   add MSOA distance assets only if MSOA-specific empirical Bayesian examples are
   needed.
 - Record feasible empirical grid sizes and runtime expectations for MSOA and

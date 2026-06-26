@@ -30,19 +30,19 @@ main table td {
 
 ## Aim
 
-This vignette explains the advanced implementation routes in
+This vignette explains the advanced model variants in
 `adjust_multilevel_bayes()`. The main adjustment vignette introduces the
-coverage-offset route first because it is the most practical starting point:
-take the observed MPD flow, use measured coverage as an observation offset, and
-predict the underlying true-flow scale. Start with
+coverage-offset model variant first because it is the most practical starting
+point: take the observed MPD flow, use measured coverage as an observation
+offset, and predict the underlying true-flow scale. Start with
 [Adjusting origin-destination flows](v06-adjusting-biases.html) if you want that
 default workflow first.
 
-Here we slow down and look across the modelling routes. The useful question is
+Here we slow down and look across the model variants. The useful question is
 what you think the MPD data are measuring. Sometimes you have one source and one
-time period, and a coverage-offset model is the clearest route. Sometimes more
-than one source observes the same OD or OD-time pattern, and it becomes possible
-to estimate a shared hidden flow behind those observations.
+time period, and the coverage-offset model variant is the clearest choice.
+Sometimes more than one source observes the same OD or OD-time pattern, and it
+becomes possible to estimate a shared hidden flow behind those observations.
 Sometimes you need to reproduce the earlier MPD-scale correction logic, where
 the model asks what the fitted MPD flow would look like if the fitted bias term
 were neutral.
@@ -50,22 +50,22 @@ were neutral.
 The guiding principle is progressive complexity: use the simplest model that
 matches the data structure and inferential goal.
 
-## Why more than one implementation route?
+## Why more than one model variant?
 
-`adjust_multilevel_bayes()` gives three ways to connect the observed MPD flow to
-an adjusted flow. They are related, but they do not answer exactly the same
-question.
+`adjust_multilevel_bayes()` provides three observation-model variants that
+connect observed MPD flows to adjusted flows. They are related, but they do not
+answer exactly the same question.
 
-The coverage-offset and latent two-level routes both return a true-flow scale,
-but they get there differently. The coverage-offset route uses coverage as a
-known adjustment in the observation equation. The latent route estimates a
-hidden state and is only really interesting when repeated MPD rows give the
-model something to learn about that state.
+The coverage-offset and latent two-level model variants both return a
+true-flow scale, but they get there differently. The coverage-offset model
+variant uses coverage as a known adjustment in the observation equation. The
+latent model variant estimates a hidden state and is only really interesting
+when repeated MPD rows give the model something to learn about that state.
 
-The reduced-form route is different. It stays on the MPD observation scale and
-asks for a counterfactual fitted MPD flow. That makes it valuable for
+The reduced-form model variant is different. It stays on the MPD observation
+scale and asks for a counterfactual fitted MPD flow. That makes it valuable for
 continuity with earlier analyses, but it should not be read as the same
-true-flow model as the coverage-offset route.
+true-flow model as the coverage-offset model variant.
 
 There is also a fast `model_engine = "frequentist"` option for non-latent
 models. It is not a Bayesian model. It is a practical preflight check: use it to
@@ -136,15 +136,15 @@ The three Bayesian observation-model variants answer related but different
 questions. They should not all be read through the two-equation
 coverage-offset explanation used in the main adjustment vignette.
 
-The coverage-offset route asks: what true OD flow would have produced the MPD
-flow we observed, given measured coverage? The reduced-form route asks: what
+The coverage-offset model variant asks: what true OD flow would have produced the MPD
+flow we observed, given measured coverage? The reduced-form model variant asks: what
 would the fitted MPD flow look like if the fitted bias term were neutral? The
-latent route asks: what shared hidden OD or OD-time flow state is implied by
+latent model variant asks: what shared hidden OD or OD-time flow state is implied by
 repeated source/time observations?
 
-### Coverage-offset true-flow route
+### Coverage-offset true-flow model variant
 
-The coverage-offset route treats the MPD count as a partial observation of an
+The coverage-offset model variant treats the MPD count as a partial observation of an
 underlying true flow. Its observation equation is:
 
 $$
@@ -178,16 +178,16 @@ $$
 F^{adj}_{ij} = \exp(\eta^{true}_{ij})
 $$
 
-This route is not a latent-state model in the strict sense. The true-flow scale
-is recovered by fitting a count model with a fixed observation offset and then
-predicting with that offset set to zero. If source or time terms are included in
-the formula, they are fitted as predictors in this non-latent model; the route
-does not force one shared source-invariant OD state unless the formula and data
-structure imply that restriction.
+This model variant is not a latent-state model in the strict sense. The
+true-flow scale is recovered by fitting a count model with a fixed observation
+offset and then predicting with that offset set to zero. If source or time terms
+are included in the formula, they are fitted as predictors in this non-latent
+model; the variant does not force one shared source-invariant OD state unless
+the formula and data structure imply that restriction.
 
-### Reduced-form compatibility route
+### Reduced-form compatibility model variant
 
-The reduced-form route preserves the earlier observed-flow correction logic. It
+The reduced-form model variant preserves the earlier observed-flow correction logic. It
 fits the MPD observations directly:
 
 $$
@@ -215,14 +215,14 @@ F^{adj}_{ij} =
 \exp(\eta^{mobility}_{ij} + \eta^{bias}_{ij}\mid b_i = 0)
 $$
 
-This means the reduced-form route returns an MPD-scale counterfactual, not a
+This means the reduced-form model variant returns an MPD-scale counterfactual, not a
 true-flow state identified through a coverage offset. It is useful
 for reproducing earlier analyses and for sensitivity checks, but it should not
 be described as the same observation-process model as `coverage_offset`.
 
-### Latent two-level route
+### Latent two-level model variant
 
-The latent two-level route is the advanced model that most directly matches
+The latent two-level model variant is the advanced model that most directly matches
 the phrase "two-level" in a statistical sense. It introduces a shared hidden
 true-flow state and treats repeated source/time MPD rows as observations of
 that state:
@@ -257,11 +257,11 @@ F^{mpd,pred}_{ijst} =
 \exp(\log(q_{ijst}) + \theta_{g(i,j,t)} + z_{ijst}\gamma)
 $$
 
-This route is most informative when repeated observations make the latent state
+This model variant is most informative when repeated observations make the latent state
 empirically meaningful. In S3, multiple sources observe the same OD state. In
 S4, multiple source/time rows can share OD-time states. In S1, each state is
 observed only once, so the latent split is weakly identified and the
-coverage-offset route is usually clearer.
+coverage-offset model variant is usually clearer.
 
 ## Simulated source-time example
 
@@ -501,7 +501,7 @@ adj_default_multilevel <- debiasR::adjust_multilevel_bayes(
 Before running the Bayesian examples, it is often useful to check the same data
 contract with the fast deterministic engine. The code below uses the S4
 simulated data, declares source and time columns, and fits the coverage-offset
-route without posterior sampling. This is a practical way to test formulas,
+model variant without posterior sampling. This is a practical way to test formulas,
 covariates, count families and source/time declarations before paying the MCMC
 runtime cost.
 
@@ -696,14 +696,14 @@ adj_reduced_form <- debiasR::adjust_multilevel_bayes(
 
 Use this mode when you need to reproduce older analyses or compare the newer
 true-flow scale against the earlier MPD-scale counterfactual. For most new
-analyses, the coverage-offset route is the clearer starting point.
+analyses, the coverage-offset model variant is the clearer starting point.
 
 ## What the returned columns mean
 
 The returned object is a tibble with the original OD identifiers, the observed
 MPD flow, adjusted-flow summaries, and model metadata attached as attributes.
-The same column name can carry slightly different meaning across routes, so it
-is worth reading the output through the model you fitted.
+The same column name can carry slightly different meaning across model variants,
+so it is worth reading the output through the model you fitted.
 
 ```{r echo=FALSE}
 output_columns <- tibble::tribble(
@@ -715,11 +715,11 @@ output_columns <- tibble::tribble(
   "`flow_true_pred`",
   "Same true-flow-scale quantity as `flow_adj`.",
   "Same latent true-flow-scale quantity as `flow_adj`.",
-  "`NA`, because this route is not a true-flow model.",
+  "`NA`, because this model variant is not a true-flow model.",
   "`flow_mpd_pred`",
   "Posterior prediction on the MPD observation scale, with the coverage offset included.",
   "Source/time-specific MPD observation mean implied by the latent state and observation layer.",
-  "`NA` for the reduced-form counterfactual route.",
+  "`NA` for the reduced-form counterfactual model variant.",
   "`latent_flow_id`",
   "Not used.",
   "Identifier for the shared OD or OD-time latent state.",
@@ -768,8 +768,8 @@ When you compare Bayesian adjustment with deterministic methods, it helps to
 remember what information each method is allowed to use. Raking,
 selection-rate calibration and coefficient calibration can use benchmark
 margins or benchmark OD targets while they are being fitted. The
-coverage-offset Bayesian route does not need benchmark OD flows for fitting, so
-the benchmark can be held back for validation.
+coverage-offset Bayesian model variant does not need benchmark OD flows for
+fitting, so the benchmark can be held back for validation.
 
 That changes the interpretation of the comparison. The aim is not simply to win
 the lowest MAE in every table. If a coverage-offset Bayesian model gets close
@@ -778,13 +778,13 @@ that is already a useful result. It means the coverage-aware observation model
 is recovering much of the same flow structure from MPD counts, coverage and
 covariates alone.
 
-The latent route should be read in the same spirit, but with one extra question:
-do the repeated source/time observations give the model enough information to
-separate the hidden flow state from the observation layer? In S3 and S4 data,
-that question is empirical. In S1 data, the answer is usually no, because each
-OD flow is only observed once.
+The latent model variant should be read in the same spirit, but with one extra
+question: do the repeated source/time observations give the model enough
+information to separate the hidden flow state from the observation layer? In S3
+and S4 data, that question is empirical. In S1 data, the answer is usually no,
+because each OD flow is only observed once.
 
-## Putting the routes together
+## Putting the model variants together
 
 In most applications, begin with `coverage_offset`. It gives a direct
 true-flow-scale adjustment and keeps the role of active-user coverage explicit.
@@ -796,4 +796,4 @@ an underlying OD or OD-time flow.
 Keep `reduced_form` for continuity with earlier analyses and for sensitivity
 checks. It is still useful, but its adjusted value is an MPD-scale
 counterfactual, so it should not be interpreted as the same true-flow quantity
-returned by the coverage-offset and latent routes.
+returned by the coverage-offset and latent model variants.

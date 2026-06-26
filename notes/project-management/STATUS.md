@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-06-25
+Last updated: 2026-06-26
 
 ## Snapshot
 
@@ -8,7 +8,7 @@ Last updated: 2026-06-25
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
-- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; the default `coverage_offset` Bayesian route is approved for observed-flow empirical LAD S1-S4 workflows, while `latent_two_level` is approved as an advanced observed-row repeated-source S3/S4 route
+- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; the default `coverage_offset` Bayesian model variant is approved for observed-flow empirical LAD S1-S4 workflows, while `latent_two_level` is approved as an advanced observed-row repeated-source S3/S4 model variant
 - Current execution board: see [TASK_BOARD.md](TASK_BOARD.md)
 
 ## Stable vs Experimental
@@ -43,7 +43,7 @@ Last updated: 2026-06-25
     full S4 validation with real LAD centroid distances, acceptable diagnostics,
     and competitive benchmark validation metrics
   - `observation_model = "reduced_form"` remains a compatibility and
-    sensitivity route rather than the recommended Bayesian implementation
+    sensitivity model variant rather than the recommended Bayesian implementation
   - local source/time flow data for empirical S1-S4 testing are available
     outside the repository at `/Volumes/DEBIAS/data/outputs/flows`; use the HTW
     branch first for `mapp1`, `mapp2`, and Census benchmark validation at
@@ -120,10 +120,15 @@ Last updated: 2026-06-25
   compatibility mode, and Bayesian diagnostics.
 - The Bayesian vignette exposition was refined on 2026-06-25 so the
   "observation equation" and "true-flow prediction equation" language is scoped
-  explicitly to the coverage-offset route. The advanced Bayesian vignette now
+  explicitly to the coverage-offset model variant. The advanced Bayesian vignette now
   gives separate conceptual equations and interpretation for `coverage_offset`,
   `reduced_form`, and `latent_two_level`, avoiding the earlier risk of implying
   that all variants share the same two-equation structure.
+- Terminology decision recorded on 2026-06-26: public Bayesian documentation
+  should describe `coverage_offset`, `reduced_form`, and `latent_two_level` as
+  model variants, or observation-model variants when precision is useful.
+  Reserve route for empirical data paths or workflow paths rather than for the
+  Bayesian model choices.
 - Empirical approval decision recorded on 2026-06-25: the default
   `coverage_offset` Bayesian implementation is approved as a viable empirical
   alternative for observed-flow LAD S1-S4 workflows. The full LAD S4
@@ -284,7 +289,7 @@ Last updated: 2026-06-25
 - Result: pass. The rendered validation article and reference page show the
   optional Local Moran/LISA diagnostics, hidden setup chunks remain hidden, and
   no new mandatory spatial dependencies were added.
-- Verified the full empirical LAD S4 `coverage_offset` Bayesian route locally
+- Verified the full empirical LAD S4 `coverage_offset` Bayesian model variant locally
   on 2026-06-25 with a quiet manual runner derived from
   `notes/project-management/BAYESIAN_EMPIRICAL_FLOW_S1S4_VALIDATION.qmd`.
 - Result: pass. The run fitted fixed and origin random-intercept Bayesian
@@ -297,8 +302,8 @@ Last updated: 2026-06-25
   lower than all three on RMSE. Interpret these comparisons as external
   validation, not a pure target-fitting contest: raking and calibrated
   deterministic methods can use benchmark margins or OD targets during fitting,
-  while the Bayesian coverage-offset route does not need benchmark OD flows and
-  reserves them for validation.
+  while the Bayesian coverage-offset model variant does not need benchmark OD
+  flows and reserves them for validation.
 
 ## Current Risks / Blockers
 

@@ -291,7 +291,7 @@ adj_selection_rate <- adjust_selection_rate(
 
 show_adjustment_comparison(adj_selection_rate)
 
-tibble::tibble(r_global = attr(adj_selection_rate, 
+tibble::tibble(r_global = attr(adj_selection_rate,
                                "r_global"))
 ```
 
@@ -326,7 +326,7 @@ $$
 
 where $CF(c; k)$ is the coverage correction factor, $c$ is the active-user
 coverage rate for the selected origin or destination area, and $k$ is the
-curvature parameter that controls how strongly coverage is transformed. 
+curvature parameter that controls how strongly coverage is transformed.
 
 *Adjusted flow*:
 
@@ -371,7 +371,7 @@ simple when selection bias varies strongly across places or population groups, a
 ## Raking ratio
 
 Raking ratio is also known as iterative proportional
-fitting (IPF). 
+fitting (IPF).
 Raking ratio adjusts origin-destination flows by iteratively rescaling the
 observed MPD matrix so that its origin and destination totals match trusted
 benchmark margins. The intuition is different from coverage weighting. Instead
@@ -425,7 +425,7 @@ The summary reports whether the
 IPF routine converged, how many iterations it used, and how much the total flow
 changed after adjustment. Raking is useful when trusted marginal totals are
 available and consistency with those totals is a priority. Its main limitation
-is that matching origin and destination margins does not guarantee that the
+is that it requires observed benchmark origin and destination flow data. A second limitation is that matching origin and destination margins does not guarantee that the
 internal allocation between specific origin-destination pairs is correct, so it
 should still be validated at the OD-pair level.
 
@@ -438,8 +438,8 @@ same origin-destination pairs. Instead of using population coverage or margins,
 it fits a regression model that estimates how MPD counts map onto benchmark
 counts, then applies that fitted relationship to the MPD table. In its simplest
 form, this is a single multiplicative coefficient. In count-model versions, the
-relationship is estimated through a log link. 
-Flow measured as proportions or probability as, for example, the number of outflows over the population at risk could be used as input, as well. 
+relationship is estimated through a log link.
+Flow measured as proportions or probability as, for example, the number of outflows over the population at risk could be used as input, as well.
 Formally:
 
 *Core proportional form*:
@@ -464,9 +464,9 @@ $$
 
 ### Implementation
 
-To use `debiasR::adjust_coefficient()`, the minimum input requirement are the MPD and benchmark flows. Input the observed MPD flows to `mpd_od_df` and a
-benchmark OD table to `benchmark_od_df`. The `model_family` argument controls
-the regression family used to learn the MPD-to-benchmark relationship; this
+To use `debiasR::adjust_coefficient()`, the essential input requirements are the MPD and benchmark flows. Input the observed MPD flows to `mpd_od_df` and
+benchmark OD flows to `benchmark_od_df`. The `model_family` argument controls
+the regression family used to learn the MPD-to-benchmark relationship. This
 example uses `"ols"` for a simple proportional calibration. The `level`
 argument controls whether the coefficient is estimated at the OD, origin or
 destination level. Additional options, such as `fit_intercept` and `by_source`, let
@@ -485,33 +485,36 @@ show_adjustment_comparison(adj_coefficient)
 attr(adj_coefficient, "coef")
 ```
 
-The comparison table shows the original observed MPD flow, the regression
-adjusted estimate and the Census benchmark flow. The coefficient attribute reports the fitted
+The output table shows the original observed MPD flow, regression
+adjusted estimate and Census benchmark flow. The coefficient attribute reports the fitted
 scaling relationship used to convert MPD flows into benchmark-like flows. This
-method is direct and easy to validate because the benchmark is part of the
-model-fitting process. Its main limitation is that benchmark quality is
-critical, and a simple coefficient can miss local heterogeneity unless the
-chosen model family and estimation level capture the relevant structure.
+method is easy to validate because the benchmark is part of the
+model-fitting process. Its main limitation is that it requires benchmark flow data, and it does not adjust for representativeness bias. A simple coefficient can miss local heterogeneity unless the chosen model family and estimation level capture the relevant structure.
 
 ## Bayesian multilevel modelling
 
-Bayesian multilevel modelling adjusts origin-destination flows by fitting a
-structured count model to the observed MPD flows and estimating the underlying
-true-flow scale. This section introduces the Bayesian implementation in
-`adjust_multilevel_bayes()` through the recommended default route: the
-coverage-offset true-flow model. This route treats MPD flows as
-coverage-scaled observations of true flows, rather than as flows that are only
-adjusted after fitting by switching off a bias covariate. The multilevel
-structure can borrow information across origins, destinations and corridors when
-those data structures are available.
+Bayesian multilevel modelling in `debiasR` is a flexible modelling framework
+comprising three observation-model variants. The function `adjust_multilevel_bayes()`
+fits structured count models to observed MPD flows. The meaning of the
+adjusted flow depends on the selected model variant.
 
-`adjust_multilevel_bayes()` implements four modelling routes developed within
-the DEBIAS project. They use common count-modelling and multilevel-statistical
-ideas, but package them into a DEBIAS workflow for MPD coverage, OD-flow
-prediction, source/time structures and validation. This vignette explains all
-four routes intuitively, then implements only the coverage-offset Bayesian route.
-The [advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html)
-explains the remaining routes and the wider parameter set in more detail.
+This section focuses on the default coverage-offset model variant. In this
+model, the observed MPD flow is treated as a coverage-scaled observation of an
+underlying true flow. It adjusts origin-destination flows by fitting a structured count model to the observed MPD flows and estimating the underlying true-flow scale. Active-user coverage enters the model as a fixed
+observation offset, so the fitted model asks: what true OD flow would have
+generated the MPD count we observed, given the measured coverage? The
+multilevel structure can borrow information across origins, destinations and
+corridors when those data structures are available.
+
+The function provides three observation-model variants developed
+within the DEBIAS project: `coverage_offset`, `latent_two_level` and
+`reduced_form`. It also provides a fast frequentist engine for checking
+formulas, covariates and source/time structures before running the slower
+Bayesian fit. This vignette explains the model variants intuitively, then
+implements only the coverage-offset Bayesian model variant. The
+[advanced Bayesian adjustment vignette](v09-advanced-bayesian-adjustment.html)
+explains the remaining model variants and wider set of parameters in more
+detail.
 
 The Bayesian implementation can take time, so the vignette shows the model code
 but renders a precomputed example output. The function also provides a fast
@@ -525,22 +528,18 @@ check the sampler diagnostics before interpreting posterior summaries.
 
 ::: {.callout-tip title="How to make the Bayesian comparison fair"}
 The Bayesian coverage-offset model should not be assessed only as an in-sample
-competitor to methods that use benchmark OD flows during fitting. Raking ratio
+competitor to methods that rely on benchmark OD flows during fitting. Raking ratio
 and coefficient regression can perform very well when the validation benchmark
-is also part of the adjustment information. The Bayesian coverage-offset route
-has a different purpose: it fits MPD flows, active-user coverage, covariates and
-distance, then uses benchmark OD flows for external validation. A strong
-Bayesian result is therefore one that converges cleanly, improves substantially
-over raw MPD flows, is competitive with benchmark-calibrated methods on error
-and residual diagnostics, and provides posterior uncertainty and source/time
-structure that deterministic adjustments cannot provide.
+is also part of the adjustment information, and provide deterministic flow estimates ignoring their uncertainty. However, benchmark flow data are rarely available when natural hazards, armed conflict or health emergencies strike, and flow estimates from these methods are imprecise; yet lack of uncertainty measures prevent from evaluating the extent of their precision.
+
+The Bayesian coverage-offset model variant is designed to be deployed particularly in these contexts. It does not require benchmark flow data for training and enables measuring the uncertainty of estimates. It fits MPD flows, active-user coverage, covariates and distance. Benchmark OD flows can be used for external validation, but again not required for training. The performance of the Bayesian variants should only be assessed on better error performance over benchmark-calibrated methods. Additional parameters are needed, such as model convergence, flow estimate improvement over raw MPD flows, measures of uncertainty and flexibility to accommodate multiple MPD data structures from different sources, time granularity and frequency.
 :::
 
 A practical guide is:
 
 ```{r echo=FALSE}
 bayesian_option_guide <- tibble::tribble(
-  ~Route, ~`Use it when`, ~`Returned scale`, ~`Intuition`,
+  ~`Model option`, ~`Use it when`, ~`Returned scale`, ~`Intuition`,
   "`observation_model = \"coverage_offset\"`",
   "You want the default Bayesian true-flow adjustment.",
   "True-flow scale",
@@ -570,10 +569,10 @@ For routine adjustment, the practical default is:
 | Observation model | `observation_model = "coverage_offset"` |
 | Coverage offset | `coverage_scale = "origin"`, `"destination"` or `"both"` |
 
-The coverage-offset route used in this section can be understood through two
-linked equations: an MPD observation equation and a true-flow prediction
+The coverage-offset model variant used in this section can be understood
+through two linked equations: an MPD observation equation and a true-flow prediction
 equation. These equations describe the coverage-offset model only. The
-`reduced_form` and `latent_two_level` routes use different observation
+`reduced_form` and `latent_two_level` model variants use different observation
 structures, which are explained in the advanced Bayesian vignette.
 
 *_MPD observation equation_*
@@ -706,7 +705,7 @@ knitr::kable(
 )
 ```
 
-For the coverage-offset route, most users only need a small set of core
+For the coverage-offset model variant, most users only need a small set of core
 arguments.
 
 ```{r echo=FALSE}
@@ -739,9 +738,9 @@ component is represented by this fixed offset rather than by an estimated
 coverage-bias coefficient in the fitted true-flow formula.
 
 The wider parameter set, including `latent_flow_unit`, latent-prior controls and
-the `reduced_form` compatibility route, is covered in the advanced Bayesian
+the `reduced_form` compatibility model variant, is covered in the advanced Bayesian
 vignette. Start there when you need to model repeated source/time observations
-or compare alternative DEBIAS Bayesian routes.
+or compare alternative DEBIAS Bayesian model variants.
 
 The default coverage-offset model is the safest Bayesian starting point because
 it makes the observation process explicit while keeping the fitted structure
@@ -910,9 +909,9 @@ require a benchmark dataset of flows.
 This affects how validation scores should be read. Methods such as raking,
 selection-rate calibration and coefficient calibration can score better on a
 held-out-looking benchmark table because they are fitted with benchmark targets
-or benchmark OD flows. The Bayesian coverage-offset route does not need to see
-those target flows during fitting; it uses coverage, covariates and distance,
-then reserves the benchmark OD table for external validation. Similar
+or benchmark OD flows. The Bayesian coverage-offset model variant does not need
+to see those target flows during fitting; it uses coverage, covariates and
+distance, then reserves the benchmark OD table for external validation. Similar
 benchmark performance is therefore meaningful even when it does not win every
 metric.
 
