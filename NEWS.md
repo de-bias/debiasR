@@ -1,5 +1,12 @@
 # debiasR 0.0.0.9004
 
+### Adjustment workflows
+
+- Added `adjust_all_methods()` as an exported convenience function for fitting
+  the main adjustment methods on the same MPD, coverage, benchmark, covariate,
+  and distance inputs. The adjustment vignette now uses this package function
+  instead of a vignette-local helper.
+
 ### Validation documentation
 
 - Reworked the validation vignette around a shared-data method comparison that
