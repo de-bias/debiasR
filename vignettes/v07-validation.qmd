@@ -188,7 +188,7 @@ data. It returns raw MPD flows, benchmark flows, coverage rates, covariates and
 distances for the same selected LAD areas.
 
 ```{r load-validation-data}
-example_data <- debiasR::debiasR_example_data(
+example_data <- debiasR_example_data(
   n_areas = 25,
   complete_grid = TRUE
 )
@@ -220,12 +220,12 @@ them is `scripts/precompute_v07_validation_bayesian_example.R`.
 deterministic_results <- list(
   unadjusted = mpd_od |>
     dplyr::mutate(flow_adj = flow),
-  inverse_penetration = debiasR::adjust_inverse_penetration(
+  inverse_penetration = adjust_inverse_penetration(
     mpd_od_df = mpd_od,
     coverage_df = coverage_validation,
     weight_by = "both"
   ),
-  selection_rate = debiasR::adjust_selection_rate(
+  selection_rate = adjust_selection_rate(
     mpd_od_df = mpd_od,
     coverage_df = coverage_validation,
     covariates_df = covariates_validation,
@@ -234,18 +234,18 @@ deterministic_results <- list(
     benchmark_od_df = benchmark_od,
     calibration_aggregate = "origin"
   ),
-  selection_rate2 = debiasR::adjust_selection_rate2(
+  selection_rate2 = adjust_selection_rate2(
     mpd_od_df = mpd_od,
     coverage_df = coverage_validation,
     weight_by = "origin",
     benchmark_od_df = benchmark_od,
     calibration_aggregate = "origin"
   ),
-  raking_ratio = debiasR::adjust_raking_ratio(
+  raking_ratio = adjust_raking_ratio(
     mpd_od_df = mpd_od,
     benchmark_od_df = benchmark_od
   ),
-  coefficient = debiasR::adjust_coefficient(
+  coefficient = adjust_coefficient(
     mpd_od_df = mpd_od,
     benchmark_od_df = benchmark_od,
     model_family = "ols",
@@ -325,7 +325,7 @@ validation_display_compact_overall_metrics(
 ```
 
 ```{r broad-method-plot}
-debiasR::plot_validation_metrics(
+plot_validation_metrics(
   broad_overall_results,
   error_measures = c("mae", "rmse"),
   comparisons = "adjusted_vs_benchmark",
@@ -367,7 +367,7 @@ example in this vignette. Notice that the benchmark OD table is not passed to
 distance and covariates. The benchmark OD cells are reserved for validation.
 
 ```{r bayesian-example-code, eval=FALSE}
-bayes_origin_pool <- debiasR::adjust_multilevel_bayes(
+bayes_origin_pool <- adjust_multilevel_bayes(
   mpd_od_df = mpd_od,
   coverage_df = coverage_validation,
   covariates_df = covariates_validation,
@@ -435,7 +435,7 @@ have a high correlation and still have large errors if it gets the pattern
 right but the scale wrong.
 
 ```{r level1-metric-plot}
-debiasR::plot_validation_metrics(
+plot_validation_metrics(
   overall_results,
   error_measures = c("mae", "rmse"),
   comparisons = validation_benchmark_comparisons,
@@ -557,7 +557,7 @@ origin_margin_residuals <- validation_residual_results(
   top_n = 8
 )
 
-debiasR::plot_validation_scatter(
+plot_validation_scatter(
   origin_margin_residuals,
   comparisons = validation_benchmark_comparisons,
   methods = validation_plot_methods,
@@ -574,7 +574,7 @@ destination_margin_residuals <- validation_residual_results(
   top_n = 8
 )
 
-debiasR::plot_validation_scatter(
+plot_validation_scatter(
   destination_margin_residuals,
   comparisons = validation_benchmark_comparisons,
   methods = validation_plot_methods,
@@ -631,7 +631,7 @@ This makes outliers easier to see: points far from the dashed line and with
 strong colour deserve attention.
 
 ```{r level3-flow-scatter, fig.width=11, fig.height=8}
-debiasR::plot_validation_scatter(
+plot_validation_scatter(
   flow_residuals,
   comparisons = validation_benchmark_comparisons,
   methods = validation_plot_methods,
@@ -647,7 +647,7 @@ Lower shares in the high-residual bands indicate fewer large remaining
 OD-pair errors.
 
 ```{r level3-residual-bands}
-debiasR::plot_validation_residual_bands(
+plot_validation_residual_bands(
   flow_residuals,
   comparisons = "adjusted_vs_benchmark",
   methods = c(
@@ -733,7 +733,7 @@ The weighted version gives more influence to origins with larger benchmark
 outflows.
 
 ```{r level4-distribution-plot}
-debiasR::plot_validation_distribution(
+plot_validation_distribution(
   distribution_results,
   metric = "jsd",
   value = "weighted_mean",
@@ -748,7 +748,7 @@ of flow distributions are closest after converting flows into
 origin-conditioned destination shares.
 
 ```{r level4-distribution-pairwise, fig.width=9, fig.height=6}
-debiasR::plot_validation_distribution_pairwise(
+plot_validation_distribution_pairwise(
   distribution_results,
   metric = "jsd",
   value = "weighted_mean",
@@ -829,7 +829,7 @@ under the supplied neighbour definition. These are diagnostic checks, not final
 proof that residuals are random.
 
 ```{r level5-structure-plot}
-debiasR::plot_validation_structure(
+plot_validation_structure(
   residual_structure,
   methods = structure_methods,
   method_labels = validation_plot_method_labels

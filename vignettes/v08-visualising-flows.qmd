@@ -166,7 +166,7 @@ adjustment method from `debiasR`, replace `benchmark_flows` with the adjusted
 table and select `flow_adj` as the plotted value.
 
 ```{r eval=FALSE}
-adjusted_flows <- debiasR::adjust_inverse_penetration(
+adjusted_flows <- adjust_inverse_penetration(
   mpd_od_df = debiasRdata::lad_OD_travel2work,
   coverage_df = debiasRdata::coverage_lad,
   weight_by = "origin"

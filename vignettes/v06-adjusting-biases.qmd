@@ -91,12 +91,12 @@ implement them via `debiasR`.
 
 | Method | Function | Reference |
 |:-----------------------|:-----------------------|:-----------------------|
-| Inverse Penetration Rate Weights | `debiasR::adjust_inverse_penetration()` | Chi et al. (2025) |
-| Selection Rate | `debiasR::adjust_selection_rate()` | Chi et al. (2025) |
-| Selection Rate II | `debiasR::adjust_selection_rate2()` | Zagheni and Weber (2012) |
-| Raking Ratio (or Iterative proportional fitting) | `debiasR::adjust_raking_ratio()` | Chi et al. (2025) |
-| Coefficient regression modelling | `debiasR::adjust_coefficient()` | Chi et al. (2025) |
-| Bayesian multilevel modelling | `debiasR::adjust_multilevel_bayes()` | Rowe and Cabrera (in progress) |
+| Inverse Penetration Rate Weights | `adjust_inverse_penetration()` | Chi et al. (2025) |
+| Selection Rate | `adjust_selection_rate()` | Chi et al. (2025) |
+| Selection Rate II | `adjust_selection_rate2()` | Zagheni and Weber (2012) |
+| Raking Ratio (or Iterative proportional fitting) | `adjust_raking_ratio()` | Chi et al. (2025) |
+| Coefficient regression modelling | `adjust_coefficient()` | Chi et al. (2025) |
+| Bayesian multilevel modelling | `adjust_multilevel_bayes()` | Rowe and Cabrera (in progress) |
 
 ## Data
 
@@ -151,7 +151,7 @@ head(census_OD_travel2work)
 head(coverage)
 ```
 
-For the adjustment examples, we use `debiasR::debiasR_example_data()` to
+For the adjustment examples, we use `debiasR_example_data()` to
 prepare a small, aligned version of these data. This keeps the vignette
 fast to render and creates the complete-grid OD structure and distance
 table used by some methods below. This allows focusing on the aim of
@@ -159,7 +159,7 @@ this vignetter which is understanding how the various `debiasR`
 functions work.
 
 ```{r load-adjustment-data}
-example_data <- debiasR::debiasR_example_data(
+example_data <- debiasR_example_data(
   n_areas = 25,
   complete_grid = TRUE
 )
@@ -247,7 +247,7 @@ $$F^{adj}_{ij} = \sqrt{w_iw_j}F^{mpd}_{ij}$$
 
 ### Implementation
 
-To use `debiasR::adjust_inverse_penetration()`, we input our observed
+To use `adjust_inverse_penetration()`, we input our observed
 mobile-phone-derived origin-destination flows via `mpd_od_df` and
 coverage data to `coverage_df` in tabular format. The coverage table
 should contain the benchmark population and active-user counts needed to
@@ -563,7 +563,7 @@ $$\mu_{ij} = e^{\alpha}F^{mpd}_{ij},
 
 ### Implementation
 
-To use `debiasR::adjust_coefficient()`, the essential input requirements
+To use `adjust_coefficient()`, the essential input requirements
 are the MPD and benchmark flows. Input the observed MPD flows to
 `mpd_od_df` and benchmark OD flows to `benchmark_od_df`. The
 `model_family` argument controls the regression family used to learn the
@@ -1050,7 +1050,7 @@ quickly. You can switch `multilevel_engine` to `"bayesian"` for more
 complex structures.
 
 ```{r}
-method_results <- debiasR::adjust_all_methods(
+method_results <- adjust_all_methods(
   mpd_od_df = mpd_od,
   coverage_df = coverage_adjustment,
   benchmark_od_df = benchmark_od,

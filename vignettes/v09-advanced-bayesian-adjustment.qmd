@@ -28,6 +28,10 @@ main table td {
 </style>
 ```
 
+```{r setup, echo=FALSE}
+library(debiasR)
+```
+
 ## Aim
 
 This vignette explains the advanced model variants in
@@ -67,10 +71,10 @@ scale and asks for a counterfactual fitted MPD flow. That makes it valuable for
 continuity with earlier analyses, but it should not be read as the same
 true-flow model as the coverage-offset model variant.
 
-There is also a fast `model_engine = "frequentist"` option for non-latent
-models. It is not a Bayesian model. It is a practical preflight check: use it to
-test joins, formulas, source/time declarations and count families before paying
-the runtime cost of posterior sampling.
+There is also a frequentist option, `model_engine = "frequentist"`, for
+non-latent models. It is not a Bayesian model. It is a practical preflight
+check: use it to test joins, formulas, source/time declarations and count
+families before paying the runtime cost of posterior sampling.
 
 ## Choosing a Bayesian model
 
@@ -409,9 +413,9 @@ knitr::kable(example_objects)
 The Bayesian model-fitting chunks below are useful to run interactively when
 you want posterior summaries. They are not evaluated when the vignette is
 rendered, and you should inspect `attr(result, "diagnostics")` before
-interpreting the adjusted flows. The deterministic frequentist check in this
-vignette is evaluated because it is fast and is useful for confirming that the
-simulated source/time structure has been declared correctly.
+interpreting the adjusted flows. The frequentist option is evaluated in this
+vignette because it is fast and is useful for confirming that the simulated
+source/time structure has been declared correctly.
 
 ## Default coverage-offset model
 
@@ -438,7 +442,7 @@ best option for S1 examples and for users who want readable, reproducible
 Bayesian adjustment without modelling source-specific observation layers.
 
 ```{r eval=FALSE}
-adj_default <- debiasR::adjust_multilevel_bayes(
+adj_default <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s1,
   coverage_df = coverage_s1,
   covariates_df = covariates,
@@ -470,7 +474,7 @@ destination pooling: `(1 | origin)` for an origin intercept and
 contain enough repeated information to estimate the pooling structure.
 
 ```{r eval=FALSE}
-adj_default_multilevel <- debiasR::adjust_multilevel_bayes(
+adj_default_multilevel <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s1,
   coverage_df = coverage_s1,
   covariates_df = covariates,
@@ -496,17 +500,17 @@ adj_default_multilevel <- debiasR::adjust_multilevel_bayes(
 )
 ```
 
-## Fast deterministic specification check
+## Frequentist option for specification checks
 
 Before running the Bayesian examples, it is often useful to check the same data
-contract with the fast deterministic engine. The code below uses the S4
-simulated data, declares source and time columns, and fits the coverage-offset
-model variant without posterior sampling. This is a practical way to test formulas,
+contract with the frequentist option. The code below uses the S4 simulated
+data, declares source and time columns, and fits the coverage-offset model
+variant without posterior sampling. This is a practical way to test formulas,
 covariates, count families and source/time declarations before paying the MCMC
 runtime cost.
 
 ```{r frequentist-s4-check}
-adj_fast_s4 <- debiasR::adjust_multilevel_bayes(
+adj_fast_s4 <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s4,
   coverage_df = coverage_s4,
   covariates_df = covariates,
@@ -539,7 +543,7 @@ Bayesian engine. This chunk is useful to run interactively because MCMC runtime
 depends on the data size and local sampler setup.
 
 ```{r eval=FALSE}
-adj_bayes_s4 <- debiasR::adjust_multilevel_bayes(
+adj_bayes_s4 <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s4,
   coverage_df = coverage_s4,
   covariates_df = covariates,
@@ -596,7 +600,7 @@ identified sum-to-zero parameterization. The returned `flow_adj` and
 while `flow_mpd_pred` summarizes the source/time-specific MPD observation mean.
 
 ```{r eval=FALSE}
-adj_latent <- debiasR::adjust_multilevel_bayes(
+adj_latent <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s3,
   coverage_df = coverage_s3,
   covariates_df = covariates,
@@ -638,7 +642,7 @@ To move the latent example from S3 to S4, use the full repeated source/time
 table and share latent states within OD-time groups.
 
 ```{r eval=FALSE}
-adj_latent_s4 <- debiasR::adjust_multilevel_bayes(
+adj_latent_s4 <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s4,
   coverage_df = coverage_s4,
   covariates_df = covariates,
@@ -670,7 +674,7 @@ adj_latent_s4 <- debiasR::adjust_multilevel_bayes(
 The reduced-form mode preserves the earlier observed-flow workflow:
 
 ```{r eval=FALSE}
-adj_reduced_form <- debiasR::adjust_multilevel_bayes(
+adj_reduced_form <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s1,
   coverage_df = coverage_s1,
   covariates_df = covariates,

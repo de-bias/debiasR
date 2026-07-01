@@ -65,7 +65,7 @@ head(covariates)
 Next, we calculate the active-user coverage rate and coverage bias.
 
 ```{r}
-bias_lad <- debiasR::measure_bias(coverage)
+bias_lad <- measure_bias(coverage)
 
 bias_lad |>
   select(area, name, population, user_count, coverage_score, coverage_bias) |>
@@ -78,7 +78,7 @@ rate would sit close to the national active-user coverage rate. Residuals show
 locations (LADs) where a place departs from that simple expectation.
 
 ```{r}
-bias_residuals <- debiasR::validate_bias_residual_structure(
+bias_residuals <- validate_bias_residual_structure(
   coverage_df = coverage,
   coverage_area_col = "area",
   population_col = "population",
