@@ -48,6 +48,15 @@ Testing:
 
 Documentation:
 - Keep README, NEWS, status notes, and task board synchronized when user-facing scope changes.
+- After changes that affect exported package behavior, public function
+  contracts, vignettes, README guidance, validation interpretation,
+  dependency/data requirements, or methodological status decisions, update the
+  project notes and software versioning before the change is considered done.
+  At minimum, check whether `DESCRIPTION`, `NEWS.md`,
+  `notes/project-management/STATUS.md`, and
+  `notes/project-management/TASK_BOARD.md` need synchronized updates. Small
+  typo fixes, hidden refactors, and test-only edits do not need a version bump
+  unless they change user-facing behavior or project status.
 - Keep adding release/development notes to `NEWS.md`, but do not display the
   changelog in pkgdown previews or deployed vignette sites unless Francisco
   explicitly asks for it.
