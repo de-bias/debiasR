@@ -126,6 +126,12 @@ Last updated: 2026-07-01
 - The advanced Bayesian adjustment vignette now explains S1-S4 source/time
   structures, the approved advanced `latent_two_level` backend, reduced-form
   compatibility mode, and Bayesian diagnostics.
+- The advanced Bayesian adjustment vignette now reports real-data evidence using
+  the same output columns and attribute-style diagnostics returned by
+  `adjust_multilevel_bayes()`. The compact 25-LAD coverage-offset results table
+  is shown directly, while the full S4 coverage-offset and S3/S4 latent approval
+  runs are reported through metadata and diagnostics because the repeated-source
+  HTW files remain external to the repository.
 - The Bayesian vignette exposition was refined on 2026-06-25 so the
   "observation equation" and "true-flow prediction equation" language is scoped
   explicitly to the coverage-offset model variant. The advanced Bayesian vignette now
@@ -158,7 +164,7 @@ Last updated: 2026-07-01
   completed with no divergences, no treedepth hits, E-BFMI above 0.91, max
   R-hat about 1.023, and minimum effective sample size about 190.
 - The adjustment vignette now reads its compact Bayesian example output from a
-  precomputed package artifact reporting posterior median and mean summaries;
+  package output file reporting posterior median and mean summaries;
   maintainers can regenerate it explicitly with
   `Rscript scripts/precompute_v06_bayesian_example.R` when the model or data
   change.
@@ -323,7 +329,7 @@ Last updated: 2026-07-01
 
 ## Current Risks / Blockers
 
-1. Public repository visibility raises the bar for repository hygiene: avoid committing confidential material, credentials, restricted raw data, or development-only artifacts that are not intended for public release.
+1. Public repository visibility raises the bar for repository hygiene: avoid committing confidential material, credentials, restricted raw data, or development-only files that are not intended for public release.
 2. Documentation mismatch risk now mainly sits in archival migration materials and older review notebook sources that intentionally use fixed test fixtures.
 3. Test suite reliability still depends on using the curated runner rather than raw `test_dir()` calls.
 4. Bayesian tests are slower and environment-sensitive due to MCMC runtime and optional `brms` support; run them manually when Bayesian-lane validation is needed.

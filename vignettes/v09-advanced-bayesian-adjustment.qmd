@@ -32,6 +32,62 @@ main table td {
 library(debiasR)
 ```
 
+```{r load-real-data-outputs, include=FALSE}
+v09_find_extdata_file <- function(filename) {
+  package_path <- system.file("extdata", filename, package = "debiasR")
+  if (!identical(package_path, "")) {
+    return(package_path)
+  }
+
+  candidates <- c(
+    file.path("inst", "extdata", filename),
+    file.path("..", "inst", "extdata", filename),
+    file.path("..", "..", "inst", "extdata", filename)
+  )
+  candidates <- candidates[file.exists(candidates)]
+  if (length(candidates) == 0L) {
+    stop(
+      "Could not find the v09 Bayesian real-data output file: ", filename, "."
+    )
+  }
+  candidates[1]
+}
+
+v09_real_output <- tibble::as_tibble(
+  utils::read.csv(
+    v09_find_extdata_file("v09-bayesian-real-data-output.csv"),
+    check.names = FALSE
+  )
+)
+
+v09_real_summary <- tibble::as_tibble(
+  utils::read.csv(
+    v09_find_extdata_file("v09-bayesian-real-data-summary.csv"),
+    check.names = FALSE
+  )
+)
+
+v09_real_diagnostics <- tibble::as_tibble(
+  utils::read.csv(
+    v09_find_extdata_file("v09-bayesian-real-data-diagnostics.csv"),
+    check.names = FALSE
+  )
+)
+
+v09_kable <- function(x, digits = NULL) {
+  args <- list(
+    x = x,
+    format = "html",
+    row.names = FALSE,
+    table.attr = 'class="table table-sm"'
+  )
+  if (!is.null(digits)) {
+    args$digits <- digits
+  }
+  do.call(knitr::kable, args)
+}
+```
+
 ## Aim
 
 This vignette explains the advanced model variants in
@@ -104,6 +160,14 @@ knitr::kable(decision_table)
 As a rule of thumb, start with `coverage_offset`. Move to
 `latent_two_level` only when the repeated-observation structure gives the model
 real information about the hidden flow state.
+
+::: {.callout-note title="Current empirical support"}
+`coverage_offset` is the approved default real-data model variant for
+observed-flow LAD S1-S4 workflows. `latent_two_level` is approved as an
+advanced observed-row S3/S4 repeated-source variant when the repeated source/time
+structure is real and diagnostics are acceptable. `reduced_form` remains a
+compatibility and sensitivity variant, not the recommended true-flow model.
+:::
 
 ## Source-time structures
 
@@ -267,13 +331,97 @@ S4, multiple source/time rows can share OD-time states. In S1, each state is
 observed only once, so the latent split is weakly identified and the
 coverage-offset model variant is usually clearer.
 
+## Real-data outputs
+
+This section connects the model variants to the outputs produced by
+`adjust_multilevel_bayes()` on real OD data. The first table shows the returned
+flow columns. The diagnostic tables then show the metadata and convergence
+fields to inspect before interpreting adjusted flows.
+
+```{r real-data-evidence-summary, echo=FALSE, results='asis'}
+for (row_index in seq_len(nrow(v09_real_summary))) {
+  row <- v09_real_summary[row_index, , drop = FALSE]
+  cat(
+    "**`", row$observation_model, "`**. ",
+    row$real_data_evidence,
+    "\n\n",
+    "Output interpretation: ",
+    row$output_interpretation,
+    "\n\n",
+    sep = ""
+  )
+}
+```
+
+The coverage-offset rows below come from an origin-pooling specification fitted
+with observed MPD flows, active-user coverage, area covariates and OD distance.
+The table uses column names from the tibble returned by
+`adjust_multilevel_bayes()`.
+
+```{r real-data-output-columns, echo=FALSE}
+v09_real_output_display <- v09_real_output[
+  ,
+  c(
+    "origin",
+    "destination",
+    "flow",
+    "flow_adj",
+    "flow_mpd_pred",
+    "flow_true_pred",
+    "flow_adj_median",
+    "flow_adj_q2.5",
+    "flow_adj_q97.5",
+    "observation_probability"
+  )
+]
+
+v09_kable(v09_real_output_display, digits = 2)
+```
+
+Read these columns by scale. `flow` is the observed MPD count. `flow_adj` is
+the main adjusted-flow column. For `observation_model = "coverage_offset"`,
+`flow_adj` and `flow_true_pred` are true-flow-scale predictions. The
+`flow_mpd_pred` column stays on the MPD observation scale because it includes
+the fitted coverage offset. The interval columns, such as `flow_adj_q2.5` and
+`flow_adj_q97.5`, summarize posterior uncertainty for the adjusted true-flow
+prediction.
+
+The same discipline applies to diagnostics. In applied use, inspect
+`attr(result, "result_metadata")`, `attr(result, "diagnostics")$convergence`
+and validation summaries rather than relying only on the printed tibble.
+
+```{r real-data-compact-diagnostics, echo=FALSE}
+compact_diag <- v09_real_diagnostics[
+  v09_real_diagnostics$object == "coverage_offset_compact_lad",
+  ,
+  drop = FALSE
+]
+
+v09_kable(compact_diag)
+```
+
+The next diagnostics table reports the larger S4 coverage-offset and S3/S4
+latent model variants at the attribute-field level. The field names mirror the
+objects returned by `adjust_multilevel_bayes()` and the diagnostic summaries
+that users should inspect after fitting.
+
+```{r real-data-approval-diagnostics, echo=FALSE}
+approval_diag <- v09_real_diagnostics[
+  v09_real_diagnostics$object != "coverage_offset_compact_lad",
+  ,
+  drop = FALSE
+]
+
+v09_kable(approval_diag)
+```
+
 ## Simulated source-time example
 
-The examples below use a small simulated dataset so the calls can be read and
-adapted without requiring external empirical files. The simulation creates five
-areas, a true OD-flow surface, two MPD sources and two time periods. Coverage
-differs by area, source and time. The observed MPD rows are generated as
-coverage-scaled measurements of the true flows.
+This section explains how to structure MPD source and time variables before
+calling `adjust_multilevel_bayes()`. The simulation creates five areas, a true
+OD-flow surface, two MPD sources and two time periods. Coverage differs by area,
+source and time. The observed MPD rows are generated as coverage-scaled
+measurements of the true flows.
 
 ```{r simulated-source-time-data, echo=FALSE}
 set.seed(20260625)
@@ -390,8 +538,8 @@ knitr::kable(head(mpd_s4, 8))
 
 The S1 object contains one source and one time period. The S3 object contains
 two sources for one time period. The S4 object contains two sources and two time
-periods. These small objects are intentionally simple, but they exercise the
-same parameter contracts used by empirical source/time flow data.
+periods. Each object uses the same source, time, coverage, covariate and
+distance inputs expected by `adjust_multilevel_bayes()`.
 
 ```{r echo=FALSE}
 example_objects <- tibble::tribble(
@@ -410,12 +558,11 @@ example_objects <- tibble::tribble(
 knitr::kable(example_objects)
 ```
 
-The Bayesian model-fitting chunks below are useful to run interactively when
-you want posterior summaries. They are not evaluated when the vignette is
-rendered, and you should inspect `attr(result, "diagnostics")` before
-interpreting the adjusted flows. The frequentist option is evaluated in this
-vignette because it is fast and is useful for confirming that the simulated
-source/time structure has been declared correctly.
+The Bayesian model-fitting calls below return posterior summaries for adjusted
+flows. Inspect `attr(result, "diagnostics")` before interpreting those adjusted
+flows. The frequentist option uses the same inputs and options without
+posterior sampling, which makes it useful for checking the declared source/time
+structure before fitting the Bayesian model.
 
 ## Default coverage-offset model
 
@@ -502,8 +649,8 @@ adj_default_multilevel <- adjust_multilevel_bayes(
 
 ## Frequentist option for specification checks
 
-Before running the Bayesian examples, it is often useful to check the same data
-contract with the frequentist option. The code below uses the S4 simulated
+Before running the Bayesian examples, it is often useful to check the same
+input setup with the frequentist option. The code below uses the S4 simulated
 data, declares source and time columns, and fits the coverage-offset model
 variant without posterior sampling. This is a practical way to test formulas,
 covariates, count families and source/time declarations before paying the MCMC
@@ -534,13 +681,13 @@ adj_fast_s4 <- adjust_multilevel_bayes(
 knitr::kable(head(adj_fast_s4, 8), digits = 2)
 ```
 
-The frequentist result should be interpreted as a fast design check. It tells
+The frequentist result should be interpreted as a specification check. It tells
 you whether the scenario, coverage joins, formulas and prediction scope are
 working, but it is not posterior inference.
 
-Once that preflight passes, the same S4 structure can be fitted with the
-Bayesian engine. This chunk is useful to run interactively because MCMC runtime
-depends on the data size and local sampler setup.
+The same S4 structure can be fitted with the Bayesian engine. Use this form when
+you want posterior summaries and sampler diagnostics for the repeated
+source/time coverage-offset model.
 
 ```{r eval=FALSE}
 adj_bayes_s4 <- adjust_multilevel_bayes(

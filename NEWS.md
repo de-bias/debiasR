@@ -13,9 +13,9 @@
 ### Validation documentation
 
 - Reworked the validation vignette around a shared-data method comparison that
-  evaluates deterministic adjustment methods and precomputed Bayesian
+  evaluates deterministic adjustment methods and Bayesian
   coverage-offset specifications on the same OD support, with row-audit checks,
-  Bayesian artifact fingerprints, visible MCMC diagnostics, and exported
+  Bayesian input fingerprints, visible MCMC diagnostics, and exported
   `validate_flow_*()` / `plot_validation_*()` workflows across the five
   validation levels.
 - Streamlined validation vignette tables so the broader method comparison is
@@ -55,8 +55,12 @@
   observation offset, and why `F_true` is a posterior prediction rather than a
   random intercept.
 - Added compact input, option, output-column, and diagnostics guides for the
-  Bayesian adjustment example, while continuing to use precomputed posterior
-  median and mean summaries so routine vignette renders do not rerun MCMC.
+  Bayesian adjustment example, including posterior median and mean output
+  summaries.
+- Updated the advanced Bayesian vignette to report real-data evidence using
+  `adjust_multilevel_bayes()` output column names,
+  `attr(result, "result_metadata")` fields, diagnostic fields, and validation
+  summaries.
 - Added a short S2-S4 repeated source/time callout for the approved advanced
   `observation_model = "latent_two_level"` backend and kept the advanced
   Bayesian vignette as the deeper companion reference.
@@ -99,7 +103,7 @@
 
 - Completed a public-repository hygiene pass covering public docs, pkgdown
   exposure, workflow deploy guards, conduct/reporting text, non-code license
-  clarity, local-path cleanup, and tracked development artifacts.
+  clarity, local-path cleanup, and tracked development files.
 - Clarified the validation framework terminology by keeping individual
   origin-destination flow checks as Level 3 and presenting
   `validate_flow_distribution()` as Level 4 distributional allocation
@@ -217,9 +221,8 @@
 - Moved `rstanarm` into the default package imports so the standard Bayesian
   backend is installed with `debiasR`, and simplified the adjustment vignette
   so the Bayesian example runs directly.
-- Added a precomputed Bayesian vignette result artifact and regeneration script
-  so routine vignette renders include posterior median and mean example output
-  without rerunning MCMC.
+- Added a Bayesian vignette result table and regeneration script for posterior
+  median and mean example output.
 - Expanded fast tests with MSOA-like S1-S4 fixtures that exercise the default frequentist formula contract and complete-grid prediction metadata.
 - Updated workshop/testing vignettes to show a Bayesian coverage-offset example, raw/adjusted/benchmark comparison columns, active-user coverage notation, and parameter guidance for S1-S4 repeated source/time structures.
 

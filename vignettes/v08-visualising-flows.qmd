@@ -127,7 +127,7 @@ between-area Census flows to keep the browser widget responsive.
 
 The map below uses `mapgl::add_flowmap()` to display LAD travel-to-work flows.
 The flow layer is interactive: you can zoom, pan and inspect flow corridors in
-the rendered HTML page.
+the interactive HTML page.
 
 ```{r interactive-flow-map, eval=mapgl_available}
 mapgl::maplibre(

@@ -160,11 +160,6 @@ library(dplyr)
 library(ggplot2)
 ```
 
-The next hidden chunk loads small display and data-shaping helpers used only by
-the vignette. These helpers keep the teaching code focused on the exported
-`debiasR` adjustment and validation functions rather than on repetitive table
-formatting.
-
 ```{r load-validation-helpers, include=FALSE}
 helper_candidates <- c(
   "vignettes/_validation_helpers.R",
@@ -211,10 +206,10 @@ outputs on the same benchmark OD table and the same OD rows.
 validation_display_method_inputs()
 ```
 
-We fit the deterministic methods used for the broader comparison. We then load
-the precomputed Bayesian coverage-offset outputs. The Bayesian outputs are
-precomputed only to keep the vignette fast to render; the script used to create
-them is `scripts/precompute_v07_validation_bayesian_example.R`.
+We fit the deterministic methods used for the broader comparison. We then add
+Bayesian coverage-offset specifications that use the same MPD, coverage,
+covariate and distance inputs. The Bayesian models do not use the benchmark OD
+table during fitting; the benchmark is reserved for validation.
 
 ```{r build-method-results}
 deterministic_results <- list(
@@ -354,8 +349,7 @@ during fitting. Third, validation provides evidence about whether that extra
 information pays off in a specific application.
 Partial pooling means that related areas or corridors can share information,
 instead of estimating each one as if it were completely unrelated to the rest.
-All precomputed Bayesian specifications in the table use 4 chains and 1,000
-iterations.
+All Bayesian specifications in the table use 4 chains and 1,000 iterations.
 
 ```{r bayesian-specification-table, echo=FALSE}
 validation_display_bayesian_specs(bayesian_metadata)
@@ -395,12 +389,11 @@ only once, so corridor-level pooling is weakly identified. It becomes more
 useful when the data include repeated observations over sources, time periods
 or both.
 
-The precomputed Bayesian outputs are teaching fits. In applied analysis, users
-should run longer chains where needed, inspect MCMC diagnostics, compare
-posterior uncertainty, and treat weakly identified random structures as
-sensitivity checks rather than automatic improvements. The table above reports
-the maximum R-hat and minimum effective sample size for the precomputed fits so
-that model diagnostics are visible alongside validation metrics.
+In applied analysis, users should run longer chains where needed, inspect MCMC
+diagnostics, compare posterior uncertainty, and treat weakly identified random
+structures as sensitivity checks rather than automatic improvements. The table
+above reports the maximum R-hat and minimum effective sample size so that model
+diagnostics are visible alongside validation metrics.
 
 ## Level 1: Overall validation metrics
 

@@ -152,11 +152,9 @@ head(coverage)
 ```
 
 For the adjustment examples, we use `debiasR_example_data()` to
-prepare a small, aligned version of these data. This keeps the vignette
-fast to render and creates the complete-grid OD structure and distance
-table used by some methods below. This allows focusing on the aim of
-this vignetter which is understanding how the various `debiasR`
-functions work.
+prepare a compact, aligned version of these data. It creates the
+complete-grid OD structure and distance table used by some methods
+below, which keeps the focus on how the `debiasR` functions work.
 
 ```{r load-adjustment-data}
 example_data <- debiasR_example_data(
@@ -617,24 +615,24 @@ are available.
 
 The function provides three observation-model variants developed within
 the DEBIAS project: `coverage_offset`, `latent_two_level` and
-`reduced_form`. It also provides a fast frequentist option for checking
+`reduced_form`. It also provides a frequentist option for checking
 formulas, covariates and source/time structures before running the
-slower Bayesian fit. This vignette explains the model variants
-intuitively, then implements only the coverage-offset Bayesian model
+Bayesian fit. This vignette explains the model variants intuitively,
+then implements only the coverage-offset Bayesian model
 variant. The [advanced Bayesian adjustment
 vignette](v09-advanced-bayesian-adjustment.html) explains the remaining
 model variants and wider set of parameters in more detail.
 
-The Bayesian implementation can take time, so the vignette shows the
-model code but renders a precomputed example output. The function also
-provides a frequentist option, `model_engine = "frequentist"`. Use this
-option to test different model specifications, covariates, source/time
-structures, random effects and distributional families before committing
-to Bayesian sampling. It is useful for design checks and method
-comparison, but it does not replace the Bayesian fit because it does not
-provide posterior uncertainty. For applied Bayesian analysis, run enough
-iterations and chains for your data and check the sampler diagnostics
-before interpreting posterior summaries.
+The code below shows the model call and the main returned columns for the
+coverage-offset specification. The function also provides a frequentist
+option, `model_engine = "frequentist"`. Use this option to test different
+model specifications, covariates, source/time structures, random effects
+and distributional families before Bayesian sampling. It is useful for
+specification checks and method comparison, but it does not replace the
+Bayesian fit because it does not provide posterior uncertainty. For
+applied Bayesian analysis, run enough iterations and chains for your data
+and check the sampler diagnostics before interpreting posterior
+summaries.
 
 ::: {.callout-tip title="How to make the Bayesian comparison fair"}
 The proposed Bayesian models should not be assessed only as an in-sample
@@ -680,7 +678,7 @@ bayesian_option_guide <- tibble::tribble(
   "`model_engine = \"frequentist\"`",
   "Run the frequentist option to check that the data, formulas and assumptions work before running the full Bayesian model.",
   "Frequentist option",
-  "This option uses the same non-latent data contract for rapid specification checks and method comparison."
+  "This option uses the same non-latent input structure for rapid specification checks and method comparison."
 )
 
 knitr::kable(bayesian_option_guide)
@@ -858,7 +856,7 @@ bayesian_parameter_guide <- tibble::tribble(
   "`target_scale = \"true_flow\"`", "Returns adjusted flows on the estimated true-flow scale rather than on the MPD observation scale.",
   "`observation_model = \"coverage_offset\"`", "Treats MPD flows as coverage-scaled observations of true flows.",
   "`coverage_scale`", "Chooses whether the fixed coverage offset uses origin coverage, destination coverage or both.",
-  "`model_engine = \"bayesian\"`", "Fits the posterior model. Use the frequentist option, `model_engine = \"frequentist\"`, first when you want a fast design check.",
+  "`model_engine = \"bayesian\"`", "Fits the posterior model. Use the frequentist option, `model_engine = \"frequentist\"`, first when you want a specification check.",
   "`scenario`, `source_col`, `time_col`", "Declare the source/time data structure. The example below uses S1: one source and one time period.",
   "`prediction_scope`", "Chooses whether predictions are returned only for observed MPD rows or for a supplied complete OD matrix.",
   "`random_intercept`", "Adds or omits origin, destination, OD, source or time pooling structure when the data support it.",
@@ -941,8 +939,7 @@ bayesian_example_file <- system.file(
 
 if (identical(bayesian_example_file, "")) {
   stop(
-    "Missing precomputed Bayesian vignette output. ",
-    "Regenerate it with scripts/precompute_v06_bayesian_example.R."
+    "Missing Bayesian example output."
   )
 }
 
@@ -997,8 +994,7 @@ bayesian_terms_file <- system.file(
 
 if (identical(bayesian_metadata_file, "") || identical(bayesian_terms_file, "")) {
   stop(
-    "Missing precomputed Bayesian vignette metadata. ",
-    "Regenerate it with scripts/precompute_v06_bayesian_example.R."
+    "Missing Bayesian example metadata."
   )
 }
 
@@ -1045,9 +1041,9 @@ vignette](v09-advanced-bayesian-adjustment.html) for more details.
 
 We can also run all six adjustment methods at once using
 `adjust_all_methods()`. The function uses the frequentist option for the
-multilevel method by default so the method-comparison table renders
-quickly. You can switch `multilevel_engine` to `"bayesian"` for more
-complex structures.
+multilevel method by default, which compares the main adjustment methods
+without posterior sampling. You can switch `multilevel_engine` to
+`"bayesian"` for more complex structures.
 
 ```{r}
 method_results <- adjust_all_methods(
