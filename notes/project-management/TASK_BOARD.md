@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-06-25
+Last updated: 2026-07-01
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -144,6 +144,10 @@ The staged track below is intended to be implemented one stage per chat window. 
   coverage-offset model variant only, keeps the coefficient-regression
   distinction in a Quarto callout, and leaves the advanced Bayesian vignette to
   explain `coverage_offset`, `reduced_form`, and `latent_two_level` separately.
+- Follow-up on 2026-07-01: the all-method comparison is now backed by exported
+  package API through `adjust_all_methods()` rather than a vignette-only helper,
+  and user-facing vignette examples no longer display `debiasR::` prefixes once
+  `library(debiasR)` has been loaded.
 
 1. Post-public repository hygiene pass - `complete`
 - Completed on 2026-06-12.

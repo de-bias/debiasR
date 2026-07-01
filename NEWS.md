@@ -1,4 +1,4 @@
-# debiasR 0.0.0.9004
+# debiasR 0.0.0.9005
 
 ### Adjustment workflows
 
@@ -6,6 +6,9 @@
   the main adjustment methods on the same MPD, coverage, benchmark, covariate,
   and distance inputs. The adjustment vignette now uses this package function
   instead of a vignette-local helper.
+- Simplified user-facing vignette code by relying on `library(debiasR)` and
+  removing visible `debiasR::` namespace prefixes, while keeping explicit
+  namespaces in hidden helper code where useful.
 
 ### Validation documentation
 

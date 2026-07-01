@@ -1,10 +1,10 @@
 # Project Status
 
-Last updated: 2026-06-26
+Last updated: 2026-07-01
 
 ## Snapshot
 
-- Project stage: active development (`0.0.0.9004`)
+- Project stage: active development (`0.0.0.9005`)
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
@@ -23,6 +23,7 @@ Last updated: 2026-06-26
 - `adjust_selection_rate2()`
 - `adjust_raking_ratio()`
 - `adjust_coefficient()`
+- `adjust_all_methods()`
 - `validate_flow_overall()`
 - `validate_flow_pairs()`
 - `validate_flow_residuals()`
@@ -161,6 +162,14 @@ Last updated: 2026-06-26
   maintainers can regenerate it explicitly with
   `Rscript scripts/precompute_v06_bayesian_example.R` when the model or data
   change.
+- `adjust_all_methods()` is now exported for fitting the main adjustment
+  methods on shared MPD, coverage, benchmark, covariate, and distance inputs.
+  The adjustment vignette uses this package function instead of a
+  vignette-local helper for all-method comparisons.
+- User-facing vignette code now relies on `library(debiasR)` and removes
+  visible `debiasR::` namespace prefixes so examples read like normal package
+  usage; hidden helper code may still use explicit namespaces where clarity is
+  useful.
 - Issue #58 updated the adjustment vignette advanced section into the practical
   user-facing guide for `adjust_multilevel_bayes()`: it now explains the
   default coverage-offset true-flow model, clarifies that active-user coverage
