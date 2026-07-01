@@ -338,6 +338,49 @@ This section connects the model variants to the outputs produced by
 flow columns. The diagnostic tables then show the metadata and convergence
 fields to inspect before interpreting adjusted flows.
 
+The example uses the same 25-LAD travel-to-work data route as the validation
+vignette: observed MPD OD flows, active-user coverage, area covariates, OD
+distance and Census benchmark flows prepared by `debiasR_example_data()`. The
+benchmark OD table is kept for validation rather than passed to
+`adjust_multilevel_bayes()`.
+
+```{r real-lad-inputs}
+lad_data <- debiasR_example_data(
+  n_areas = 25,
+  complete_grid = TRUE
+)
+
+mpd_s1 <- lad_data$mpd_od
+mpd_s1$mpd_time <- "single_period"
+
+coverage_s1 <- lad_data$coverage
+coverage_s1$mpd_time <- "single_period"
+
+covariates <- lad_data$covariates
+distance <- lad_data$distance
+benchmark_od <- lad_data$benchmark_od
+
+head(
+  mpd_s1[
+    c("origin", "destination", "flow", "mpd_source", "mpd_time")
+  ],
+  8
+)
+
+head(
+  coverage_s1[
+    c("origin", "population", "user_count", "mpd_source", "mpd_time")
+  ],
+  8
+)
+```
+
+These inputs define an S1 application: one MPD source observed in one period.
+For S3 and S4 applications, `mpd_od_df` and `coverage_df` keep the same source
+and time columns but contain repeated rows across `mpd_source`, `mpd_time` or
+both. The repeated-source model variants should be used when those repeated rows
+come from real source/time observations.
+
 ```{r real-data-evidence-summary, echo=FALSE, results='asis'}
 for (row_index in seq_len(nrow(v09_real_summary))) {
   row <- v09_real_summary[row_index, , drop = FALSE]
@@ -415,156 +458,7 @@ approval_diag <- v09_real_diagnostics[
 v09_kable(approval_diag)
 ```
 
-## Simulated source-time example
-
-This section explains how to structure MPD source and time variables before
-calling `adjust_multilevel_bayes()`. The simulation creates five areas, a true
-OD-flow surface, two MPD sources and two time periods. Coverage differs by area,
-source and time. The observed MPD rows are generated as coverage-scaled
-measurements of the true flows.
-
-```{r simulated-source-time-data, echo=FALSE}
-set.seed(20260625)
-
-areas <- paste0("area_", LETTERS[1:5])
-area_profile <- data.frame(
-  area = areas,
-  area_index = seq_along(areas),
-  population = c(900, 1200, 760, 1500, 1080),
-  rural_pct = c(0.10, 0.25, 0.55, 0.40, 0.70),
-  stringsAsFactors = FALSE
-)
-
-od_grid <- expand.grid(
-  origin = areas,
-  destination = areas,
-  KEEP.OUT.ATTRS = FALSE,
-  stringsAsFactors = FALSE
-)
-
-origin_profile <- area_profile
-names(origin_profile) <- paste0(names(origin_profile), "_o")
-names(origin_profile)[names(origin_profile) == "area_o"] <- "origin"
-
-destination_profile <- area_profile
-names(destination_profile) <- paste0(names(destination_profile), "_d")
-names(destination_profile)[names(destination_profile) == "area_d"] <- "destination"
-
-od_truth <- merge(od_grid, origin_profile, by = "origin")
-od_truth <- merge(od_truth, destination_profile, by = "destination")
-od_truth$distance_km <- abs(od_truth$area_index_o - od_truth$area_index_d) + 1
-od_truth$log_distance <- log(od_truth$distance_km)
-od_truth$self_flow <- as.numeric(od_truth$origin == od_truth$destination)
-od_truth$eta_true <- 5.6 +
-  0.45 * od_truth$rural_pct_o -
-  0.25 * od_truth$rural_pct_d -
-  0.70 * od_truth$log_distance +
-  0.90 * od_truth$self_flow
-od_truth$flow_true <- round(exp(od_truth$eta_true))
-
-source_time_grid <- expand.grid(
-  mpd_source = c("operator_a", "operator_b"),
-  mpd_time = c("2021_q1", "2021_q2"),
-  KEEP.OUT.ATTRS = FALSE,
-  stringsAsFactors = FALSE
-)
-
-coverage_repeated <- merge(
-  area_profile[c("area", "population")],
-  source_time_grid
-)
-names(coverage_repeated)[names(coverage_repeated) == "area"] <- "origin"
-coverage_repeated$coverage_rate <- with(
-  coverage_repeated,
-  ifelse(mpd_source == "operator_a", 0.09, 0.13) +
-    ifelse(mpd_time == "2021_q2", 0.015, 0) +
-    c(0.005, -0.004, 0.002, -0.003, 0.004)[match(origin, areas)]
-)
-coverage_repeated$user_count <- pmax(
-  1,
-  round(coverage_repeated$population * coverage_repeated$coverage_rate)
-)
-
-mpd_repeated <- merge(
-  od_truth[c("origin", "destination", "flow_true")],
-  source_time_grid
-)
-mpd_repeated <- merge(
-  mpd_repeated,
-  coverage_repeated[c("origin", "mpd_source", "mpd_time", "coverage_rate")],
-  by = c("origin", "mpd_source", "mpd_time")
-)
-mpd_repeated$source_time_effect <- with(
-  mpd_repeated,
-  ifelse(mpd_source == "operator_b", 1.12, 0.95) *
-    ifelse(mpd_time == "2021_q2", 1.04, 1.00)
-)
-mpd_repeated$flow <- stats::rpois(
-  nrow(mpd_repeated),
-  lambda = pmax(
-    0.1,
-    mpd_repeated$coverage_rate *
-      mpd_repeated$flow_true *
-      mpd_repeated$source_time_effect
-  )
-)
-mpd_repeated <- mpd_repeated[
-  c("origin", "destination", "flow", "mpd_source", "mpd_time")
-]
-
-coverage <- coverage_repeated[
-  c("origin", "population", "user_count", "mpd_source", "mpd_time")
-]
-covariates <- area_profile[c("area", "rural_pct", "population")]
-distance <- od_truth[c("origin", "destination", "distance_km")]
-
-mpd_s1 <- subset(
-  mpd_repeated,
-  mpd_source == "operator_a" & mpd_time == "2021_q1"
-)
-coverage_s1 <- subset(
-  coverage,
-  mpd_source == "operator_a" & mpd_time == "2021_q1"
-)
-
-mpd_s3 <- subset(mpd_repeated, mpd_time == "2021_q1")
-coverage_s3 <- subset(coverage, mpd_time == "2021_q1")
-
-mpd_s4 <- mpd_repeated
-coverage_s4 <- coverage
-
-knitr::kable(head(mpd_s4, 8))
-```
-
-The S1 object contains one source and one time period. The S3 object contains
-two sources for one time period. The S4 object contains two sources and two time
-periods. Each object uses the same source, time, coverage, covariate and
-distance inputs expected by `adjust_multilevel_bayes()`.
-
-```{r echo=FALSE}
-example_objects <- tibble::tribble(
-  ~Object, ~Scenario, ~Description,
-  "`mpd_s1`, `coverage_s1`",
-  "`s1`",
-  "One source and one time period.",
-  "`mpd_s3`, `coverage_s3`",
-  "`s3`",
-  "Two sources observing the same OD pairs in one period.",
-  "`mpd_s4`, `coverage_s4`",
-  "`s4`",
-  "Two sources observed across two periods."
-)
-
-knitr::kable(example_objects)
-```
-
-The Bayesian model-fitting calls below return posterior summaries for adjusted
-flows. Inspect `attr(result, "diagnostics")` before interpreting those adjusted
-flows. The frequentist option uses the same inputs and options without
-posterior sampling, which makes it useful for checking the declared source/time
-structure before fitting the Bayesian model.
-
-## Default coverage-offset model
+## Coverage-offset model on the real LAD inputs
 
 The default true-flow model is:
 
@@ -588,13 +482,19 @@ This is the model explained in the main adjustment vignette. It is usually the
 best option for S1 examples and for users who want readable, reproducible
 Bayesian adjustment without modelling source-specific observation layers.
 
+The call below uses the real LAD inputs shown above. It fits observed MPD flows
+with active-user coverage, area covariates and OD distance. The benchmark OD
+flows are not passed to the model.
+
 ```{r eval=FALSE}
 adj_default <- adjust_multilevel_bayes(
   mpd_od_df = mpd_s1,
   coverage_df = coverage_s1,
   covariates_df = covariates,
   distance_df = distance,
-  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
+  mobility_formula = ~ log_pop_o + log_pop_d + log_distance +
+    rural_pct_o + rural_pct_d + per_level4_o + per_level4_d +
+    (1 | origin),
   bias_formula = ~ 0,
   target_scale = "true_flow",
   observation_model = "coverage_offset",
@@ -604,117 +504,72 @@ adj_default <- adjust_multilevel_bayes(
   source_col = "mpd_source",
   time_col = "mpd_time",
   repeated_observation = "none",
-  prediction_scope = "observed",
-  random_intercept = "none",
-  model_family = "poisson",
-  iter = 1000,
-  chains = 2,
-  seed = 123,
-  refresh = 0
-)
-```
-
-With richer data, the coverage-offset model can include multilevel structure in
-the true-flow formula. In an S1 setting, that usually means origin and
-destination pooling: `(1 | origin)` for an origin intercept and
-`(1 | destination)` for a destination intercept. Use these terms when the data
-contain enough repeated information to estimate the pooling structure.
-
-```{r eval=FALSE}
-adj_default_multilevel <- adjust_multilevel_bayes(
-  mpd_od_df = mpd_s1,
-  coverage_df = coverage_s1,
-  covariates_df = covariates,
-  distance_df = distance,
-  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
-    (1 | origin) + (1 | destination),
-  bias_formula = ~ 0,
-  target_scale = "true_flow",
-  observation_model = "coverage_offset",
-  coverage_scale = "origin",
-  model_engine = "bayesian",
-  scenario = "s1",
-  source_col = "mpd_source",
-  time_col = "mpd_time",
-  repeated_observation = "none",
-  prediction_scope = "observed",
+  prediction_scope = "complete_grid",
+  random_intercept = "origin",
   model_family = "poisson",
   flow_adj_summary = "median",
   iter = 1000,
   chains = 4,
-  seed = 123,
+  seed = 20260630,
   refresh = 0
 )
 ```
 
-## Frequentist option for specification checks
+In the output table above, `flow_adj` and `flow_true_pred` are the returned
+true-flow-scale estimates from this kind of coverage-offset fit. `flow_mpd_pred`
+is the fitted MPD-scale count after the coverage offset is applied.
 
-Before running the Bayesian examples, it is often useful to check the same
-input setup with the frequentist option. The code below uses the S4 simulated
-data, declares source and time columns, and fits the coverage-offset model
-variant without posterior sampling. This is a practical way to test formulas,
-covariates, count families and source/time declarations before paying the MCMC
-runtime cost.
+## Specification check on the real LAD inputs
 
-```{r frequentist-s4-check}
-adj_fast_s4 <- adjust_multilevel_bayes(
-  mpd_od_df = mpd_s4,
-  coverage_df = coverage_s4,
+The frequentist option uses the same input objects and non-latent model settings
+without posterior sampling. It is useful for checking that joins, formulas,
+source/time declarations and prediction scope are set correctly. The table below
+is also based on the real LAD travel-to-work data.
+
+```{r frequentist-real-lad-check}
+adj_check_lad <- adjust_multilevel_bayes(
+  mpd_od_df = mpd_s1,
+  coverage_df = coverage_s1,
   covariates_df = covariates,
   distance_df = distance,
-  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
-    mpd_source + mpd_time,
+  mobility_formula = ~ log_pop_o + log_pop_d + log_distance +
+    rural_pct_o + rural_pct_d + per_level4_o + per_level4_d,
   bias_formula = ~ 0,
   target_scale = "true_flow",
   observation_model = "coverage_offset",
   coverage_scale = "origin",
   model_engine = "frequentist",
-  scenario = "s4",
+  scenario = "s1",
   source_col = "mpd_source",
   time_col = "mpd_time",
-  repeated_observation = "source_time",
-  prediction_scope = "observed",
+  repeated_observation = "none",
+  prediction_scope = "complete_grid",
   random_intercept = "none",
   model_family = "poisson"
 )
 
-knitr::kable(head(adj_fast_s4, 8), digits = 2)
+v09_kable(
+  head(
+    adj_check_lad[
+      c(
+        "origin",
+        "destination",
+        "flow",
+        "flow_adj",
+        "flow_mpd_pred",
+        "flow_true_pred",
+        "observation_probability"
+      )
+    ],
+    8
+  ),
+  digits = 2
+)
 ```
 
 The frequentist result should be interpreted as a specification check. It tells
 you whether the scenario, coverage joins, formulas and prediction scope are
 working, but it is not posterior inference.
-
-The same S4 structure can be fitted with the Bayesian engine. Use this form when
-you want posterior summaries and sampler diagnostics for the repeated
-source/time coverage-offset model.
-
-```{r eval=FALSE}
-adj_bayes_s4 <- adjust_multilevel_bayes(
-  mpd_od_df = mpd_s4,
-  coverage_df = coverage_s4,
-  covariates_df = covariates,
-  distance_df = distance,
-  mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance +
-    mpd_source + mpd_time + (1 | origin),
-  bias_formula = ~ 0,
-  target_scale = "true_flow",
-  observation_model = "coverage_offset",
-  coverage_scale = "origin",
-  model_engine = "bayesian",
-  scenario = "s4",
-  source_col = "mpd_source",
-  time_col = "mpd_time",
-  repeated_observation = "source_time",
-  prediction_scope = "observed",
-  model_family = "poisson",
-  flow_adj_summary = "median",
-  iter = 1000,
-  chains = 4,
-  seed = 123,
-  refresh = 0
-)
-```
 
 ## Latent two-level backend
 
@@ -746,10 +601,14 @@ identified sum-to-zero parameterization. The returned `flow_adj` and
 `flow_true_pred` summarize posterior draws of the latent true-flow intensity,
 while `flow_mpd_pred` summarizes the source/time-specific MPD observation mean.
 
+In a repeated-source real-data application, the MPD and coverage inputs use the
+same column names as the LAD S1 example, but contain more than one observed
+source and/or time row for the same OD or OD-time state.
+
 ```{r eval=FALSE}
 adj_latent <- adjust_multilevel_bayes(
-  mpd_od_df = mpd_s3,
-  coverage_df = coverage_s3,
+  mpd_od_df = mpd_repeated_source,
+  coverage_df = coverage_repeated_source,
   covariates_df = covariates,
   distance_df = distance,
   mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
@@ -790,8 +649,8 @@ table and share latent states within OD-time groups.
 
 ```{r eval=FALSE}
 adj_latent_s4 <- adjust_multilevel_bayes(
-  mpd_od_df = mpd_s4,
-  coverage_df = coverage_s4,
+  mpd_od_df = mpd_repeated_source_time,
+  coverage_df = coverage_repeated_source_time,
   covariates_df = covariates,
   distance_df = distance,
   mobility_formula = ~ rural_pct_o + rural_pct_d + log_distance,
