@@ -331,7 +331,7 @@ S4, multiple source/time rows can share OD-time states. In S1, each state is
 observed only once, so the latent split is weakly identified and the
 coverage-offset model variant is usually clearer.
 
-## Real-data outputs
+## How to read real-data Bayesian outputs
 
 This section connects the model variants to the outputs produced by
 `adjust_multilevel_bayes()` on real OD data. The first table shows the returned
