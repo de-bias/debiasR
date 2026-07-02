@@ -36,32 +36,34 @@ validation_bayesian_methods <- c(
   "bayes_gravity",
   "bayes_gravity_rural",
   "bayes_gravity_education",
-  "bayes_origin_pool",
-  "bayes_corridor_pool"
+  "bayes_origin_pool"
+)
+
+validation_deterministic_methods <- c(
+  "inverse_penetration",
+  "selection_rate",
+  "selection_rate2",
+  "raking_ratio",
+  "coefficient"
 )
 
 validation_plot_methods <- c(
   "inverse_penetration",
   "selection_rate2",
-  "bayes_gravity_education",
-  "bayes_origin_pool"
+  "raking_ratio",
+  "coefficient"
 )
 
 validation_broad_methods <- c(
   "unadjusted",
-  "inverse_penetration",
-  "selection_rate",
-  "selection_rate2",
-  "raking_ratio",
-  "coefficient",
-  "bayes_gravity_education",
-  "bayes_origin_pool"
+  validation_deterministic_methods
 )
 
 validation_teaching_methods <- c(
   "inverse_penetration",
   "selection_rate2",
-  validation_bayesian_methods
+  "raking_ratio",
+  "coefficient"
 )
 
 validation_primary_bayesian_method <- "bayes_origin_pool"
@@ -76,8 +78,7 @@ validation_bayesian_spec_defaults <- tibble::tribble(
   "bayes_gravity", "Gravity baseline", "origin", "none", "origin population, destination population, log distance", "No benchmark OD cells",
   "bayes_gravity_rural", "Gravity plus one interpretable area characteristic", "origin", "none", "population, log distance, origin rural share, destination rural share", "No benchmark OD cells",
   "bayes_gravity_education", "Gravity plus two interpretable area characteristics", "origin", "none", "population, log distance, rural share, Level 4 qualification share", "No benchmark OD cells",
-  "bayes_origin_pool", "Flexible origin pooling", "origin", "origin", "population, log distance, rural share, Level 4 qualification share", "No benchmark OD cells",
-  "bayes_corridor_pool", "Corridor sensitivity", "origin", "od", "population, log distance, rural share", "No benchmark OD cells"
+  "bayes_origin_pool", "Flexible origin pooling", "origin", "origin", "population, log distance, rural share, Level 4 qualification share", "No benchmark OD cells"
 )
 
 validation_method_fitting_inputs <- tibble::tribble(
@@ -238,7 +239,7 @@ validation_display_bayesian_specs <- function(metadata = NULL) {
       method_label = validation_method_label(.data$method),
       iter = dplyr::coalesce(as.integer(.data$iter), NA_integer_),
       chains = dplyr::coalesce(as.integer(.data$chains), NA_integer_),
-      compact_inputs = dplyr::case_when(
+      input_summary = dplyr::case_when(
         .data$method == "bayes_gravity" ~ "population + distance",
         .data$method == "bayes_gravity_rural" ~ "population + distance + rural share",
         .data$method == "bayes_gravity_education" ~ "population + distance + rural + education",
@@ -251,7 +252,7 @@ validation_display_bayesian_specs <- function(metadata = NULL) {
       Method = .data$method_label,
       `Model change` = .data$specification_role,
       `Main inputs and structure` = paste0(
-        .data$compact_inputs,
+        .data$input_summary,
         "; coverage: ", .data$coverage_scale,
         "; random: ", .data$random_intercept
       ),
@@ -269,13 +270,17 @@ validation_display_bayesian_specs <- function(metadata = NULL) {
   validation_kable(spec_table, table_class = "table table-sm validation-table-compact")
 }
 
-validation_display_method_inputs <- function() {
-  tibble::tribble(
-    ~Method, ~`Main fitting inputs`, ~`Benchmark used to fit`, ~`Validation role`,
-    "Inverse penetration", "Raw MPD flows and origin/destination coverage rates", "No", "Simple coverage weighting baseline",
-    "Selection rate II", "Raw MPD flows, coverage rates and benchmark origin totals", "Yes, origin totals", "Benchmark-assisted deterministic comparator",
-    "Bayesian coverage-offset specifications", "Raw MPD flows, coverage rates, distances and covariates", "No benchmark OD cells", "Model family assessed externally against the benchmark OD table"
-  ) |>
+validation_display_method_inputs <- function(methods = validation_broad_methods) {
+  validation_method_fitting_inputs |>
+    dplyr::filter(.data$method %in% methods) |>
+    dplyr::mutate(.method_order = match(.data$method, methods)) |>
+    dplyr::arrange(.data$.method_order) |>
+    dplyr::transmute(
+      Method = validation_method_label(.data$method),
+      `Main fitting inputs` = .data$fitting_inputs,
+      `Benchmark used to fit` = .data$benchmark_used_to_fit,
+      `Validation role` = .data$method_family
+    ) |>
     validation_kable(table_class = "table table-sm validation-table-small")
 }
 
@@ -300,7 +305,7 @@ validation_standardize_adjusted_output <- function(adj_df, mpd_df) {
   adj_tbl <- tibble::as_tibble(adj_df)
   if ("flow" %in% names(adj_tbl)) {
     adj_tbl <- adj_tbl |>
-      dplyr::rename(artifact_flow = flow)
+      dplyr::rename(adjusted_input_flow = flow)
   }
 
   out <- adj_tbl |>
@@ -352,13 +357,13 @@ validation_audit_shared_validation_rows <- function(adjusted_outputs,
       expected_keys,
       by = c("origin", "destination")
     )
-    flow_check_col <- if ("artifact_flow" %in% names(out)) {
-      "artifact_flow"
+    flow_check_col <- if ("adjusted_input_flow" %in% names(out)) {
+      "adjusted_input_flow"
     } else {
       "flow"
     }
     raw_check <- out |>
-      dplyr::select(origin, destination, flow, dplyr::any_of("artifact_flow")) |>
+      dplyr::select(origin, destination, flow, dplyr::any_of("adjusted_input_flow")) |>
       dplyr::left_join(
         mpd_df |>
           dplyr::select(origin, destination, raw_flow = flow),
@@ -434,8 +439,8 @@ validation_assert_bayesian_fingerprint <- function(metadata,
   )
   if (length(expected) != 1L || !identical(expected, current)) {
     stop(
-      "Precomputed Bayesian validation artifacts were generated from different ",
-      "input data. Re-run `scripts/precompute_v07_validation_bayesian_example.R`."
+      "Bayesian validation output files were generated from different input data. ",
+      "Re-run `scripts/precompute_v07_validation_bayesian_example.R`."
     )
   }
   invisible(TRUE)
@@ -805,6 +810,355 @@ validation_build_ring_neighbors <- function(areas) {
       )
     ) |>
     dplyr::mutate(weight = 1)
+}
+
+validation_build_distance_neighbors <- function(distance_df,
+                                                areas,
+                                                k = 4L) {
+  areas <- unique(as.character(areas))
+  if (!is.numeric(k) || length(k) != 1L || is.na(k) || k < 1L) {
+    stop("`k` must be a positive whole number.")
+  }
+  k <- as.integer(k)
+
+  nearest <- tibble::as_tibble(distance_df) |>
+    dplyr::filter(
+      .data$origin %in% areas,
+      .data$destination %in% areas,
+      .data$origin != .data$destination,
+      is.finite(.data$distance_km)
+    ) |>
+    dplyr::group_by(.data$origin) |>
+    dplyr::arrange(.data$distance_km, .data$destination, .by_group = TRUE) |>
+    dplyr::slice_head(n = k) |>
+    dplyr::ungroup() |>
+    dplyr::transmute(
+      area = .data$origin,
+      neighbor = .data$destination,
+      weight = 1
+    )
+
+  nearest |>
+    dplyr::bind_rows(
+      nearest |>
+        dplyr::transmute(
+          area = .data$neighbor,
+          neighbor = .data$area,
+          weight = .data$weight
+        )
+    ) |>
+    dplyr::filter(.data$area != .data$neighbor) |>
+    dplyr::distinct(.data$area, .data$neighbor, .keep_all = TRUE)
+}
+
+validation_lad_boundary_source_url <- function() {
+  Sys.getenv(
+    "DEBIAS_LAD_BOUNDARY_URL",
+    unset = paste0(
+      "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/",
+      "LAD_Dec_2021_GB_BFC_2022/FeatureServer/0/query?",
+      "where=1%3D1&outFields=LAD21CD,LAD21NM&returnGeometry=true&",
+      "outSR=4326&f=geojson&maxAllowableOffset=0.005&geometryPrecision=5"
+    )
+  )
+}
+
+validation_lad_boundary_cache_path <- function(filename = "LAD_Dec_2021_GB_BFC_2022_simplified.geojson") {
+  cache_dir <- Sys.getenv(
+    "DEBIAS_BOUNDARY_CACHE",
+    unset = file.path(tools::R_user_dir("debiasR", "cache"), "boundaries")
+  )
+  file.path(cache_dir, filename)
+}
+
+validation_download_lad_boundary <- function(url, destfile) {
+  dir.create(dirname(destfile), recursive = TRUE, showWarnings = FALSE)
+  old_timeout <- getOption("timeout")
+  on.exit(options(timeout = old_timeout), add = TRUE)
+  options(timeout = max(120, old_timeout))
+
+  result <- tryCatch(
+    utils::download.file(
+      url,
+      destfile = destfile,
+      mode = "wb",
+      quiet = TRUE
+    ),
+    error = function(error) error
+  )
+  if (inherits(result, "error")) {
+    if (file.exists(destfile)) {
+      unlink(destfile)
+    }
+    return(result)
+  }
+  if (!file.exists(destfile) || is.na(file.info(destfile)$size) || file.info(destfile)$size == 0) {
+    if (file.exists(destfile)) {
+      unlink(destfile)
+    }
+    return(simpleError("download did not create a non-empty cache file"))
+  }
+  TRUE
+}
+
+validation_find_lad_boundary_path <- function() {
+  env_path <- Sys.getenv("DEBIAS_LAD_BOUNDARY_PATH", unset = "")
+  if (!identical(env_path, "")) {
+    if (file.exists(env_path)) {
+      return(list(
+        path = env_path,
+        note = NULL,
+        label = "`DEBIAS_LAD_BOUNDARY_PATH`"
+      ))
+    }
+    return(list(
+      path = NULL,
+      label = NA_character_,
+      note = paste(
+        "`DEBIAS_LAD_BOUNDARY_PATH` is set, but the file does not exist:",
+        env_path
+      )
+    ))
+  }
+
+  package_candidates <- c(
+    system.file(
+      "extdata",
+      "LAD_Dec_2021_GB_BFC_2022_simplified.geojson",
+      package = "debiasR"
+    ),
+    system.file(
+      "extdata",
+      "LAD_Dec_2021_GB_BFC_2022_simplified.gpkg",
+      package = "debiasRdata"
+    ),
+    system.file(
+      "extdata",
+      "LAD_Dec_2021_GB_BFC_2022_simplified.geojson",
+      package = "debiasRdata"
+    ),
+    system.file(
+      "extdata",
+      "lad_boundaries_2021_simplified.gpkg",
+      package = "debiasRdata"
+    ),
+    system.file(
+      "extdata",
+      "lad_boundaries_2021_simplified.geojson",
+      package = "debiasRdata"
+    ),
+    file.path(
+      "inst",
+      "extdata",
+      "LAD_Dec_2021_GB_BFC_2022_simplified.geojson"
+    )
+  )
+  package_candidates <- package_candidates[
+    nzchar(package_candidates) & file.exists(package_candidates)
+  ]
+  if (length(package_candidates) > 0L) {
+    return(list(
+      path = package_candidates[1],
+      note = NULL,
+      label = "a packaged LAD boundary file"
+    ))
+  }
+
+  cache_path <- validation_lad_boundary_cache_path()
+  if (file.exists(cache_path)) {
+    return(list(
+      path = cache_path,
+      note = NULL,
+      label = "the cached public ONS 2021 LAD BFC boundary download"
+    ))
+  }
+
+  boundary_url <- validation_lad_boundary_source_url()
+  allow_download <- tolower(Sys.getenv("DEBIAS_DOWNLOAD_BOUNDARIES", unset = "true")) %in%
+    c("1", "true", "yes")
+  if (!identical(boundary_url, "") && allow_download) {
+    download_result <- validation_download_lad_boundary(
+      url = boundary_url,
+      destfile = cache_path
+    )
+    if (!inherits(download_result, "error")) {
+      return(list(
+        path = cache_path,
+        note = NULL,
+        label = "the cached public ONS 2021 LAD BFC boundary download"
+      ))
+    }
+    return(list(
+      path = NULL,
+      label = NA_character_,
+      note = paste(
+        "Could not download the LAD boundary file from the public ONS source.",
+        "Set `DEBIAS_LAD_BOUNDARY_PATH` to a local LAD boundary file or try again with network access.",
+        "Download error:",
+        conditionMessage(download_result)
+      )
+    ))
+  }
+
+  list(
+    path = NULL,
+    label = NA_character_,
+    note = paste(
+      "LAD boundaries are optional for rendering this vignette.",
+      "To reproduce the LISA map, allow the public ONS boundary download",
+      "or set `DEBIAS_LAD_BOUNDARY_PATH` to a local LAD boundary file."
+    )
+  )
+}
+
+validation_read_lad_boundaries <- function(areas,
+                                           include_all = FALSE,
+                                           include_scotland = TRUE) {
+  areas <- unique(as.character(areas))
+  if (!requireNamespace("sf", quietly = TRUE)) {
+    return(list(
+      boundaries = NULL,
+      note = "Install `sf` to read LAD boundaries and render the LISA map.",
+      source = NA_character_
+    ))
+  }
+
+  source <- validation_find_lad_boundary_path()
+  if (is.null(source$path)) {
+    return(list(
+      boundaries = NULL,
+      note = source$note,
+      source = source$label
+    ))
+  }
+  source_label <- if (!is.null(source$label) && !is.na(source$label)) {
+    source$label
+  } else {
+    source$path
+  }
+
+  boundaries <- tryCatch(
+    sf::st_read(source$path, quiet = TRUE),
+    error = function(error) error
+  )
+  if (inherits(boundaries, "error")) {
+    return(list(
+      boundaries = NULL,
+      note = paste("Could not read the LAD boundary file:", conditionMessage(boundaries)),
+      source = source_label
+    ))
+  }
+
+  code_col <- intersect(
+    c("area", "code", "LAD21CD", "lad21cd", "lad_code", "LAD22CD", "lad22cd"),
+    names(boundaries)
+  )[1]
+  if (is.na(code_col)) {
+    return(list(
+      boundaries = NULL,
+      note = paste(
+        "The LAD boundary file must contain an area-code column such as",
+        "`area`, `code`, or `LAD21CD`."
+      ),
+      source = source_label
+    ))
+  }
+
+  boundaries <- boundaries |>
+    dplyr::mutate(
+      area = as.character(.data[[code_col]]),
+      validation_support = .data$area %in% areas
+    ) |>
+    dplyr::select("area", "validation_support", dplyr::everything())
+
+  missing_areas <- setdiff(areas, boundaries$area)
+  if (length(missing_areas) > 0L) {
+    return(list(
+      boundaries = NULL,
+      note = paste(
+        "The LAD boundary file does not cover all validation areas. Missing:",
+        paste(utils::head(missing_areas, 8), collapse = ", "),
+        if (length(missing_areas) > 8L) "..." else ""
+      ),
+      source = source_label
+    ))
+  }
+  if (!isTRUE(include_scotland)) {
+    boundaries <- boundaries |>
+      dplyr::filter(
+        !startsWith(.data$area, "S") | .data$validation_support
+      )
+  }
+  if (!isTRUE(include_all)) {
+    boundaries <- boundaries |>
+      dplyr::filter(.data$validation_support)
+  }
+
+  list(
+    boundaries = boundaries,
+    note = NULL,
+    source = source_label
+  )
+}
+
+validation_build_boundary_neighbors <- function(boundaries) {
+  if (is.null(boundaries) || !inherits(boundaries, "sf")) {
+    stop("`boundaries` must be an `sf` object.")
+  }
+  touches <- sf::st_touches(boundaries)
+  tibble::tibble(
+    area = rep(boundaries$area, lengths(touches)),
+    neighbor = boundaries$area[unlist(touches, use.names = FALSE)]
+  ) |>
+    dplyr::filter(.data$area != .data$neighbor) |>
+    dplyr::distinct(.data$area, .data$neighbor) |>
+    dplyr::mutate(weight = 1)
+}
+
+validation_prepare_lad_lisa_inputs <- function(areas,
+                                               distance_df,
+                                               distance_k = 4L) {
+  neighbors <- validation_build_distance_neighbors(
+    distance_df = distance_df,
+    areas = areas,
+    k = distance_k
+  )
+  boundary_result <- validation_read_lad_boundaries(
+    areas,
+    include_all = TRUE,
+    include_scotland = FALSE
+  )
+  if (!is.null(boundary_result$boundaries)) {
+    return(list(
+      neighbors = neighbors,
+      boundaries = boundary_result$boundaries,
+      note = paste(
+        "Using deterministic",
+        distance_k,
+        "nearest-neighbour links from LAD centroid distances for Local Moran's I.",
+        "LAD boundaries are available for mapping from:",
+        boundary_result$source,
+        "Scottish background polygons are omitted.",
+        "Boundary polygons outside the validation support are retained as grey background areas."
+      ),
+      map_note = NULL,
+      neighbor_label = paste(distance_k, "nearest LAD centroid-distance links"),
+      boundary_source = boundary_result$source
+    ))
+  }
+
+  list(
+    neighbors = neighbors,
+    boundaries = NULL,
+    note = paste(
+      "Using deterministic",
+      distance_k,
+      "nearest-neighbour links from LAD centroid distances for Local Moran's I."
+    ),
+    map_note = boundary_result$note,
+    neighbor_label = paste(distance_k, "nearest LAD centroid-distance links"),
+    boundary_source = NA_character_
+  )
 }
 
 validation_display_residual_structure <- function(residual_structure) {

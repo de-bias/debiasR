@@ -57,29 +57,18 @@ comparisons in view:
 
 A central requirement in this vignette is fairness. All methods are assessed
 using the same validation data: the same raw OD table, the same benchmark OD
-table, the same 25 selected LAD areas, and the same 625 OD pairs. When a method
-needs additional fitting inputs, such as coverage rates, distance or
-covariates, those inputs are taken from the same prepared example data.
+table, and the same full LAD origin-destination matrix. When a method needs
+additional fitting inputs, such as coverage rates, distance or covariates,
+those inputs are taken from the same prepared example data.
 LAD means local authority district, a local government geography used in the
 example data.
 
-The example compares two deterministic methods and a small set of Bayesian
-coverage-offset specifications. The deterministic methods are **Inverse
-penetration** and **Selection rate II**. The Bayesian specifications use the
-new `adjust_multilevel_bayes()` coverage-offset mode. They are deliberately
-shown as a calibration ladder: we start with a gravity-style model, then add
-area covariates, and then allow more flexible origin or corridor structure.
-A coverage-offset model treats phone coverage as part of the observation
-process: it asks how many population flows would be needed to produce the
-observed phone flows at the measured coverage rate. A gravity-style model uses
-the usual mobility ingredients of origin size, destination size and distance.
-
-The Bayesian specifications do **not** use benchmark OD cells as fitting
-targets. This is important. Their benchmark comparison is therefore an external
-OD-cell validation check. In this compact example, the Bayesian models still
-use auxiliary coverage and population inputs from the prepared example data.
-Selection rate II uses benchmark origin totals during calibration, so its
-validation result should be read as a benchmark-assisted comparison.
+The example compares deterministic adjustment methods that can be fitted live
+on the full LAD matrix during vignette rendering. These include simple coverage
+weighting, benchmark-assisted calibration and benchmark-cell calibration. Some
+methods use benchmark totals or benchmark OD cells during fitting, so the
+validation result should be read alongside the fitting inputs table rather than
+as a single winner-takes-all ranking.
 
 ## Intuition
 
@@ -178,14 +167,15 @@ source(helper_file)
 ```
 
 We use the same empirical LAD travel-to-work example introduced in the earlier
-vignettes. `debiasR_example_data()` prepares a small, aligned version of these
-data. It returns raw MPD flows, benchmark flows, coverage rates, covariates and
-distances for the same selected LAD areas.
+vignettes. `debiasR_example_data()` prepares an aligned full LAD
+origin-destination matrix. It returns raw MPD flows, benchmark flows, coverage
+rates, covariates and distances for the same LAD areas.
 
 ```{r load-validation-data}
 example_data <- debiasR_example_data(
-  n_areas = 25,
-  complete_grid = TRUE
+  n_areas = Inf,
+  complete_grid = TRUE,
+  geography = "lad"
 )
 
 mpd_od <- example_data$mpd_od
@@ -198,6 +188,9 @@ area_names <- covariates_validation |>
   dplyr::select(area, name)
 ```
 
+The validation data contain `r example_data$metadata$n_areas` LADs and
+`r example_data$metadata$n_mpd_od` OD rows.
+
 The table below states which inputs each method uses. This matters because
 methods do not all learn from the same information. We still validate all
 outputs on the same benchmark OD table and the same OD rows.
@@ -206,10 +199,8 @@ outputs on the same benchmark OD table and the same OD rows.
 validation_display_method_inputs()
 ```
 
-We fit the deterministic methods used for the broader comparison. We then add
-Bayesian coverage-offset specifications that use the same MPD, coverage,
-covariate and distance inputs. The Bayesian models do not use the benchmark OD
-table during fitting; the benchmark is reserved for validation.
+The comparison uses deterministic adjustment methods that can be fitted during
+the live vignette render. Each output uses the full LAD support prepared above.
 
 ```{r build-method-results}
 deterministic_results <- list(
@@ -248,22 +239,19 @@ deterministic_results <- list(
   )
 )
 
-bayesian_results <- validation_load_v07_bayesian_outputs()
-bayesian_metadata <- validation_load_v07_bayesian_metadata()
-validation_assert_bayesian_fingerprint(
-  metadata = bayesian_metadata,
-  mpd_df = mpd_od,
-  coverage_df = coverage_validation,
-  covariates_df = covariates_validation,
-  distance_df = distance_validation
-)
-
-all_method_results <- c(deterministic_results, bayesian_results) |>
+all_method_results <- deterministic_results |>
   validation_standardize_adjusted_outputs(mpd_df = mpd_od)
 
 method_results <- all_method_results[validation_teaching_methods]
 broad_method_results <- all_method_results[validation_broad_methods]
 ```
+
+The advanced Bayesian vignette covers Bayesian coverage-offset models. Those
+models are not fitted here because full-LAD Bayesian runs are heavier than the
+deterministic examples used in this live validation vignette. When full-LAD
+Bayesian output files are regenerated for the same `r example_data$metadata$n_areas`
+LAD support, they can be added back to this comparison without changing the
+validation levels below.
 
 Before validating, we check that every method output uses the same OD pairs and
 the same raw MPD flow column. This is the main comparability check in the
@@ -280,30 +268,27 @@ validation_assert_row_audit(row_audit)
 validation_display_row_audit(row_audit)
 ```
 
-The audit should read as a simple confirmation: all methods have the same 625
-OD pairs, no missing or extra pairs, and the raw MPD flow column matches the
-same input data. If this check failed, the vignette would stop rather than
-report metrics that mix adjustment performance with data construction
-differences.
+The audit should read as a simple confirmation: all methods have the same
+`r nrow(mpd_od)` OD pairs, no missing or extra pairs, and the raw MPD flow
+column matches the same input data. If this check failed, the vignette would
+stop rather than report metrics that mix adjustment performance with data
+construction differences.
 
-The support check covers the 625 OD rows used for validation. Overall metrics
-below keep zero-flow rows for MAE, RMSE and correlation so that methods are
-compared on the same support. MAPE is interpreted separately because
-percentage errors cannot use zero benchmark flows as denominators.
+The support check covers the `r nrow(mpd_od)` OD rows used for validation.
+Overall metrics below keep zero-flow rows for MAE, RMSE and correlation so that
+methods are compared on the same support. MAPE is interpreted separately
+because percentage errors cannot use zero benchmark flows as denominators.
 
 ## Broader method comparison
 
 Before moving through the five validation levels, it is useful to look at a
-compact broader comparison. This table includes the unadjusted MPD baseline,
-five deterministic adjustment methods and two Bayesian coverage-offset
-examples. It uses only the adjusted-versus-benchmark comparison, because that
-is the main question: how close is each final output to the benchmark OD table?
+compact broader comparison. This table includes the unadjusted MPD baseline
+and five deterministic adjustment methods. It uses only the
+adjusted-versus-benchmark comparison, because that is the main question: how
+close is each final output to the benchmark OD table?
 
 The column called "Benchmark used to fit" is important. Some deterministic
-methods use benchmark totals or benchmark OD cells during calibration. The
-Bayesian coverage-offset examples do not use benchmark OD cells as fitting
-targets; they use raw MPD flows plus auxiliary coverage, distance and covariate
-information.
+methods use benchmark totals or benchmark OD cells during calibration.
 
 ```{r broad-method-comparison, echo=FALSE}
 broad_overall_results <- validation_overall_results(
@@ -331,77 +316,17 @@ plot_validation_metrics(
 
 This broader table is deliberately compact. It is meant to show the range of
 available choices without making every later section too crowded. The rest of
-the vignette keeps a smaller teaching set: Inverse penetration, Selection rate
-II, the richer fixed-effect Bayesian model and Bayesian origin pooling, while
-still using all Bayesian specifications where the calibration ladder is the
-focus.
-
-## Bayesian calibration ladder
-
-The Bayesian coverage-offset approach is flexible because the user can decide
-what information the model should use. The examples below vary the covariates
-and the model structure. This illustrates three points.
-
-First, the Bayesian approach can be made more flexible by adding covariates and
-partial-pooling structures. Second, it needs more information than a very simple
-coverage-weighting method, because it does not see the benchmark OD target
-during fitting. Third, validation provides evidence about whether that extra
-information pays off in a specific application.
-Partial pooling means that related areas or corridors can share information,
-instead of estimating each one as if it were completely unrelated to the rest.
-All Bayesian specifications in the table use 4 chains and 1,000 iterations.
-
-```{r bayesian-specification-table, echo=FALSE}
-validation_display_bayesian_specs(bayesian_metadata)
-```
-
-The code below shows the main Bayesian specification used as the flexible
-example in this vignette. Notice that the benchmark OD table is not passed to
-`adjust_multilevel_bayes()`. The model uses raw MPD flows, coverage rates,
-distance and covariates. The benchmark OD cells are reserved for validation.
-
-```{r bayesian-example-code, eval=FALSE}
-bayes_origin_pool <- adjust_multilevel_bayes(
-  mpd_od_df = mpd_od,
-  coverage_df = coverage_validation,
-  covariates_df = covariates_validation,
-  distance_df = distance_validation,
-  observation_model = "coverage_offset",
-  target_scale = "true_flow",
-  coverage_scale = "origin",
-  mobility_formula = ~ log_pop_o + log_pop_d + log_distance +
-    rural_pct_o + rural_pct_d + per_level4_o + per_level4_d +
-    (1 | origin),
-  bias_formula = ~ 0,
-  model_family = "poisson",
-  model_engine = "bayesian",
-  random_intercept = "origin",
-  prediction_scope = "complete_grid",
-  iter = 1000,
-  chains = 4,
-  seed = 20260630
-)
-```
-
-The corridor-pooling specification is included as a sensitivity check rather
-than as the main example. In this small S1 example, each OD corridor appears
-only once, so corridor-level pooling is weakly identified. It becomes more
-useful when the data include repeated observations over sources, time periods
-or both.
-
-In applied analysis, users should run longer chains where needed, inspect MCMC
-diagnostics, compare posterior uncertainty, and treat weakly identified random
-structures as sensitivity checks rather than automatic improvements. The table
-above reports the maximum R-hat and minimum effective sample size so that model
-diagnostics are visible alongside validation metrics.
+the vignette keeps a focused teaching set: Inverse penetration, Selection rate
+II, Raking ratio and Coefficient adjustment. The advanced Bayesian vignette
+explains the Bayesian model variants, parameters and returned columns in more
+detail.
 
 ## Level 1: Overall validation metrics
 
 Level 1 compares whole OD tables. The table below focuses on the main
-adjusted-versus-benchmark comparison for the teaching methods: the two
-deterministic methods and the five Bayesian coverage-offset specifications.
-The secondary comparisons are still computed for the plot and for interpretation,
-but they are not all printed in the table.
+adjusted-versus-benchmark comparison for the teaching methods. The secondary
+comparisons are still computed for the plot and for interpretation, but they
+are not all printed in the table.
 
 ```{r level1-overall-metrics, echo=FALSE}
 overall_results <- validation_overall_results(
@@ -447,55 +372,26 @@ level1_best_overall <- validation_best_method(
   comparison = "adjusted_vs_benchmark",
   metric = "mae"
 )
-level1_best_bayes <- validation_best_method(
-  overall_results,
-  comparison = "adjusted_vs_benchmark",
-  metric = "mae",
-  methods = validation_bayesian_methods
-)
 level1_best_cor <- validation_best_method(
   overall_results,
   comparison = "adjusted_vs_benchmark",
   metric = "pearson_r",
   largest = TRUE
 )
-level1_summary_tbl <- validation_bind_overall_summary(overall_results) |>
-  dplyr::filter(comparison == "adjusted_vs_benchmark")
-level1_selection_mae <- level1_summary_tbl |>
-  dplyr::filter(method == "selection_rate2") |>
-  dplyr::pull(mae)
-level1_best_bayes_mae <- level1_summary_tbl |>
-  dplyr::filter(method %in% validation_bayesian_methods) |>
-  dplyr::slice_min(mae, n = 1, with_ties = FALSE) |>
-  dplyr::pull(mae)
-level1_bayes_vs_selection_improvement <- round(
-  100 * (1 - level1_best_bayes_mae / level1_selection_mae),
-  1
-)
 ```
 
 In this example, `r level1_best_overall` has the lowest overall mean absolute
-error against the benchmark. Among the Bayesian specifications,
-`r level1_best_bayes` is the closest by the same measure. `r level1_best_cor`
-has the strongest Pearson correlation. These are related but not identical
-statements: one is about distance from the benchmark, and the other is about
-similarity in the overall pattern of flows.
-
-The Bayesian result should be read honestly. It does not automatically beat
-every comparator in this teaching subset. It does, however, give a
-model estimate that does not use benchmark OD cells as fitting targets and
-improves substantially on Selection rate II for overall OD-flow error: the best
-Bayesian specification has about
-`r level1_bayes_vs_selection_improvement`% lower MAE than Selection rate II in
-the adjusted-versus-benchmark comparison.
+error against the benchmark. `r level1_best_cor` has the strongest Pearson
+correlation. These are related but not identical statements: one is about
+distance from the benchmark, and the other is about similarity in the overall
+pattern of flows.
 
 ## Level 2: Origin and destination marginals
 
 Level 2 compares geographical area totals. An **origin marginal** adds together
 all flows leaving each origin. A **destination marginal** adds together all
 flows arriving in each destination. This section focuses on four readable
-examples: the two deterministic methods, the richer fixed-effect Bayesian
-model, and Bayesian origin pooling.
+examples from the comparison set.
 
 This level is useful because an adjustment can look reasonable overall while
 still overestimating or underestimating the flows of particular areas.
@@ -643,11 +539,7 @@ OD-pair errors.
 plot_validation_residual_bands(
   flow_residuals,
   comparisons = "adjusted_vs_benchmark",
-  methods = c(
-    "inverse_penetration",
-    "selection_rate2",
-    validation_bayesian_methods
-  ),
+  methods = validation_teaching_methods,
   method_labels = validation_plot_method_labels,
   band_method = "sd",
   sd_reference = "adjusted",
@@ -680,19 +572,11 @@ level3_best <- validation_best_method(
   comparison = "adjusted_vs_benchmark",
   metric = "mae"
 )
-level3_best_bayes <- validation_best_method(
-  level3_metrics,
-  comparison = "adjusted_vs_benchmark",
-  metric = "mae",
-  methods = validation_bayesian_methods
-)
 ```
 
 At the individual OD-pair level, `r level3_best` has the lowest mean absolute
-error in this example. Among the Bayesian specifications, `r level3_best_bayes`
-is the closest to the benchmark by the same metric. The outlier tables and
-residual bands are useful because the average can hide a small number of very
-large local errors.
+error in this example. The outlier tables and residual bands are useful because
+the average can hide a small number of very large local errors.
 
 ## Level 4: Distributional allocation validation
 
@@ -783,21 +667,33 @@ across neighbouring areas? Third, are origin-level residuals associated with a
 known area covariate? In this example, the covariate is the percentage of
 residents with Level 4 qualifications or above (`per_level4`).
 
-This section uses the two deterministic methods, the richer fixed-effect
-Bayesian model, and Bayesian origin pooling. The optional Moran's I diagnostic
-needs a neighbour-link table. The chunk below creates a simple illustrative
-ring-neighbour table from the selected LADs. In applied work, this should be
-replaced by real contiguity or distance-based neighbour links.
+This section uses the same focused teaching set as the earlier plots. The
+optional Moran's I and LISA diagnostics need a neighbour-link table. The Local
+Moran statistic itself uses a reproducible four-nearest-neighbour table derived
+from the real LAD centroid distances returned by `debiasR_example_data()`.
+The LISA map uses a cached, simplified ONS 2021 LAD boundary file when `sf` and
+network access are available. Readers can also set `DEBIAS_LAD_BOUNDARY_PATH`
+to a local `sf`-readable boundary file. The diagnostic should be interpreted
+as distance-neighbour rather than contiguity-neighbour LISA.
 
 ```{r prepare-residual-structure-inputs}
-structure_neighbors <- validation_build_ring_neighbors(
-  covariates_validation$area
+validation_lisa_inputs <- validation_prepare_lad_lisa_inputs(
+  areas = covariates_validation$area,
+  distance_df = distance_validation,
+  distance_k = 4
 )
+structure_neighbors <- validation_lisa_inputs$neighbors
+validation_lisa_boundaries <- validation_lisa_inputs$boundaries
+validation_lisa_map_note <- validation_lisa_inputs$map_note
 
 structure_covariates <- covariates_validation |>
   dplyr::select(area, per_level4)
 
 structure_methods <- validation_plot_methods
+```
+
+```{r level5-neighbor-note, echo=FALSE}
+cat(validation_lisa_inputs$note, "\n")
 ```
 
 ```{r level5-residual-structure, echo=FALSE}
@@ -835,6 +731,17 @@ weighted residual pattern in its neighbours. The p-values are permutation
 pseudo p-values from the supplied neighbour links, so they are best used as
 exploratory flags for local review.
 
+The LISA map below uses the same Local Moran output. Areas with raw permutation
+pseudo p-values above 0.05 are shown as not significant. The table reports both
+raw and adjusted p-values, so the map should be read as an exploratory local
+screen rather than a multiple-testing-adjusted decision rule. Boundary polygons
+come from a cached public ONS LAD boundary download, unless a local path is
+supplied with `DEBIAS_LAD_BOUNDARY_PATH`. LADs that are present in the boundary
+file but outside the validation support are retained in the same grey used for
+"not significant" areas rather than dropped from the map. Scottish boundary
+polygons are omitted because the validation example focuses on the England and
+Wales support used by the LAD data.
+
 ```{r level5-local-moran, echo=FALSE}
 validation_display_local_moran(
   residual_structure,
@@ -842,6 +749,27 @@ validation_display_local_moran(
   methods = structure_methods,
   n = 8
 )
+```
+
+```{r level5-lisa-map, fig.width=10, fig.height=7}
+if (is.null(validation_lisa_boundaries)) {
+  cat(validation_lisa_map_note, "\n")
+} else {
+  plot_validation_lisa_map(
+    residual_structure,
+    boundaries = validation_lisa_boundaries,
+    boundary_area_col = "area",
+    comparisons = "adjusted_vs_benchmark",
+    methods = structure_methods,
+    method_labels = validation_plot_method_labels,
+    cluster_col = "lisa_quadrant",
+    p_value_col = "p_value",
+    p_value_threshold = 0.05,
+    missing_fill = "#D1D5DB",
+    boundary_colour = NA,
+    boundary_linewidth = 0
+  )
+}
 ```
 
 We can also inspect the origins with the largest remaining mean residuals. This
@@ -870,21 +798,12 @@ method comparison interpretable. If methods were assessed on different rows,
 different time periods or different benchmark definitions, the validation
 results would mix adjustment performance with data construction differences.
 
-The Bayesian coverage-offset model is useful because it is flexible and does
-not need benchmark OD flows to fit. It can use coverage rates, distance,
-origin and destination covariates, random-origin structure, corridor structure
-and, in richer settings, repeated source or time observations. That flexibility
-comes with a cost: the model needs more information and more diagnostic checks
-than a simple deterministic adjustment.
-
 The evidence from this vignette should therefore be read in a balanced way. In
 some applications, a benchmark-assisted deterministic method may have the
 lowest in-sample error, especially when the benchmark is trusted and matches
-the period being estimated. In other applications, the Bayesian approach may be
-competitive or better because it can bring in extra information without using
-the benchmark OD target during fitting. It also allows users to improve the
-model by adding better covariates, more flexible structures, repeated
-observations and, where appropriate, specialist knowledge through priors.
+the period being estimated. In other applications, model-based approaches may
+be preferable because they can bring in extra information and more flexible
+structures. Those extensions need their own runtime and diagnostic checks.
 
 For adoption, the practical question is not whether one method is always best.
 The question is whether the selected method is close enough to the benchmark

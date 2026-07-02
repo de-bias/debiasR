@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-07-01
+Last updated: 2026-07-02
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -43,6 +43,21 @@ The staged track below is intended to be implemented one stage per chat window. 
   diagnostic guardrails.
 
 ## Recently Completed
+
+1. Switch v07 validation to full LAD support and add reproducible LISA maps - `complete`
+- Completed on 2026-07-02.
+- The validation vignette now fits live deterministic validation examples on
+  the full overlapping `debiasRdata` LAD support rather than a 25-area subset.
+  The current example has 313 LADs and 97,969 OD rows.
+- Level 5 now uses deterministic nearest-neighbour LAD centroid links for
+  Local Moran/LISA diagnostics and renders `plot_validation_lisa_map()` when a
+  cached public ONS 2021 LAD BFC boundary download or user-supplied LAD `sf`
+  boundary file is available. Boundary polygons outside the validation support
+  are retained in the same grey as not-significant areas, Scottish background
+  polygons are omitted, and the vignette does not rely on the private
+  `/Volumes/DEBIAS` boundary mount.
+- Full-LAD Bayesian fitting remains outside the live v07 render because of
+  runtime and is documented in the advanced Bayesian vignette.
 
 1. Approve latent two-level Bayesian repeated-source implementation - `complete`
 - Completed on 2026-06-25.

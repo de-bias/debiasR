@@ -42,7 +42,7 @@ Suggests:
     patchwork,
     testthat (>= 3.2.0)
 Config/testthat/edition: 3
-Config/Needs/website: pkgdown
+Config/Needs/website: pkgdown, sf
 VignetteBuilder: quarto
 LazyData: true
 URL: https://de-bias.github.io/debiasR/, https://github.com/de-bias/debiasR

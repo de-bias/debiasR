@@ -49,7 +49,7 @@ Testing:
 Documentation:
 - Keep README, NEWS, status notes, and task board synchronized when user-facing scope changes.
 - After changes that affect exported package behavior, public function
-  contracts, vignettes, README guidance, validation interpretation,
+  interfaces, vignettes, README guidance, validation interpretation,
   dependency/data requirements, or methodological status decisions, update the
   project notes and software versioning before the change is considered done.
   At minimum, check whether `DESCRIPTION`, `NEWS.md`,
@@ -64,6 +64,17 @@ Documentation:
   cached-artifact, and other plumbing chunks unless the code is something users
   should learn from or run directly; show the relevant outputs and interpretive
   text instead.
+- For vignettes, match the explanatory style and Aim-section structure of
+  nearby vignettes before introducing a new structure.
+- Write vignette prose for undergraduate quantitative social scientists,
+  students, and policy readers. Prefer familiar, self-explanatory language over
+  internal software terms such as contract, artefact, artifact, plumbing,
+  cached output, precomputed output, or fast example.
+- When a vignette illustrates a `debiasR` function, show outputs using the
+  exact column, argument, and attribute names returned by the function.
+- When a vignette claims to illustrate empirical use, use the relevant real
+  `debiasRdata` or `debiasR_example_data()` route rather than simulated
+  examples, unless the vignette is explicitly about simulation.
 - Do not treat older migration notes as the current source of truth when `STATUS.md` or `TASK_BOARD.md` disagree.
 - When asked to preview vignettes, default to a pkgdown-style preview rather than
   standalone `quarto preview` output. Build the site to a temporary directory

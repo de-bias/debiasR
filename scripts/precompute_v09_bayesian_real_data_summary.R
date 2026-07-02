@@ -3,9 +3,9 @@
 # Regenerate the real-data evidence output files displayed in
 # vignettes/v09-advanced-bayesian-adjustment.qmd.
 #
-# This script deliberately does not rerun MCMC. The compact display rows are
-# derived from the stored v07 Bayesian coverage-offset output, while the
-# full empirical approval summaries are traceable to notes/project-management.
+# This script derives the rows displayed in v09 from the v07 Bayesian
+# coverage-offset output, while the full empirical approval summaries are
+# traceable to notes/project-management.
 
 suppressPackageStartupMessages({
   library(dplyr)
@@ -18,10 +18,10 @@ if (!file.exists("DESCRIPTION")) {
 out_dir <- file.path("inst", "extdata")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
-v07_adjusted_file <- file.path(out_dir, "v07-validation-bayesian-adjusted.csv")
+v07_display_file <- file.path(out_dir, "v07-validation-bayesian-display.csv")
 v07_metadata_file <- file.path(out_dir, "v07-validation-bayesian-metadata.csv")
 
-if (!file.exists(v07_adjusted_file) || !file.exists(v07_metadata_file)) {
+if (!file.exists(v07_display_file) || !file.exists(v07_metadata_file)) {
   stop(
     "Missing v07 Bayesian output files. Run ",
     "`scripts/precompute_v07_validation_bayesian_example.R` first.",
@@ -29,8 +29,8 @@ if (!file.exists(v07_adjusted_file) || !file.exists(v07_metadata_file)) {
   )
 }
 
-v07_adjusted <- tibble::as_tibble(
-  utils::read.csv(v07_adjusted_file, stringsAsFactors = FALSE)
+v07_display <- tibble::as_tibble(
+  utils::read.csv(v07_display_file, stringsAsFactors = FALSE)
 )
 v07_metadata <- tibble::as_tibble(
   utils::read.csv(v07_metadata_file, stringsAsFactors = FALSE)
@@ -44,7 +44,7 @@ if (nrow(origin_pool_metadata) != 1L) {
   stop("Could not find the bayes_origin_pool metadata row.", call. = FALSE)
 }
 
-compact_output <- v07_adjusted |>
+display_output <- v07_display |>
   filter(.data$method == "bayes_origin_pool") |>
   slice_head(n = 5) |>
   transmute(
@@ -67,23 +67,23 @@ compact_output <- v07_adjusted |>
 
 metadata_diagnostics <- tibble::tribble(
   ~object, ~attribute, ~field, ~value,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "model_engine", origin_pool_metadata$model_engine,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "backend", origin_pool_metadata$backend,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "model_family", origin_pool_metadata$model_family,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "target_scale", origin_pool_metadata$target_scale,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "observation_model", origin_pool_metadata$observation_model,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "prediction_scope", origin_pool_metadata$prediction_scope,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "coverage_scale", origin_pool_metadata$coverage_scale,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "random_intercept", origin_pool_metadata$random_intercept,
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "n_fit_rows", as.character(origin_pool_metadata$n_fit_rows),
-  "coverage_offset_compact_lad", "attr(result, \"result_metadata\")", "n_prediction_rows", as.character(origin_pool_metadata$n_prediction_rows),
-  "coverage_offset_compact_lad", "attr(result, \"diagnostics\")$convergence", "status", origin_pool_metadata$convergence_status,
-  "coverage_offset_compact_lad", "attr(result, \"diagnostics\")$convergence", "rhat_max", formatC(origin_pool_metadata$rhat_max, digits = 3, format = "f"),
-  "coverage_offset_compact_lad", "attr(result, \"diagnostics\")$convergence", "n_eff_min", formatC(origin_pool_metadata$n_eff_min, digits = 0, format = "f"),
-  "coverage_offset_compact_lad", "validate_flow_overall(result, benchmark_od)", "mae", formatC(origin_pool_metadata$mae, digits = 1, format = "f"),
-  "coverage_offset_compact_lad", "validate_flow_overall(result, benchmark_od)", "rmse", formatC(origin_pool_metadata$rmse, digits = 1, format = "f"),
-  "coverage_offset_compact_lad", "validate_flow_overall(result, benchmark_od)", "pearson_r", formatC(origin_pool_metadata$pearson_r, digits = 3, format = "f"),
-  "coverage_offset_compact_lad", "validate_flow_overall(result, benchmark_od)", "spearman_rho", formatC(origin_pool_metadata$spearman_rho, digits = 3, format = "f"),
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "model_engine", origin_pool_metadata$model_engine,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "backend", origin_pool_metadata$backend,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "model_family", origin_pool_metadata$model_family,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "target_scale", origin_pool_metadata$target_scale,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "observation_model", origin_pool_metadata$observation_model,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "prediction_scope", origin_pool_metadata$prediction_scope,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "coverage_scale", origin_pool_metadata$coverage_scale,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "random_intercept", origin_pool_metadata$random_intercept,
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "n_fit_rows", as.character(origin_pool_metadata$n_fit_rows),
+  "coverage_offset_full_lad", "attr(result, \"result_metadata\")", "n_prediction_rows", as.character(origin_pool_metadata$n_prediction_rows),
+  "coverage_offset_full_lad", "attr(result, \"diagnostics\")$convergence", "status", origin_pool_metadata$convergence_status,
+  "coverage_offset_full_lad", "attr(result, \"diagnostics\")$convergence", "rhat_max", formatC(origin_pool_metadata$rhat_max, digits = 3, format = "f"),
+  "coverage_offset_full_lad", "attr(result, \"diagnostics\")$convergence", "n_eff_min", formatC(origin_pool_metadata$n_eff_min, digits = 0, format = "f"),
+  "coverage_offset_full_lad", "validate_flow_overall(result, benchmark_od)", "mae", formatC(origin_pool_metadata$mae, digits = 1, format = "f"),
+  "coverage_offset_full_lad", "validate_flow_overall(result, benchmark_od)", "rmse", formatC(origin_pool_metadata$rmse, digits = 1, format = "f"),
+  "coverage_offset_full_lad", "validate_flow_overall(result, benchmark_od)", "pearson_r", formatC(origin_pool_metadata$pearson_r, digits = 3, format = "f"),
+  "coverage_offset_full_lad", "validate_flow_overall(result, benchmark_od)", "spearman_rho", formatC(origin_pool_metadata$spearman_rho, digits = 3, format = "f"),
   "coverage_offset_full_s4_approval", "attr(result, \"result_metadata\")", "observation_model", "coverage_offset",
   "coverage_offset_full_s4_approval", "attr(result, \"result_metadata\")", "scenario", "s4",
   "coverage_offset_full_s4_approval", "attr(result, \"result_metadata\")", "prediction_scope", "observed",
@@ -150,7 +150,7 @@ summary_table <- tibble::tribble(
 )
 
 utils::write.csv(
-  compact_output,
+  display_output,
   file.path(out_dir, "v09-bayesian-real-data-output.csv"),
   row.names = FALSE,
   na = ""

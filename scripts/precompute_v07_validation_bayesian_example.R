@@ -15,7 +15,7 @@ if (requireNamespace("pkgload", quietly = TRUE)) {
 }
 
 if (!requireNamespace("rstanarm", quietly = TRUE)) {
-  stop("The `rstanarm` package is required to precompute the v07 Bayesian example.")
+  stop("The `rstanarm` package is required to fit the v07 Bayesian example.")
 }
 
 formula_text <- function(x) {
@@ -28,6 +28,37 @@ env_int <- function(name, default) {
     return(default)
   }
   as.integer(value)
+}
+
+env_n_areas <- function(name, default = Inf) {
+  value <- Sys.getenv(name, unset = "")
+  if (identical(value, "")) {
+    return(default)
+  }
+  if (tolower(value) %in% c("inf", "infinity", "all", "full")) {
+    return(Inf)
+  }
+  parsed <- suppressWarnings(as.numeric(value))
+  if (length(parsed) != 1L || is.na(parsed) || parsed < 1L) {
+    stop("`", name, "` must be a positive number or `Inf`.")
+  }
+  if (is.infinite(parsed)) {
+    return(Inf)
+  }
+  as.integer(parsed)
+}
+
+env_methods <- function(name, default) {
+  value <- Sys.getenv(name, unset = "")
+  if (identical(value, "")) {
+    return(default)
+  }
+  methods <- trimws(strsplit(value, ",", fixed = TRUE)[[1]])
+  methods <- methods[nzchar(methods)]
+  if (length(methods) == 0L) {
+    stop("`", name, "` must name at least one Bayesian method.")
+  }
+  methods
 }
 
 stable_fingerprint <- function(x) {
@@ -56,10 +87,16 @@ input_fingerprint <- function(mpd_df,
 iter <- env_int("DEBIAS_V07_BAYES_ITER", 1000L)
 chains <- env_int("DEBIAS_V07_BAYES_CHAINS", 4L)
 seed_base <- env_int("DEBIAS_V07_BAYES_SEED", 20260626L)
+n_areas <- env_n_areas("DEBIAS_V07_BAYES_N_AREAS", Inf)
+out_dir <- Sys.getenv(
+  "DEBIAS_V07_BAYES_OUT_DIR",
+  unset = file.path("inst", "extdata")
+)
 
 example_data <- debiasR::debiasR_example_data(
-  n_areas = 25,
-  complete_grid = TRUE
+  n_areas = n_areas,
+  complete_grid = TRUE,
+  geography = "lad"
 )
 
 mpd_od <- example_data$mpd_od
@@ -88,7 +125,7 @@ if (!isTRUE(example_data$od_audit$strict_square_support[1])) {
   stop("The v07 example requires a strict square OD grid.")
 }
 
-bayesian_specs <- list(
+bayesian_specs_all <- list(
   bayes_gravity = list(
     label = "Bayesian gravity",
     role = "Gravity baseline",
@@ -130,6 +167,24 @@ bayesian_specs <- list(
       rural_pct_o + rural_pct_d + (1 | od_id)
   )
 )
+
+selected_method_ids <- env_methods(
+  "DEBIAS_V07_BAYES_METHODS",
+  c(
+    "bayes_gravity",
+    "bayes_gravity_rural",
+    "bayes_gravity_education",
+    "bayes_origin_pool"
+  )
+)
+unknown_methods <- setdiff(selected_method_ids, names(bayesian_specs_all))
+if (length(unknown_methods) > 0L) {
+  stop(
+    "Unknown `DEBIAS_V07_BAYES_METHODS` value(s): ",
+    paste(unknown_methods, collapse = ", ")
+  )
+}
+bayesian_specs <- bayesian_specs_all[selected_method_ids]
 
 fit_one_spec <- function(method_id, spec, spec_index) {
   message("Fitting ", method_id, "...")
@@ -201,6 +256,18 @@ fit_one_spec <- function(method_id, spec, spec_index) {
     ) |>
     mutate(method = method_id, .before = 1)
 
+  display <- adjusted |>
+    slice_head(n = 5)
+
+  adjusted_validation <- adjusted |>
+    select(
+      method,
+      origin,
+      destination,
+      flow,
+      flow_adj
+    )
+
   metadata <- tibble(
     method = method_id,
     method_label = spec$label,
@@ -221,9 +288,14 @@ fit_one_spec <- function(method_id, spec, spec_index) {
     seed = seed_base + spec_index,
     input_fingerprint = fingerprint,
     area_set = paste(sort(unique(mpd_od$origin)), collapse = ";"),
+    geography = example_data$metadata$geography[1],
+    n_areas_requested = n_areas,
+    n_areas_loaded = example_data$metadata$n_areas[1],
     n_validation_rows = nrow(fit),
     n_fit_rows = result_metadata$n_fit_rows,
     n_prediction_rows = result_metadata$n_prediction_rows,
+    n_mpd_zero_filled = example_data$metadata$n_mpd_zero_filled[1],
+    n_benchmark_zero_filled = example_data$metadata$n_benchmark_zero_filled[1],
     runtime_seconds = attr(fit, "runtime_seconds"),
     elapsed_sec = elapsed,
     convergence_status = convergence$status,
@@ -240,7 +312,11 @@ fit_one_spec <- function(method_id, spec, spec_index) {
     spearman_rho = overall$spearman_rho
   )
 
-  list(adjusted = adjusted, metadata = metadata)
+  list(
+    adjusted = adjusted_validation,
+    display = display,
+    metadata = metadata
+  )
 }
 
 outputs <- Map(
@@ -251,9 +327,9 @@ outputs <- Map(
 )
 
 adjusted_all <- bind_rows(lapply(outputs, `[[`, "adjusted"))
+display_all <- bind_rows(lapply(outputs, `[[`, "display"))
 metadata_all <- bind_rows(lapply(outputs, `[[`, "metadata"))
 
-out_dir <- file.path("inst", "extdata")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 utils::write.csv(
@@ -262,9 +338,14 @@ utils::write.csv(
   row.names = FALSE
 )
 utils::write.csv(
+  display_all,
+  file.path(out_dir, "v07-validation-bayesian-display.csv"),
+  row.names = FALSE
+)
+utils::write.csv(
   metadata_all,
   file.path(out_dir, "v07-validation-bayesian-metadata.csv"),
   row.names = FALSE
 )
 
-message("Wrote v07 Bayesian validation artifacts to ", out_dir, ".")
+message("Wrote v07 Bayesian validation output files to ", out_dir, ".")

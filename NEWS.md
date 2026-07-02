@@ -12,12 +12,12 @@
 
 ### Validation documentation
 
-- Reworked the validation vignette around a shared-data method comparison that
-  evaluates deterministic adjustment methods and Bayesian
-  coverage-offset specifications on the same OD support, with row-audit checks,
-  Bayesian input fingerprints, visible MCMC diagnostics, and exported
-  `validate_flow_*()` / `plot_validation_*()` workflows across the five
-  validation levels.
+- Reworked the validation vignette around the full real LAD
+  origin-destination support from `debiasRdata`, using live deterministic
+  adjustment examples, row-audit checks, and exported `validate_flow_*()` /
+  `plot_validation_*()` workflows across the five validation levels. Full-LAD
+  Bayesian fitting remains in the advanced Bayesian vignette rather than the
+  live validation render because routine vignette builds should not refit MCMC.
 - Streamlined validation vignette tables so the broader method comparison is
   compact, the level-by-level walkthrough prints only the most relevant rows
   and columns, and the first two tables use smaller text for readability.
@@ -46,6 +46,13 @@
   remains focused on origin-conditioned destination-share distributions, while
   spatial/residual structure diagnostics focus on remaining
   benchmark-minus-adjusted residual patterns.
+- Added a reproducible full-LAD Level 5 LISA map route to the validation
+  vignette. Local Moran diagnostics use deterministic nearest-neighbour LAD
+  centroid links, while LISA maps render from a cached public ONS 2021 LAD BFC
+  boundary download or from a user-supplied `sf` LAD boundary file instead of
+  relying on a private mounted disk. Boundary polygons outside the validation
+  support are retained in the same grey as not-significant areas rather than
+  dropped, while Scottish background polygons are omitted from the vignette map.
 
 ### Bayesian adjustment documentation
 

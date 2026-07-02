@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-07-01
+Last updated: 2026-07-02
 
 ## Snapshot
 
@@ -69,6 +69,20 @@ Last updated: 2026-07-01
 
 ## What Changed Recently
 
+- The validation vignette now uses the full overlapping LAD support from
+  `debiasRdata` for live validation examples rather than a 25-area teaching
+  subset. The current LAD example contains 313 LADs and 97,969 OD rows, and
+  keeps the live validation render focused on deterministic methods that can be
+  fitted quickly on the full support. Full-LAD Bayesian fitting remains in the
+  advanced Bayesian vignette because routine renders should not refit MCMC.
+- The Level 5 validation section now includes a reproducible Local Moran/LISA
+  workflow for the full LAD support. Local Moran diagnostics use deterministic
+  nearest-neighbour links from real LAD centroid distances, and the LISA map
+  renders from a cached public ONS 2021 LAD BFC boundary download or a
+  user-supplied `sf` LAD boundary file. Boundary polygons outside the validation
+  support are retained in the same grey as not-significant areas, Scottish
+  background polygons are omitted, and the map does not depend on a private
+  `/Volumes/DEBIAS` mount.
 - External HTW flow outputs under `/Volumes/DEBIAS/data/outputs/flows` now
   provide empirical source/time inputs for S1-S4 validation: Mapp1 weekly/monthly
   files, Mapp2 monthly files, and Census travel-to-work benchmarks at LAD/LTLA
@@ -128,10 +142,11 @@ Last updated: 2026-07-01
   compatibility mode, and Bayesian diagnostics.
 - The advanced Bayesian adjustment vignette now reports real-data evidence using
   the same output columns and attribute-style diagnostics returned by
-  `adjust_multilevel_bayes()`. The compact 25-LAD coverage-offset results table
-  is shown directly, while the full S4 coverage-offset and S3/S4 latent approval
-  runs are reported through metadata and diagnostics because the repeated-source
-  HTW files remain external to the repository.
+  `adjust_multilevel_bayes()`. The displayed coverage-offset rows are derived
+  from the full LAD complete-grid validation output, while the full S4
+  coverage-offset and S3/S4 latent approval runs are reported through metadata
+  and diagnostics because the repeated-source HTW files remain external to the
+  repository.
 - The Bayesian vignette exposition was refined on 2026-06-25 so the
   "observation equation" and "true-flow prediction equation" language is scoped
   explicitly to the coverage-offset model variant. The advanced Bayesian vignette now
