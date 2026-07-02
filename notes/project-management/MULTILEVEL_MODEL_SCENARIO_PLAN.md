@@ -254,8 +254,8 @@ Use LAD data for vignettes and teaching materials.
 - Keep prototype and runtime caveats visible until empirical Bayesian runtime is
   validated.
 - In teaching text, describe the MPD observation equation and true-flow
-  prediction equation as the coverage-offset route, not as a generic structure
-  for every `adjust_multilevel_bayes()` variant.
+  prediction equation as the coverage-offset model variant, not as a generic
+  structure for every `adjust_multilevel_bayes()` variant.
 - Use the advanced Bayesian vignette to distinguish `coverage_offset`,
   `reduced_form`, and `latent_two_level`: coverage-offset estimates true flows
   through a fixed coverage offset, reduced-form returns an MPD-scale

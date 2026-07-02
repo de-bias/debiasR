@@ -6,9 +6,9 @@ focused on stable user workflows rather than workshop planning, exploratory
 method testing, or rendered preview artifacts.
 
 The running examples use the optional `debiasRdata` package at LAD scale by
-default. Vignettes call `debiasR::debiasR_example_data()` through `_common.R`
-so examples can render with bounded empirical inputs and exit cleanly when the
-optional data package is not installed.
+default. Vignettes load bounded empirical inputs through `_common.R` so
+examples can render quickly and exit cleanly when the optional data package is
+not installed.
 
 ## Structure
 

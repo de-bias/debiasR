@@ -1,7 +1,26 @@
-# debiasR 0.0.0.9004
+# debiasR 0.0.0.9005
+
+### Adjustment workflows
+
+- Added `adjust_all_methods()` as an exported convenience function for fitting
+  the main adjustment methods on the same MPD, coverage, benchmark, covariate,
+  and distance inputs. The adjustment vignette now uses this package function
+  instead of a vignette-local helper.
+- Simplified user-facing vignette code by relying on `library(debiasR)` and
+  removing visible `debiasR::` namespace prefixes, while keeping explicit
+  namespaces in hidden helper code where useful.
 
 ### Validation documentation
 
+- Reworked the validation vignette around the full real LAD
+  origin-destination support from `debiasRdata`, using live deterministic
+  adjustment examples, row-audit checks, and exported `validate_flow_*()` /
+  `plot_validation_*()` workflows across the five validation levels. Full-LAD
+  Bayesian fitting remains in the advanced Bayesian vignette rather than the
+  live validation render because routine vignette builds should not refit MCMC.
+- Streamlined validation vignette tables so the broader method comparison is
+  compact, the level-by-level walkthrough prints only the most relevant rows
+  and columns, and the first two tables use smaller text for readability.
 - Added prototype `plot_validation_*()` functions for validation metric
   matrices, residual violin plots, pairwise flow scatterplots,
   standard-deviation and quantile residual-band stacked bars, distributional
@@ -27,6 +46,13 @@
   remains focused on origin-conditioned destination-share distributions, while
   spatial/residual structure diagnostics focus on remaining
   benchmark-minus-adjusted residual patterns.
+- Added a reproducible full-LAD Level 5 LISA map route to the validation
+  vignette. Local Moran diagnostics use deterministic nearest-neighbour LAD
+  centroid links, while LISA maps render from a cached public ONS 2021 LAD BFC
+  boundary download or from a user-supplied `sf` LAD boundary file instead of
+  relying on a private mounted disk. Boundary polygons outside the validation
+  support are retained in the same grey as not-significant areas rather than
+  dropped, while Scottish background polygons are omitted from the vignette map.
 
 ### Bayesian adjustment documentation
 
@@ -36,16 +62,20 @@
   observation offset, and why `F_true` is a posterior prediction rather than a
   random intercept.
 - Added compact input, option, output-column, and diagnostics guides for the
-  Bayesian adjustment example, while continuing to use precomputed posterior
-  median and mean summaries so routine vignette renders do not rerun MCMC.
+  Bayesian adjustment example, including posterior median and mean output
+  summaries.
+- Updated the advanced Bayesian vignette to report real-data evidence using
+  `adjust_multilevel_bayes()` output column names,
+  `attr(result, "result_metadata")` fields, diagnostic fields, and validation
+  summaries.
 - Added a short S2-S4 repeated source/time callout for the approved advanced
   `observation_model = "latent_two_level"` backend and kept the advanced
   Bayesian vignette as the deeper companion reference.
 - Recorded the approval boundary for the Bayesian implementation:
-  `coverage_offset` is the validated default empirical LAD route, while
-  `latent_two_level` is approved as an advanced observed-row S3/S4
-  repeated-source route after real MPD/Census empirical validation, real
-  centroid distances, prior-sensitivity checks, and confirmatory sampler
+  `coverage_offset` is the validated default empirical LAD model variant,
+  while `latent_two_level` is approved as an advanced observed-row S3/S4
+  repeated-source model variant after real MPD/Census empirical validation,
+  real centroid distances, prior-sensitivity checks, and confirmatory sampler
   diagnostics.
 - Clarified that benchmark-trained methods such as raking, selection-rate
   calibration and coefficient calibration can score well because they use
@@ -80,7 +110,7 @@
 
 - Completed a public-repository hygiene pass covering public docs, pkgdown
   exposure, workflow deploy guards, conduct/reporting text, non-code license
-  clarity, local-path cleanup, and tracked development artifacts.
+  clarity, local-path cleanup, and tracked development files.
 - Clarified the validation framework terminology by keeping individual
   origin-destination flow checks as Level 3 and presenting
   `validate_flow_distribution()` as Level 4 distributional allocation
@@ -198,9 +228,8 @@
 - Moved `rstanarm` into the default package imports so the standard Bayesian
   backend is installed with `debiasR`, and simplified the adjustment vignette
   so the Bayesian example runs directly.
-- Added a precomputed Bayesian vignette result artifact and regeneration script
-  so routine vignette renders include posterior median and mean example output
-  without rerunning MCMC.
+- Added a Bayesian vignette result table and regeneration script for posterior
+  median and mean example output.
 - Expanded fast tests with MSOA-like S1-S4 fixtures that exercise the default frequentist formula contract and complete-grid prediction metadata.
 - Updated workshop/testing vignettes to show a Bayesian coverage-offset example, raw/adjusted/benchmark comparison columns, active-user coverage notation, and parameter guidance for S1-S4 repeated source/time structures.
 

@@ -127,7 +127,7 @@ between-area Census flows to keep the browser widget responsive.
 
 The map below uses `mapgl::add_flowmap()` to display LAD travel-to-work flows.
 The flow layer is interactive: you can zoom, pan and inspect flow corridors in
-the rendered HTML page.
+the interactive HTML page.
 
 ```{r interactive-flow-map, eval=mapgl_available}
 mapgl::maplibre(
@@ -166,7 +166,7 @@ adjustment method from `debiasR`, replace `benchmark_flows` with the adjusted
 table and select `flow_adj` as the plotted value.
 
 ```{r eval=FALSE}
-adjusted_flows <- debiasR::adjust_inverse_penetration(
+adjusted_flows <- adjust_inverse_penetration(
   mpd_od_df = debiasRdata::lad_OD_travel2work,
   coverage_df = debiasRdata::coverage_lad,
   weight_by = "origin"

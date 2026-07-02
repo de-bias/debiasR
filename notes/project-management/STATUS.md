@@ -1,14 +1,14 @@
 # Project Status
 
-Last updated: 2026-06-25
+Last updated: 2026-07-02
 
 ## Snapshot
 
-- Project stage: active development (`0.0.0.9004`)
+- Project stage: active development (`0.0.0.9005`)
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: stable adjustment methods use `adjust_*`; validation helpers use `validate_flow_*`
-- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; the default `coverage_offset` Bayesian route is approved for observed-flow empirical LAD S1-S4 workflows, while `latent_two_level` is approved as an advanced observed-row repeated-source S3/S4 route
+- Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; the default `coverage_offset` Bayesian model variant is approved for observed-flow empirical LAD S1-S4 workflows, while `latent_two_level` is approved as an advanced observed-row repeated-source S3/S4 model variant
 - Current execution board: see [TASK_BOARD.md](TASK_BOARD.md)
 
 ## Stable vs Experimental
@@ -23,6 +23,7 @@ Last updated: 2026-06-25
 - `adjust_selection_rate2()`
 - `adjust_raking_ratio()`
 - `adjust_coefficient()`
+- `adjust_all_methods()`
 - `validate_flow_overall()`
 - `validate_flow_pairs()`
 - `validate_flow_residuals()`
@@ -43,7 +44,7 @@ Last updated: 2026-06-25
     full S4 validation with real LAD centroid distances, acceptable diagnostics,
     and competitive benchmark validation metrics
   - `observation_model = "reduced_form"` remains a compatibility and
-    sensitivity route rather than the recommended Bayesian implementation
+    sensitivity model variant rather than the recommended Bayesian implementation
   - local source/time flow data for empirical S1-S4 testing are available
     outside the repository at `/Volumes/DEBIAS/data/outputs/flows`; use the HTW
     branch first for `mapp1`, `mapp2`, and Census benchmark validation at
@@ -59,8 +60,29 @@ Last updated: 2026-06-25
   - performance and dependency footprint are heavy relative to fixed-rule adjustment methods
   - backend guidance: `rstanarm` is the default package dependency for standard Poisson / negative-binomial models because it is lighter and easier to fit in a package workflow; use optional `brms` when you need extra flexibility, especially zero-inflated or more complex Bayesian specifications
 
+## Documentation Style Rules
+
+- Compact explanatory vignette tables with long wrapped text or inline-code
+  cells should use a table font 1.5px smaller than the default table size. This
+  applies to option-guide and method-summary tables like the Bayesian
+  model-variant guide.
+
 ## What Changed Recently
 
+- The validation vignette now uses the full overlapping LAD support from
+  `debiasRdata` for live validation examples rather than a 25-area teaching
+  subset. The current LAD example contains 313 LADs and 97,969 OD rows, and
+  keeps the live validation render focused on deterministic methods that can be
+  fitted quickly on the full support. Full-LAD Bayesian fitting remains in the
+  advanced Bayesian vignette because routine renders should not refit MCMC.
+- The Level 5 validation section now includes a reproducible Local Moran/LISA
+  workflow for the full LAD support. Local Moran diagnostics use deterministic
+  nearest-neighbour links from real LAD centroid distances, and the LISA map
+  renders from a cached public ONS 2021 LAD BFC boundary download or a
+  user-supplied `sf` LAD boundary file. Boundary polygons outside the validation
+  support are retained in the same grey as not-significant areas, Scottish
+  background polygons are omitted, and the map does not depend on a private
+  `/Volumes/DEBIAS` mount.
 - External HTW flow outputs under `/Volumes/DEBIAS/data/outputs/flows` now
   provide empirical source/time inputs for S1-S4 validation: Mapp1 weekly/monthly
   files, Mapp2 monthly files, and Census travel-to-work benchmarks at LAD/LTLA
@@ -118,12 +140,24 @@ Last updated: 2026-06-25
 - The advanced Bayesian adjustment vignette now explains S1-S4 source/time
   structures, the approved advanced `latent_two_level` backend, reduced-form
   compatibility mode, and Bayesian diagnostics.
+- The advanced Bayesian adjustment vignette now reports real-data evidence using
+  the same output columns and attribute-style diagnostics returned by
+  `adjust_multilevel_bayes()`. The displayed coverage-offset rows are derived
+  from the full LAD complete-grid validation output, while the full S4
+  coverage-offset and S3/S4 latent approval runs are reported through metadata
+  and diagnostics because the repeated-source HTW files remain external to the
+  repository.
 - The Bayesian vignette exposition was refined on 2026-06-25 so the
   "observation equation" and "true-flow prediction equation" language is scoped
-  explicitly to the coverage-offset route. The advanced Bayesian vignette now
+  explicitly to the coverage-offset model variant. The advanced Bayesian vignette now
   gives separate conceptual equations and interpretation for `coverage_offset`,
   `reduced_form`, and `latent_two_level`, avoiding the earlier risk of implying
   that all variants share the same two-equation structure.
+- Terminology decision recorded on 2026-06-26: public Bayesian documentation
+  should describe `coverage_offset`, `reduced_form`, and `latent_two_level` as
+  model variants, or observation-model variants when precision is useful.
+  Reserve route for empirical data paths or workflow paths rather than for the
+  Bayesian model choices.
 - Empirical approval decision recorded on 2026-06-25: the default
   `coverage_offset` Bayesian implementation is approved as a viable empirical
   alternative for observed-flow LAD S1-S4 workflows. The full LAD S4
@@ -145,10 +179,18 @@ Last updated: 2026-06-25
   completed with no divergences, no treedepth hits, E-BFMI above 0.91, max
   R-hat about 1.023, and minimum effective sample size about 190.
 - The adjustment vignette now reads its compact Bayesian example output from a
-  precomputed package artifact reporting posterior median and mean summaries;
+  package output file reporting posterior median and mean summaries;
   maintainers can regenerate it explicitly with
   `Rscript scripts/precompute_v06_bayesian_example.R` when the model or data
   change.
+- `adjust_all_methods()` is now exported for fitting the main adjustment
+  methods on shared MPD, coverage, benchmark, covariate, and distance inputs.
+  The adjustment vignette uses this package function instead of a
+  vignette-local helper for all-method comparisons.
+- User-facing vignette code now relies on `library(debiasR)` and removes
+  visible `debiasR::` namespace prefixes so examples read like normal package
+  usage; hidden helper code may still use explicit namespaces where clarity is
+  useful.
 - Issue #58 updated the adjustment vignette advanced section into the practical
   user-facing guide for `adjust_multilevel_bayes()`: it now explains the
   default coverage-offset true-flow model, clarifies that active-user coverage
@@ -284,7 +326,7 @@ Last updated: 2026-06-25
 - Result: pass. The rendered validation article and reference page show the
   optional Local Moran/LISA diagnostics, hidden setup chunks remain hidden, and
   no new mandatory spatial dependencies were added.
-- Verified the full empirical LAD S4 `coverage_offset` Bayesian route locally
+- Verified the full empirical LAD S4 `coverage_offset` Bayesian model variant locally
   on 2026-06-25 with a quiet manual runner derived from
   `notes/project-management/BAYESIAN_EMPIRICAL_FLOW_S1S4_VALIDATION.qmd`.
 - Result: pass. The run fitted fixed and origin random-intercept Bayesian
@@ -297,12 +339,12 @@ Last updated: 2026-06-25
   lower than all three on RMSE. Interpret these comparisons as external
   validation, not a pure target-fitting contest: raking and calibrated
   deterministic methods can use benchmark margins or OD targets during fitting,
-  while the Bayesian coverage-offset route does not need benchmark OD flows and
-  reserves them for validation.
+  while the Bayesian coverage-offset model variant does not need benchmark OD
+  flows and reserves them for validation.
 
 ## Current Risks / Blockers
 
-1. Public repository visibility raises the bar for repository hygiene: avoid committing confidential material, credentials, restricted raw data, or development-only artifacts that are not intended for public release.
+1. Public repository visibility raises the bar for repository hygiene: avoid committing confidential material, credentials, restricted raw data, or development-only files that are not intended for public release.
 2. Documentation mismatch risk now mainly sits in archival migration materials and older review notebook sources that intentionally use fixed test fixtures.
 3. Test suite reliability still depends on using the curated runner rather than raw `test_dir()` calls.
 4. Bayesian tests are slower and environment-sensitive due to MCMC runtime and optional `brms` support; run them manually when Bayesian-lane validation is needed.

@@ -88,6 +88,26 @@ test_that("debiasR_example_data returns real debiasRdata covariates when availab
   expect_false("income_norm" %in% names(ex$covariates))
 })
 
+test_that("debiasR_example_data can use the full real LAD support", {
+  testthat::skip_if_not_installed("debiasRdata")
+
+  ex <- debiasR_example_data(
+    n_areas = Inf,
+    complete_grid = TRUE,
+    geography = "lad"
+  )
+
+  n_areas <- ex$metadata$n_areas
+  expect_gt(n_areas, 25)
+  expect_true(ex$od_audit$strict_square_support)
+  expect_equal(nrow(ex$mpd_od), n_areas^2)
+  expect_equal(nrow(ex$benchmark_od), n_areas^2)
+  expect_equal(nrow(ex$distance), n_areas^2)
+  expect_identical(sort(ex$covariates$area), sort(ex$coverage$origin))
+  expect_equal(anyDuplicated(ex$mpd_od[c("origin", "destination")]), 0L)
+  expect_equal(anyDuplicated(ex$benchmark_od[c("origin", "destination")]), 0L)
+})
+
 test_that("debiasR_example_data can return strict complete square OD support", {
   mpd_path <- tempfile(fileext = ".csv")
   census_path <- tempfile(fileext = ".csv")

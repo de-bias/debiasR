@@ -77,32 +77,21 @@ benchmark_flow_lookup <- example_data$benchmark_od |>
     flow_benchmark = flow
   )
 
-flow_adj_draws <- attr(adj_multilevel, "flow_adj_draws")
-
-flow_adj_median <- apply(flow_adj_draws, 2, stats::median)
-flow_adj_mean <- colMeans(flow_adj_draws)
-
 comparison <- adj_multilevel |>
   dplyr::left_join(
     benchmark_flow_lookup,
     by = c("origin", "destination")
   ) |>
-  dplyr::mutate(
-    flow_mpd_adjusted_median = flow_adj_median,
-    flow_mpd_adjusted_mean = flow_adj_mean,
-    flow_mpd_pred_median = flow_mpd_adjusted_median * observation_probability,
-    flow_mpd_pred_mean = flow_mpd_adjusted_mean * observation_probability
-  ) |>
   dplyr::select(
     origin,
     destination,
-    flow_mpd_raw = flow,
-    flow_mpd_adjusted_median,
-    flow_mpd_adjusted_mean,
-    flow_benchmark,
+    flow,
+    flow_adj,
+    flow_adj_median,
+    flow_adj_mean,
+    flow_mpd_pred,
     observation_probability,
-    flow_mpd_pred_median,
-    flow_mpd_pred_mean
+    flow_benchmark
   ) |>
   dplyr::slice_head(n = 5)
 

@@ -47,6 +47,7 @@ jobs:
             any::stringr
             any::purrr
             any::patchwork
+            any::sf
             any::lme4
             github::de-bias/debiasRdata
 

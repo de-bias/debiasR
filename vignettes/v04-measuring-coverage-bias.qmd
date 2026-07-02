@@ -53,7 +53,7 @@ coverage <- debiasRdata::coverage_lad
 head(coverage)
 ```
 
-`debiasR::measure_bias()` expects the benchmark population column to be called `population` and the digital trace population column to be called `user_count`. These names are already used in `coverage_lad`; we only rename the area code to `area` so the later residual diagnostic has a standard area identifier.
+`measure_bias()` expects the benchmark population column to be called `population` and the digital trace population column to be called `user_count`. These names are already used in `coverage_lad`; we only rename the area code to `area` so the later residual diagnostic has a standard area identifier.
 
 ```{r}
 coverage <- coverage |>
@@ -74,7 +74,7 @@ The function returns these as:
 - `coverage_bias`, which is $b_i$
 
 ```{r}
-bias_lad <- debiasR::measure_bias(coverage)
+bias_lad <- measure_bias(coverage)
 
 bias_lad |>
   select(area, name, population, user_count, coverage_score, coverage_bias) |>
@@ -143,7 +143,7 @@ Jensen-Shannon divergence mean the active-user distribution is closer to the
 benchmark population distribution.
 
 ```{r}
-distribution_bias <- debiasR::measure_bias_distribution(
+distribution_bias <- measure_bias_distribution(
   coverage_df = coverage,
   area_col = "area",
   population_col = "population",
@@ -205,7 +205,7 @@ We can use the function `validate_bias_residual_structure()` from `debiasR` to e
 residual structure, i.e. the differences between observed and expected user counts.
 
 ```{r}
-bias_residuals <- debiasR::validate_bias_residual_structure(
+bias_residuals <- validate_bias_residual_structure(
   coverage_df = coverage,
   coverage_area_col = "area",
   population_col = "population",
