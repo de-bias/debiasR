@@ -185,3 +185,42 @@ test_that("adjust_selection_rate errors cleanly with bad inputs", {
     "covariate_col"
   )
 })
+
+test_that("selection-rate calibration scores the same supported rows for each candidate", {
+  raw <- data.frame(origin = c("A", "B"), destination = "C", flow = c(10, 20), mpd_source = "s")
+  bench <- transform(raw, flow = c(18, 30))
+  cov <- data.frame(origin = "A", mpd_source = "s", population = 100, user_count = 50)
+  for (method in list(adjust_selection_rate, adjust_selection_rate2)) {
+    first <- identical(method, adjust_selection_rate)
+    parameter <- if (first) "r_global" else "k"
+    grid <- if (first) "r_grid" else "k_grid"
+    args <- list(mpd_od_df = raw, coverage_df = cov, weight_by = "origin")
+    for (aggregate in c("origin", "od")) {
+      args$calibration_aggregate <- aggregate
+      candidates <- c(0.5, 1)
+      calibration <- c(args, list(benchmark_od_df = bench), setNames(list(candidates), grid))
+      result <- do.call(method, calibration)
+      diagnostic <- attr(result, if (first) "r_calibration" else "k_calibration")
+      expected <- vapply(candidates, function(value) {
+        fixed <- do.call(method, c(args, setNames(list(value), parameter)))
+        abs(fixed$flow_adj[1] - bench$flow[1])
+      }, numeric(1))
+      expect_equal(diagnostic$loss, expected)
+      expect_equal(diagnostic$n_scored, c(1L, 1L))
+      calibration$coverage_df$origin <- "Z"
+      expect_error(do.call(method, calibration), "no usable overlap")
+    }
+  }
+})
+
+test_that("a candidate cannot win by dropping a difficult observation", {
+  data <- data.frame(origin = c("A", "B"), destination = "C", flow = 10, mpd_source = "s")
+  coverage <- data.frame(origin = data$origin, population = 100, user_count = 50, mpd_source = "s")
+  covariates <- data.frame(area = data$origin, income_norm = c(0, 1))
+  result <- adjust_selection_rate(data, coverage, covariates_df = covariates,
+              weight_by = "origin", benchmark_od_df = data, r_grid = c(0, 1))
+  scores <- attr(result, "r_calibration")
+  expect_equal(scores$n_scored, c(2L, 2L))
+  expect_equal(scores$loss, c(Inf, 10))
+  expect_equal(attr(result, "r_global"), 1)
+})

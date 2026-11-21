@@ -138,3 +138,20 @@ test_that("validate_flow_margins prepares origin and destination totals", {
   expect_equal(destination_margins$adjusted_outputs$method_b$flow_adj, c(126, 136))
   expect_equal(destination_margins$benchmark$flow, c(125, 135))
 })
+
+test_that("source and period references match exactly one observation", {
+  raw <- expand.grid(origin = "A", destination = "B", mpd_source = c("x", "y"),
+                     mpd_time = 1:2, stringsAsFactors = FALSE)
+  raw$flow <- 10 * seq_len(nrow(raw))
+  adj <- transform(raw, flow_adj = flow)
+  ref <- raw[4:1, ]
+  expect_equal(validate_flow_prepare_output(adj, ref)$flow, raw$flow)
+  metrics <- validate_flow_overall(adj, ref, by_source = TRUE)
+  expect_equal(metrics$n, 4L)
+  expect_equal(metrics$by_source$mae, c(0, 0))
+  expect_equal(validate_flow_pairs(adj, ref)$adj_flow, raw$flow)
+  expect_equal(validate_flow_pairs(adj, ref)$benchmark_flow, raw$flow)
+  shared <- data.frame(origin = "A", destination = "B", flow = 13)
+  expect_equal(validate_flow_prepare_output(adj, shared)$flow, rep(13, 4))
+  expect_error(validate_flow_pairs(adj, rbind(shared, shared)), "unique")
+})

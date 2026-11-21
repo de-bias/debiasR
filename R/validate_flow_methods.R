@@ -8,6 +8,9 @@
 #' or cached files but need the common `debiasR` validation columns:
 #' `origin`, `destination`, `flow`, and `flow_adj`.
 #'
+#' References must have one row per origin and destination, including
+#' `mpd_source` and `mpd_time` in the key when present in both tables.
+#'
 #' @param adj_df Data frame with adjusted flows.
 #' @param adjusted_outputs Named list of adjusted-flow data frames.
 #' @param mpd_df Raw MPD flow data with `origin`, `destination`, and the raw
@@ -37,10 +40,10 @@ validate_flow_prepare_output <- function(adj_df,
     "adj_df"
   )
 
+  keys <- .flow_reference_keys(adj_df, mpd_df)
   raw_flow <- tibble::as_tibble(mpd_df) |>
     dplyr::select(
-      origin,
-      destination,
+      dplyr::all_of(keys),
       raw_flow = dplyr::all_of(flow_col_mpd)
     )
 
@@ -55,7 +58,7 @@ validate_flow_prepare_output <- function(adj_df,
   }
 
   adj_tbl |>
-    dplyr::left_join(raw_flow, by = c("origin", "destination")) |>
+    dplyr::left_join(raw_flow, by = keys) |>
     dplyr::rename(flow = raw_flow)
 }
 

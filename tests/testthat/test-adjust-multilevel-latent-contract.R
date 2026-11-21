@@ -367,3 +367,14 @@ test_that("latent backend availability errors before model fitting", {
     "Backend 'stan_latent' requested, but package 'rstan' is not installed"
   )
 })
+
+test_that("joint posterior summaries agree with separate column statistics", {
+  for (n in c(1L, 4L, 5L)) {
+    draws <- matrix(seq_len(n * 2L), nrow = n)
+    summaries <- debiasR:::.summarise_flow_draws(draws)
+    expect_equal(summaries$mean, colMeans(draws))
+    expect_equal(summaries$median, apply(draws, 2, median))
+    expect_equal(summaries$q2.5, apply(draws, 2, quantile, .025, names = FALSE))
+    expect_equal(summaries$q97.5, apply(draws, 2, quantile, .975, names = FALSE))
+  }
+})

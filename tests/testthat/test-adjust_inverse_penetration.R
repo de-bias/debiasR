@@ -92,3 +92,16 @@ test_that("both-sides weighting uses geometric mean of origin and destination we
   # flow_adj must equal flow * weight_both
   expect_equal(chk$flow_adj, chk$flow * chk$weight_both, tolerance = 1e-6)
 })
+
+test_that("each route gets at most one finite coverage correction", {
+  raw <- data.frame(origin = "A", destination = "A", flow = 10)
+  cov <- data.frame(origin = "A", population = 100, user_count = 10)
+  for (side in c("origin", "destination", "both")) {
+    expect_equal(adjust_inverse_penetration(raw, rbind(cov, cov), weight_by = side)$flow_adj, 100)
+    expect_error(adjust_inverse_penetration(raw, rbind(cov, transform(cov, user_count = 20)),
+                                           weight_by = side), "Conflicting coverage")
+    missing <- adjust_inverse_penetration(raw, transform(cov, user_count = 0), weight_by = side)
+    expect_true(missing$weight_missing)
+    expect_true(is.na(missing$flow_adj))
+  }
+})

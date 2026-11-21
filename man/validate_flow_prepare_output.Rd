@@ -48,4 +48,7 @@ applies the same preparation to a named list of adjusted-flow tables.
 These helpers are useful when outputs come from different adjustment routes
 or cached files but need the common \code{debiasR} validation columns:
 \code{origin}, \code{destination}, \code{flow}, and \code{flow_adj}.
+
+References must have one row per origin and destination, including
+\code{mpd_source} and \code{mpd_time} in the key when present in both tables.
 }

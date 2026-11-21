@@ -69,7 +69,7 @@ origin, destination, mpd_source, flow,
 weight_origin, weight_destination, weight_missing, flow_adj.
 Attributes:
 - "r_global": numeric r_t used.
-- "r_calibration": data.frame of (r, loss) if calibration was run.
+- "r_calibration": candidate r, loss and number of supported observation rows (n_scored).
 }
 \description{
 Implements Chi et al.-style selection weights.
@@ -123,4 +123,8 @@ By default aggregates by origin:
       \left|\hat{M}_i(r) - M_i^{bench}\right|}
 \item Else: fall back to descriptive r_t = sum(U) / sum(P) (transparent).
 }
+
+Calibration uses the same matched observations with usable coverage for
+every candidate. An empty comparison raises an error. A candidate that
+cannot predict all supported observations receives infinite loss.
 }

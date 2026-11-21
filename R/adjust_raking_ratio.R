@@ -83,7 +83,9 @@
 #'   }
 #'   The output also includes attributes:
 #'   \itemize{
-#'     \item \code{"ipf_converged"}: logical.
+#'     \item \code{"ipf_converged"}: whether all supplied targets are met after clipping.
+#'     \item \code{"ipf_margins"}: a table with the target, achieved total,
+#'       shortfall (target minus achieved), and tolerance check for each margin.
 #'     \item \code{"ipf_iterations"}: iterations used.
 #'   }
 #'
@@ -197,106 +199,73 @@ adjust_raking_ratio <- function(mpd_od_df,
     stop("Provide at least one of `origin_targets`, `destination_targets`, or `benchmark_od_df`.")
   }
 
-  # ---- helper: IPF on one (group_cols) subset ----
-  ipf_subset <- function(df_sub,
-                         ot_sub = NULL,
-                         dt_sub = NULL,
-                         max_iter, tol) {
+  if (!nrow(mpd_od_df) || any(!is.finite(mpd_od_df$flow) | mpd_od_df$flow < 0)) {
+    stop("Raking requires non-empty, finite, non-negative flows.")
+  }
+  if (length(clip_min) != 1L || !is.finite(clip_min) || clip_min < 0 ||
+      length(clip_max) != 1L || is.na(clip_max) || clip_max < clip_min) {
+    stop("Require 0 <= clip_min <= clip_max and a finite lower bound.")
+  }
+  if (length(tol) != 1L || !is.finite(tol) || tol <= 0 ||
+      length(max_iter) != 1L || !is.finite(max_iter) || max_iter < 1 || max_iter != floor(max_iter)) {
+    stop("Require positive tol and a positive integer max_iter.")
+  }
+  validate_targets <- function(targets, side) {
+    if (is.null(targets)) return()
+    keys <- c(group_cols, side)
+    if (anyNA(targets[keys]) || anyDuplicated(targets[keys]) ||
+        any(!is.finite(targets$target) | targets$target < 0)) {
+      stop("Require unique, identifiable ", side, " margins and finite non-negative targets.")
+    }
+  }
+  validate_targets(origin_targets, "origin")
+  validate_targets(destination_targets, "destination")
+  if (anyNA(mpd_od_df[c(group_cols, "origin", "destination")])) {
+    stop("Raking requires identifiable areas and groups.")
+  }
 
-    # df_sub: origin, destination, flow (positive)
-    # ot_sub: origin, target
-    # dt_sub: destination, target
-
-    # initialize with observed flows
-    mat <- df_sub$flow
-    origin <- df_sub$origin
-    destination <- df_sub$destination
-
-    # indices
-    o_levels <- unique(origin)
-    d_levels <- unique(destination)
-    o_index <- match(origin, o_levels)
-    d_index <- match(destination, d_levels)
-
-    # precompute lists of cell indices per origin/dest
-    rows_by_o <- split(seq_along(mat), o_index)
-    rows_by_d <- split(seq_along(mat), d_index)
-
-    # origin targets vector (if any)
-    if (!is.null(ot_sub)) {
-      ot_vec <- ot_sub$target[match(o_levels, ot_sub$origin)]
-    } else {
-      ot_vec <- rep(NA_real_, length(o_levels))
+  # Index each observed margin in order of first appearance.
+  ipf_subset <- function(df_sub, ot_sub, dt_sub, max_iter, tol) {
+    make_margin <- function(area, targets, side) {
+      labels <- unique(area)
+      list(index = match(area, labels),
+           target = if (is.null(targets)) rep(NA_real_, length(labels)) else
+             targets$target[match(labels, targets[[side]])])
+    }
+    origins <- make_margin(df_sub$origin, ot_sub, "origin")
+    destinations <- make_margin(df_sub$destination, dt_sub, "destination")
+    margin_sums <- function(flow, margin) {
+      as.numeric(rowsum(flow, margin$index, reorder = FALSE))
+    }
+    scale_margin <- function(flow, margin) {
+      current <- margin_sums(flow, margin)
+      active <- is.finite(margin$target) & current > 0
+      multiplier <- rep(1, length(current))
+      multiplier[active] <- margin$target[active] / current[active]
+      flow * multiplier[margin$index]
+    }
+    within_tolerance <- function(flow, margin) {
+      error <- abs(margin_sums(flow, margin) - margin$target)
+      all(error <= tol * ifelse(margin$target > 0, margin$target, 1), na.rm = TRUE)
     }
 
-    # destination targets vector (if any)
-    if (!is.null(dt_sub)) {
-      dt_vec <- dt_sub$target[match(d_levels, dt_sub$destination)]
-    } else {
-      dt_vec <- rep(NA_real_, length(d_levels))
+    mat <- as.numeric(df_sub$flow)
+    for (it in seq_len(max_iter)) {
+      previous <- mat
+      mat <- scale_margin(mat, origins)
+      mat <- scale_margin(mat, destinations)
+      if ((within_tolerance(mat, origins) && within_tolerance(mat, destinations)) ||
+          identical(mat, previous)) break
     }
-
-    # IPF iterations
-    converged <- FALSE
-    it <- 0L
-
-    while (it < max_iter) {
-      it <- it + 1L
-      max_rel_dev <- 0
-
-      # scale rows
-      if (any(is.finite(ot_vec))) {
-        for (i in seq_along(o_levels)) {
-          target_i <- ot_vec[i]
-          if (!is.finite(target_i)) next
-          idx <- rows_by_o[[i]]
-          current_sum <- sum(mat[idx])
-          if (current_sum > 0) {
-            f <- target_i / current_sum
-            mat[idx] <- mat[idx] * f
-            max_rel_dev <- max(max_rel_dev, abs(f - 1))
-          }
-        }
-      }
-
-      # scale columns
-      if (any(is.finite(dt_vec))) {
-        for (j in seq_along(d_levels)) {
-          target_j <- dt_vec[j]
-          if (!is.finite(target_j)) next
-          idx <- rows_by_d[[j]]
-          current_sum <- sum(mat[idx])
-          if (current_sum > 0) {
-            f <- target_j / current_sum
-            mat[idx] <- mat[idx] * f
-            max_rel_dev <- max(max_rel_dev, abs(f - 1))
-          }
-        }
-      }
-
-      if (max_rel_dev < tol) {
-        converged <- TRUE
-        break
-      }
-    }
-
-    weight <- mat / df_sub$flow
-    weight[!is.finite(weight)] <- NA_real_
-
-    list(
-      flow_adj = mat,
-      weight_ipf = pmax(clip_min,
-                        pmin(weight, clip_max,
-                             na.rm = FALSE)),
-      converged = converged,
-      iterations = it
-    )
+    weight <- ifelse(df_sub$flow > 0, mat / df_sub$flow, NA_real_)
+    weight <- pmax(clip_min, pmin(weight, clip_max))
+    list(flow_adj = ifelse(df_sub$flow > 0, df_sub$flow * weight, 0),
+         weight_ipf = weight, iterations = it)
   }
 
   # ---- run IPF by group_cols ----
 
   out_list <- list()
-  conv_vec <- logical(0)
   iter_vec <- integer(0)
 
   # split mpd_od_df by group_cols (or single chunk if none)
@@ -347,7 +316,6 @@ adjust_raking_ratio <- function(mpd_od_df,
     df_sub$weight_ipf <- adj$weight_ipf
 
     out_list[[nm]] <- df_sub
-    conv_vec <- c(conv_vec, adj$converged)
     iter_vec <- c(iter_vec, adj$iterations)
   }
 
@@ -372,7 +340,23 @@ adjust_raking_ratio <- function(mpd_od_df,
     ) %>%
     tibble::as_tibble()
 
-  attr(out, "ipf_converged")  <- all(conv_vec)
+  audit_margin <- function(targets, side) {
+    if (is.null(targets)) return(NULL)
+    keys <- c(group_cols, side)
+    totals <- out |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(keys))) |>
+      dplyr::summarise(achieved = sum(.data$flow_adj), .groups = "drop")
+    dplyr::left_join(targets, totals, by = keys) |>
+      dplyr::mutate(achieved = dplyr::coalesce(.data$achieved, 0),
+                    shortfall = .data$target - .data$achieved,
+                    met = abs(.data$shortfall) <= tol * ifelse(.data$target > 0, .data$target, 1),
+                    margin = side) |>
+      dplyr::rename(area = dplyr::all_of(side))
+  }
+  margins <- dplyr::bind_rows(audit_margin(origin_targets, "origin"),
+                              audit_margin(destination_targets, "destination"))
+  attr(out, "ipf_margins") <- margins
+  attr(out, "ipf_converged") <- all(margins$met)
   attr(out, "ipf_iterations") <- max(iter_vec)
 
   out

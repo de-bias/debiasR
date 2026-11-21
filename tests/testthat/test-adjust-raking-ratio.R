@@ -141,3 +141,16 @@ test_that("adjust_raking_ratio errors cleanly on bad inputs", {
     "group_cols"
   )
 })
+
+test_that("convergence describes achieved margins after clipping and with missing support", {
+  raw <- data.frame(origin = "A", destination = "B", flow = 0)
+  targets <- data.frame(origin = c("A", "C"), target = c(100, 5))
+  blocked <- adjust_raking_ratio(raw, targets)
+  expect_false(attr(blocked, "ipf_converged"))
+  expect_equal(attr(blocked, "ipf_margins")$shortfall, targets$target)
+  bounded <- adjust_raking_ratio(transform(raw, flow = 10), targets[1, ], clip_max = 2)
+  expect_equal(bounded$flow_adj, 20)
+  expect_equal(bounded$flow_adj, bounded$flow * bounded$weight_ipf)
+  expect_false(attr(bounded, "ipf_converged"))
+  expect_equal(attr(bounded, "ipf_margins")$shortfall, 80)
+})

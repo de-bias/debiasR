@@ -1,3 +1,11 @@
+# debiasR 0.0.0.9007
+
+- Flow validation matches shared source and period identifiers and detects ambiguous reference rows.
+- OLS adjustments apply fitted intercepts at the calibration level. Raking now reports achieved margins and checks convergence after clipping.
+- Both selection-rate methods reuse coverage and benchmark matches during calibration, report the number of scored observations, and reject empty calibration support.
+- Inverse penetration flags unsupported weights and detects conflicting coverage records.
+- Local Moran permutations handle a single eligible neighbour and accumulate exceedance counts directly. Bayesian predictions compute their interval and median together.
+
 # debiasR 0.0.0.9006
 
 ### Repository governance

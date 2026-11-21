@@ -75,5 +75,5 @@ test_that("Bayesian latent two-level backend fits repeated source observations",
   ) %in% names(diagnostics$convergence)))
   expect_gt(diagnostics$convergence$n_post_warmup_draws, 0)
   expect_equal(diagnostics$posterior_predictive$rng_eta_max, 18)
-  expect_match(attr(res, "prototype_notes"), "Latent two-level approved advanced backend")
+  expect_match(attr(res, "prototype_notes"), "source-invariant OD or OD-time latent true-flow intensity")
 })

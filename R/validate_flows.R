@@ -95,6 +95,9 @@
 #' auditing, use \code{validate_flow_residuals()} or the lower-level
 #' \code{validate_flow_pairs()} table.
 #'
+#' References must have one row per origin and destination, including
+#' `mpd_source` and `mpd_time` in the key when present in both tables.
+#'
 #' @param adj_df Data frame with at least: origin, destination, and a column of adjusted flows
 #'   (default name "flow_adj"). If present, an mpd_source column is carried through.
 #' @param benchmark_od_df Data frame with at least: origin, destination, and a column of benchmark flows
@@ -159,7 +162,8 @@ validate_flow_overall <- function(adj_df,
   }
 
   # --- Prepare joined data
-  adj_select_cols <- unique(c("mpd_source", "origin", "destination", flow_col_adj))
+  keys <- .flow_reference_keys(adj_df, benchmark_od_df)
+  adj_select_cols <- unique(c(keys, "mpd_source", "mpd_time", flow_col_adj))
   if (flow_col_mpd %in% names(adj_df)) {
     adj_select_cols <- unique(c(adj_select_cols, flow_col_mpd))
   }
@@ -175,9 +179,9 @@ validate_flow_overall <- function(adj_df,
   joined <- joined |>
     dplyr::inner_join(
       benchmark_od_df |>
-        dplyr::select(origin, destination, !!flow_col_bench) |>
+        dplyr::select(dplyr::all_of(keys), !!flow_col_bench) |>
         dplyr::rename(flow_bench = !!flow_col_bench),
-      by = c("origin", "destination")
+      by = keys
     ) |>
     dplyr::mutate(
       adj_flow = .data$flow_adj,
@@ -291,8 +295,9 @@ validate_flow_benchmark <- function(...) {
     stop("`benchmark_od_df` must contain: ", paste(req_bench, collapse = ", "))
   }
 
+  keys <- .flow_reference_keys(adj_df, benchmark_od_df)
   out <- adj_df |>
-    dplyr::select(dplyr::any_of("mpd_source"),
+    dplyr::select(dplyr::any_of(c("mpd_source", "mpd_time")),
                   origin,
                   destination,
                   !!flow_col_mpd,
@@ -303,9 +308,9 @@ validate_flow_benchmark <- function(...) {
     ) |>
     dplyr::inner_join(
       benchmark_od_df |>
-        dplyr::select(origin, destination, !!flow_col_bench) |>
+        dplyr::select(dplyr::all_of(keys), !!flow_col_bench) |>
         dplyr::rename(benchmark_flow = !!flow_col_bench),
-      by = c("origin", "destination")
+      by = keys
     ) |>
     dplyr::mutate(
       diff_mpd_benchmark = .data$mpd_flow - .data$benchmark_flow,
@@ -758,30 +763,28 @@ validate_flow_all <- function(...) {
     finite_residual_index <- which(is.finite(local_tbl$centered_residual))
     centered_residual <- local_tbl$centered_residual
 
-    simulated_i <- .with_seed(seed, {
-      simulation_matrix <- matrix(NA_real_, nrow = nrow(local_tbl), ncol = nsim)
+    links_by_area <- split(seq_along(link_index), link_index)
+    p_value <- .with_seed(seed, {
+      result <- p_value
       for (focal_idx in which(has_neighbors)) {
         other_idx <- setdiff(finite_residual_index, focal_idx)
+        focal_links <- links_by_area[[as.character(focal_idx)]]
+        focal_neighbors <- neighbor_index[focal_links]
+        focal_weights <- weight[focal_links]
+        permuted_centered <- centered_residual
+        exceedances <- 0L
         for (sim_idx in seq_len(nsim)) {
-          permuted_centered <- centered_residual
-          permuted_centered[other_idx] <- sample(centered_residual[other_idx])
-          focal_links <- link_index == focal_idx
-          neighbor_lag_sum <- sum(
-            weight[focal_links] * permuted_centered[neighbor_index[focal_links]],
-            na.rm = TRUE
-          )
-          simulation_matrix[focal_idx, sim_idx] <-
-            centered_residual[focal_idx] * neighbor_lag_sum /
+          permutation <- sample.int(length(other_idx))
+          permuted_centered[other_idx] <- centered_residual[other_idx[permutation]]
+          lag <- sum(focal_weights * permuted_centered[focal_neighbors])
+          simulated <- centered_residual[focal_idx] * lag /
             (centered_denominator / n_areas_used)
+          exceedances <- exceedances + (abs(simulated) >= abs(observed_i[focal_idx]))
         }
+        result[focal_idx] <- (exceedances + 1) / (nsim + 1)
       }
-      simulation_matrix
+      result
     })
-
-    for (idx in which(has_neighbors)) {
-      p_value[idx] <- (sum(abs(simulated_i[idx, ]) >= abs(observed_i[idx]), na.rm = TRUE) + 1) /
-        (nsim + 1)
-    }
   }
 
   p_adjusted <- rep(NA_real_, length(p_value))
@@ -894,7 +897,8 @@ validate_flow_distribution <- function(adj_df,
     stop("`benchmark_od_df` must contain: ", paste(req_bench, collapse = ", "))
   }
 
-  adj_select_cols <- unique(c("origin", "destination", flow_col_adj, flow_col_mpd))
+  keys <- .flow_reference_keys(adj_df, benchmark_od_df)
+  adj_select_cols <- unique(c(keys, flow_col_adj, flow_col_mpd))
   adj_select_cols <- adj_select_cols[adj_select_cols %in% names(adj_df)]
 
   adj_tbl <- adj_df |>
@@ -908,13 +912,13 @@ validate_flow_distribution <- function(adj_df,
   }
 
   bench_tbl <- benchmark_od_df |>
-    dplyr::select(origin, destination, !!flow_col_bench) |>
+    dplyr::select(dplyr::all_of(keys), !!flow_col_bench) |>
     dplyr::rename(benchmark_flow = !!flow_col_bench)
 
   support_tbl <- dplyr::full_join(
     bench_tbl,
     adj_tbl,
-    by = c("origin", "destination")
+    by = keys
   ) |>
     dplyr::mutate(
       benchmark_flow = dplyr::coalesce(.data$benchmark_flow, 0),

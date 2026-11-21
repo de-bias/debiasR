@@ -20,7 +20,9 @@ If present, \code{mpd_source} is used to match coverage by source.}
 \itemize{
 \item \code{origin, population, user_count}
 }
-and optionally \code{mpd_source}.}
+Only identical coverage records may repeat for an area and applicable source.
+Non-positive or missing denominators yield missing weights.
+The coverage data may also include \code{mpd_source}.}
 
 \item{flow_col}{Name of the MPD flow column in \code{mpd_od_df}. Default "flow".}
 
@@ -32,6 +34,7 @@ A tibble with:
 \item \code{origin, destination} (and \code{mpd_source} if present),
 \item \code{flow}: original MPD flow,
 \item \code{flow_adj}: adjusted flow,
+\item \code{weight_missing}: whether the selected correction weight is unavailable,
 \item \code{weight_origin}: origin-side inverse-penetration weight (if applicable),
 \item \code{weight_destination}: destination-side weight (if applicable),
 \item \code{weight_both}: geometric mean of the two (if \code{weight_by = "both"}).

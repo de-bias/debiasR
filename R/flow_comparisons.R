@@ -98,3 +98,16 @@
     stop("Unsupported flow comparison.", call. = FALSE)
   )
 }
+
+# A shared OD reference can serve many observations, but each observation
+# must identify at most one reference row.
+.flow_reference_keys <- function(observations, reference, strata = character()) {
+  shared <- intersect(names(observations), names(reference))
+  keys <- unique(c("origin", "destination",
+                   intersect(c("mpd_source", "mpd_time", strata), shared)))
+  if (anyDuplicated(reference[keys])) {
+    stop("Reference flows must be unique by ", paste(keys, collapse = ", "),
+         ". Supply matching source/time or stratum identifiers.", call. = FALSE)
+  }
+  keys
+}
