@@ -65,6 +65,8 @@ validator. Do not pass \code{method_name}; it is derived from the list names.}
 
 \item{methods}{Optional method IDs to include for residual-structure
 validation. Default uses all elements in \code{adjusted_outputs}.}
+
+\item{comparison}{A single flow comparison for residual-structure validation.}
 }
 \value{
 A named list of validation results.

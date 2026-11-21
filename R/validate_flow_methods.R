@@ -91,6 +91,7 @@ validate_flow_prepare_outputs <- function(adjusted_outputs,
 #' @param adjusted_outputs Named list of adjusted-flow data frames. Each data
 #'   frame is passed to the corresponding single-output validator.
 #' @param benchmark_od_df Benchmark OD data frame.
+#' @param comparison A single flow comparison for residual-structure validation.
 #' @param comparisons Flow comparison(s) to compute. Defaults follow the
 #'   vignette comparison workflow.
 #' @param drop_zeros Passed to [validate_flow_overall()].
