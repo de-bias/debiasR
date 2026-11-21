@@ -68,7 +68,9 @@ A tibble with:
 }
 The output also includes attributes:
 \itemize{
-\item \code{"ipf_converged"}: logical.
+\item \code{"ipf_converged"}: whether all supplied targets are met after clipping.
+\item \code{"ipf_margins"}: a table with the target, achieved total,
+shortfall (target minus achieved), and tolerance check for each margin.
 \item \code{"ipf_iterations"}: iterations used.
 }
 }

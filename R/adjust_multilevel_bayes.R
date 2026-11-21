@@ -556,50 +556,28 @@ adjust_multilevel_bayes <- function(mpd_od_df,
     }
   }
 
-  flow_adj_mean <- colMeans(flow_adj_draws)
-  flow_adj_median <- apply(flow_adj_draws, 2, stats::median)
-  flow_adj_q2.5 <- apply(flow_adj_draws, 2, stats::quantile, probs = 0.025, names = FALSE)
-  flow_adj_q97.5 <- apply(flow_adj_draws, 2, stats::quantile, probs = 0.975, names = FALSE)
-  flow_adj <- if (flow_adj_summary == "median") {
-    flow_adj_median
+  adjusted <- .summarise_flow_draws(flow_adj_draws)
+  observed <- if (is.null(flow_mpd_pred_draws)) {
+    lapply(adjusted, function(column) rep(NA_real_, length(column)))
   } else {
-    flow_adj_mean
+    .summarise_flow_draws(flow_mpd_pred_draws)
   }
-  flow_mpd_pred <- if (!is.null(flow_mpd_pred_draws)) {
-    if (flow_adj_summary == "median") {
-      apply(flow_mpd_pred_draws, 2, stats::median)
-    } else {
-      colMeans(flow_mpd_pred_draws)
-    }
-  } else {
-    rep(NA_real_, length(flow_adj))
-  }
-  flow_mpd_pred_mean <- if (!is.null(flow_mpd_pred_draws)) colMeans(flow_mpd_pred_draws) else rep(NA_real_, length(flow_adj))
-  flow_mpd_pred_median <- if (!is.null(flow_mpd_pred_draws)) apply(flow_mpd_pred_draws, 2, stats::median) else rep(NA_real_, length(flow_adj))
-  flow_mpd_pred_q2.5 <- if (!is.null(flow_mpd_pred_draws)) {
-    apply(flow_mpd_pred_draws, 2, stats::quantile, probs = 0.025, names = FALSE)
-  } else {
-    rep(NA_real_, length(flow_adj))
-  }
-  flow_mpd_pred_q97.5 <- if (!is.null(flow_mpd_pred_draws)) {
-    apply(flow_mpd_pred_draws, 2, stats::quantile, probs = 0.975, names = FALSE)
-  } else {
-    rep(NA_real_, length(flow_adj))
-  }
+  flow_adj <- adjusted[[flow_adj_summary]]
+  flow_mpd_pred <- observed[[flow_adj_summary]]
 
   modeled_out <- prediction_df |>
     dplyr::mutate(
       flow_adj = as.numeric(flow_adj),
       flow_true_pred = if (target_scale == "true_flow") as.numeric(flow_adj) else NA_real_,
       flow_mpd_pred = as.numeric(flow_mpd_pred),
-      flow_adj_mean = as.numeric(flow_adj_mean),
-      flow_adj_median = as.numeric(flow_adj_median),
-      flow_adj_q2.5 = as.numeric(flow_adj_q2.5),
-      flow_adj_q97.5 = as.numeric(flow_adj_q97.5),
-      flow_mpd_pred_mean = as.numeric(flow_mpd_pred_mean),
-      flow_mpd_pred_median = as.numeric(flow_mpd_pred_median),
-      flow_mpd_pred_q2.5 = as.numeric(flow_mpd_pred_q2.5),
-      flow_mpd_pred_q97.5 = as.numeric(flow_mpd_pred_q97.5)
+      flow_adj_mean = as.numeric(adjusted$mean),
+      flow_adj_median = as.numeric(adjusted$median),
+      flow_adj_q2.5 = as.numeric(adjusted$q2.5),
+      flow_adj_q97.5 = as.numeric(adjusted$q97.5),
+      flow_mpd_pred_mean = as.numeric(observed$mean),
+      flow_mpd_pred_median = as.numeric(observed$median),
+      flow_mpd_pred_q2.5 = as.numeric(observed$q2.5),
+      flow_mpd_pred_q97.5 = as.numeric(observed$q97.5)
     )
 
   base_out <- prep$base_df |>
@@ -3078,6 +3056,12 @@ adjust_multilevel_bayes <- function(mpd_od_df,
   }
 
   stop("Unsupported backend: ", backend)
+}
+
+.summarise_flow_draws <- function(draws) {
+  quantiles <- apply(draws, 2L, stats::quantile, probs = c(0.025, 0.5, 0.975), names = FALSE)
+  list(mean = colMeans(draws), median = quantiles[2L, ],
+       q2.5 = quantiles[1L, ], q97.5 = quantiles[3L, ])
 }
 
 .posterior_linpred_fixef <- function(fit,

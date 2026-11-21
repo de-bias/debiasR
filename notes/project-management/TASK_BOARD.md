@@ -1,6 +1,6 @@
 # Task Board
 
-Last updated: 2026-07-05
+Last updated: 2026-11-21
 
 This board turns the current roadmap into a short execution plan. Estimated effort is in rough person-hours.
 
@@ -41,6 +41,10 @@ The staged track below is intended to be implemented one stage per chat window. 
   observed-flow LAD S1-S4 workflows; `latent_two_level` is approved as an
   advanced observed-row S3/S4 repeated-source model variant with real-data and
   diagnostic guardrails.
+
+## In review
+
+- November package audit fixes and numerical optimisations. Regression cases cover all six audit findings.
 
 ## Recently Completed
 

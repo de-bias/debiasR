@@ -45,7 +45,9 @@
 #'   \itemize{
 #'     \item \code{origin, population, user_count}
 #'   }
-#'   and optionally \code{mpd_source}.
+#'   Only identical coverage records may repeat for an area and applicable source.
+#'   Non-positive or missing denominators yield missing weights.
+#'   The coverage data may also include \code{mpd_source}.
 #' @param flow_col Name of the MPD flow column in \code{mpd_od_df}. Default "flow".
 #' @param weight_by One of \code{"origin"}, \code{"destination"}, \code{"both"}.
 #'
@@ -54,6 +56,7 @@
 #'     \item \code{origin, destination} (and \code{mpd_source} if present),
 #'     \item \code{flow}: original MPD flow,
 #'     \item \code{flow_adj}: adjusted flow,
+#'     \item \code{weight_missing}: whether the selected correction weight is unavailable,
 #'     \item \code{weight_origin}: origin-side inverse-penetration weight (if applicable),
 #'     \item \code{weight_destination}: destination-side weight (if applicable),
 #'     \item \code{weight_both}: geometric mean of the two (if \code{weight_by = "both"}).
@@ -83,106 +86,25 @@ adjust_inverse_penetration <- function(mpd_od_df,
     stop("`coverage_df` must contain: ", paste(req_cov, collapse = ", "))
   }
 
-  # origin-side requirements
-  if (weight_by %in% c("origin", "both")) {
-    req_cov_o <- c("origin", "population", "user_count")
-    if (!all(req_cov_o %in% names(coverage_df))) {
-      stop("`coverage_df` must contain origin columns: ",
-           paste(req_cov_o, collapse = ", "),
-           " for weight_by = '", weight_by, "'.")
-    }
+  keys <- c("origin", if (has_source) "mpd_source")
+  coverage <- unique(coverage_df[c(keys, "population", "user_count")])
+  if (anyDuplicated(coverage[keys])) {
+    stop("Conflicting coverage records for the same ", paste(keys, collapse = ", "), ".")
   }
-
-  # --- build origin weights -----------------------------------------------
-
-  if (weight_by %in% c("origin", "both")) {
-    if (has_source) {
-      cov_o <- coverage_df |>
-        dplyr::select(origin, mpd_source,
-                      population, user_count) |>
-        dplyr::distinct() |>
-        dplyr::mutate(
-          weight_origin = population / user_count
-        )
-    } else {
-      cov_o <- coverage_df |>
-        dplyr::select(origin,
-                      population, user_count) |>
-        dplyr::distinct() |>
-        dplyr::mutate(
-          weight_origin = population / user_count
-        )
-    }
-  } else {
-    cov_o <- NULL
-  }
-
-  # --- build destination weights ------------------------------------------
-
-  if (weight_by %in% c("destination", "both")) {
-    if (has_source) {
-      cov_d <- coverage_df |>
-        dplyr::select(origin, mpd_source,
-                      population, user_count) |>
-        dplyr::rename(destination = origin) |>
-        dplyr::distinct() |>
-        dplyr::mutate(
-          weight_destination = population / user_count
-        )
-    } else {
-      cov_d <- coverage_df |>
-        dplyr::select(origin,
-                      population, user_count) |>
-        dplyr::rename(destination = origin) |>
-        dplyr::distinct() |>
-        dplyr::mutate(
-          weight_destination = population / user_count
-        )
-    }
-  } else {
-    cov_d <- NULL
-  }
-
-  # --- join weights onto MPD OD -------------------------------------------
-
+  valid <- with(coverage, is.finite(population) & population > 0 &
+                  is.finite(user_count) & user_count > 0)
+  coverage$weight <- rep(NA_real_, nrow(coverage))
+  coverage$weight[valid] <- coverage$population[valid] / coverage$user_count[valid]
+  coverage$weight[!is.finite(coverage$weight)] <- NA_real_
   out <- mpd_od_df
-
-  # origin weights
-  if (!is.null(cov_o)) {
-    if (has_source) {
-      out <- out |>
-        dplyr::left_join(
-          cov_o |>
-            dplyr::select(origin, mpd_source, weight_origin),
-          by = c("origin", "mpd_source")
-        )
-    } else {
-      out <- out |>
-        dplyr::left_join(
-          cov_o |>
-            dplyr::select(origin, weight_origin),
-          by = "origin"
-        )
-    }
+  if (weight_by %in% c("origin", "both")) {
+    lookup <- dplyr::select(coverage, dplyr::all_of(keys), weight_origin = dplyr::all_of("weight"))
+    out <- dplyr::left_join(out, lookup, by = keys)
   }
-
-  # destination weights
-  if (!is.null(cov_d)) {
-    if (has_source) {
-      out <- out |>
-        dplyr::left_join(
-          cov_d |>
-            dplyr::select(destination, mpd_source, weight_destination),
-          by = c("destination", "mpd_source")
-        )
-    } else {
-      out <- out |>
-        dplyr::left_join(
-          cov_d |>
-            dplyr::select(destination, weight_destination),
-          by = "destination"
-        )
-    }
+  if (weight_by %in% c("destination", "both")) {
+    lookup <- dplyr::select(coverage, dplyr::all_of(keys), weight_destination = dplyr::all_of("weight")) |>
+      dplyr::rename(destination = origin)
+    out <- dplyr::left_join(out, lookup, by = c("destination", setdiff(keys, "origin")))
   }
 
   # --- compute adjusted flows --------------------------------------------
@@ -200,6 +122,9 @@ adjust_inverse_penetration <- function(mpd_od_df,
     out$weight_both <- sqrt(out$weight_origin * out$weight_destination)
     out$flow_adj    <- flow_vec * out$weight_both
   }
+
+  out$weight_missing <- !is.finite(switch(weight_by, origin = out$weight_origin,
+                                           destination = out$weight_destination, both = out$weight_both))
 
   # final ordering: keep original flow explicitly
   out <- out |>

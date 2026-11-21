@@ -14,6 +14,7 @@ fast_test_files <- c(
   "tests/testthat/test-adjust-multilevel-latent-contract.R",
   "tests/testthat/test-adjust-multilevel-frequentist-dev.R",
   "tests/testthat/test-validate-flow-overall.R",
+  "tests/testthat/test-validate-flow-methods.R",
   "tests/testthat/test-validate-flow-pairs.R",
   "tests/testthat/test-validate-flow-residuals.R",
   "tests/testthat/test-validate-flow-residual-structure.R",

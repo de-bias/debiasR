@@ -362,3 +362,34 @@ test_that("validate_flow_residual_structure validates Local Moran options", {
     "`local_moran_p_adjust` must be one of"
   )
 })
+
+test_that("two-area conditional permutations retain the only possible neighbour", {
+  raw <- data.frame(origin = c("A", "B"), destination = "X", flow = 10, flow_adj = 10)
+  benchmark <- transform(raw, flow = c(10, 20))
+  links <- data.frame(area = c("A", "B"), neighbor = c("B", "A"))
+  result <- validate_flow_residual_structure(raw, benchmark, area_neighbors = links,
+            local_moran = TRUE, local_moran_nsim = 99, local_moran_seed = 1)
+  expect_equal(result$local_moran$p_value, c(1, 1))
+})
+
+test_that("streamed local Moran counts agree with a stored permutation reference", {
+  raw <- data.frame(origin = LETTERS[1:4], destination = "X", flow = 10, flow_adj = 10)
+  residual <- c(-3, 0, 1, 6)
+  bench <- transform(raw, flow = flow + residual)
+  links <- data.frame(area = raw$origin, neighbor = c("B", "C", "D", "A"), weight = 1:4)
+  result <- validate_flow_residual_structure(raw, bench, area_neighbors = links,
+    weight_col = "weight", local_moran = TRUE, local_moran_nsim = 39, local_moran_seed = 13)
+  centered <- residual - mean(residual)
+  expected <- debiasR:::.with_seed(13, vapply(seq_along(centered), function(i) {
+    other <- setdiff(seq_along(centered), i)
+    neighbor <- match(links$neighbor[i], raw$origin)
+    observed <- centered[i] * links$weight[i] * centered[neighbor]
+    simulated <- replicate(39, {
+      permuted <- centered
+      permuted[other] <- sample(centered[other])
+      centered[i] * links$weight[i] * permuted[neighbor]
+    })
+    (1 + sum(abs(simulated) >= abs(observed))) / 40
+  }, numeric(1)))
+  expect_equal(result$local_moran$p_value, expected)
+})

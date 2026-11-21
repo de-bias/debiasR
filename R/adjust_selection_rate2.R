@@ -59,12 +59,16 @@
 #' @param clip_max Upper bound used to clamp weights. Default Inf.
 #' @param keep_cols Extra columns from mpd_od_df to retain.
 #'
+#' @details Calibration uses the same matched observations with usable coverage for
+#' every candidate. An empty comparison raises an error. A candidate that
+#' cannot predict all supported observations receives infinite loss.
+#'
 #' @return Tibble with:
 #'   origin, destination, mpd_source, (group_cols), flow,
 #'   weight_origin, weight_destination, weight_missing, flow_adj.
 #'   Attributes:
 #'     - "k" : numeric k used.
-#'     - "k_calibration" : data.frame of k vs loss (if calibrated).
+#'     - "k_calibration" : candidate k, loss and number of supported observation rows (n_scored).
 #' @export
 adjust_selection_rate2 <- function(mpd_od_df,
                                      coverage_df,
@@ -141,8 +145,8 @@ adjust_selection_rate2 <- function(mpd_od_df,
     p_safe[p_safe < eps] <- eps
     p_safe[p_safe > 1 - eps] <- 1 - eps
 
-    num <- p_safe * (exp(-k_val) - 1)
-    den <- (exp(-k_val * p_safe) - 1)
+    num <- p_safe * expm1(-k_val)
+    den <- expm1(-k_val * p_safe)
 
     cf <- num / den
     cf[p == 1] <- 1
@@ -212,80 +216,14 @@ adjust_selection_rate2 <- function(mpd_od_df,
       dplyr::rename(destination = area, p_d = p)
   }
 
-  # ---- internal: compute adjusted flows for a given k ----
-
-  compute_with_k <- function(k_val) {
-    if (!is.finite(k_val) || k_val <= 0) return(NULL)
-
-    cov_o <- NULL
-    cov_d <- NULL
-
-    if (weight_by %in% c("origin", "both")) {
-      cov_o <- cov_o_pre %>%
-        dplyr::mutate(
-          weight_origin = clamp_weight(cf_fun(p_o, k_val))
-        ) %>%
-        dplyr::select(origin, mpd_source, !!!group_syms, weight_origin)
-    }
-
-    if (weight_by %in% c("destination", "both")) {
-      cov_d <- cov_d_pre %>%
-        dplyr::mutate(
-          weight_destination = clamp_weight(cf_fun(p_d, k_val))
-        ) %>%
-        dplyr::select(destination, mpd_source, !!!group_syms, weight_destination)
-    }
-
-    out <- mpd_od_df
-    if (length(keep_cols)) {
-      keep_local <- keep_cols[keep_cols %in% names(out)]
-    } else keep_local <- character(0)
-
-    join_by_o <- c("origin", "mpd_source", group_cols)
-    join_by_d <- c("destination", "mpd_source", group_cols)
-
-    if (!is.null(cov_o)) {
-      out <- dplyr::left_join(out, cov_o, by = join_by_o)
-    } else {
-      out$weight_origin <- NA_real_
-    }
-
-    if (!is.null(cov_d)) {
-      out <- dplyr::left_join(out, cov_d, by = join_by_d)
-    } else {
-      out$weight_destination <- NA_real_
-    }
-
-    if (weight_by == "origin") {
-      final_w <- out$weight_origin
-    } else if (weight_by == "destination") {
-      final_w <- out$weight_destination
-    } else {
-      final_w <- suppressWarnings(
-        sqrt(out$weight_origin * out$weight_destination)
-      )
-    }
-
-    if (weight_by == "both") {
-      final_w[!is.finite(out$weight_origin) |
-                !is.finite(out$weight_destination)] <- NA_real_
-    }
-
-    out$weight_missing <- !is.finite(final_w)
-    out$flow_adj <- ifelse(is.finite(final_w), out$flow * final_w, NA_real_)
-
-    dplyr::select(
-      out,
-      dplyr::any_of(c("origin", "destination", "mpd_source", group_cols)),
-      dplyr::any_of(keep_local),
-      flow,
-      weight_origin,
-      weight_destination,
-      weight_missing,
-      flow_adj
-    ) %>%
-      tibble::as_tibble()
+  rate_weights <- function(rates, side, p_col) {
+    keys <- c(side, "mpd_source", group_cols)
+    aligned <- dplyr::left_join(mpd_od_df[keys], rates[c(keys, p_col)], by = keys)
+    function(k) clamp_weight(cf_fun(aligned[[p_col]], k))
   }
+  origin_weight <- if (weight_by != "destination") rate_weights(cov_o_pre, "origin", "p_o")
+  destination_weight <- if (weight_by != "origin") rate_weights(cov_d_pre, "destination", "p_d")
+  weights <- function(k) .selection_weights(mpd_od_df, k, origin_weight, destination_weight, weight_by)
 
   # ---- choose k: fixed, calibrated, or default ----
 
@@ -293,73 +231,19 @@ adjust_selection_rate2 <- function(mpd_od_df,
   k_diag <- NULL
 
   if (!is.null(k)) {
-    if (!is.numeric(k) || length(k) != 1 || k <= 0) {
+    if (!is.numeric(k) || length(k) != 1 || !is.finite(k) || k <= 0) {
       stop("`k` must be a positive scalar.")
     }
     k_used <- as.numeric(k)
 
   } else if (!is.null(benchmark_od_df)) {
-    # calibration mode
-
-    if (!all(c("origin", "destination", flow_col_bench) %in% names(benchmark_od_df))) {
-      stop("`benchmark_od_df` must contain origin, destination, and `flow_col_bench`.")
+    if (!length(k_grid) || any(!is.finite(k_grid) | k_grid <= 0)) {
+      stop("Provide finite, positive k_grid candidates.")
     }
-
-    bench_df <- benchmark_od_df %>%
-      dplyr::transmute(
-        origin      = as.character(.data$origin),
-        destination = as.character(.data$destination),
-        flow_bench  = as.numeric(.data[[flow_col_bench]])
-      ) %>%
-      dplyr::filter(is.finite(flow_bench))
-
-    if (nrow(bench_df) == 0L) {
-      stop("`benchmark_od_df` has no valid benchmark flows for calibration.")
-    }
-
-    if (length(k_grid) == 0L) {
-      stop("`k_grid` is empty; provide candidate k values.")
-    }
-
-    ks <- numeric(0)
-    losses <- numeric(0)
-
-    for (k_val in k_grid) {
-      adj <- compute_with_k(k_val)
-      if (is.null(adj)) next
-
-      joined <- dplyr::inner_join(
-        adj %>% dplyr::select(origin, destination, flow_adj),
-        bench_df,
-        by = c("origin", "destination")
-      )
-      if (nrow(joined) == 0L) next
-
-      if (calibration_aggregate == "origin") {
-        agg <- joined %>%
-          dplyr::group_by(origin) %>%
-          dplyr::summarise(
-            adj   = sum(flow_adj, na.rm = TRUE),
-            bench = sum(flow_bench, na.rm = TRUE),
-            .groups = "drop"
-          )
-        loss <- sum(abs(agg$adj - agg$bench), na.rm = TRUE)
-      } else {
-        loss <- sum(abs(joined$flow_adj - joined$flow_bench), na.rm = TRUE)
-      }
-
-      ks <- c(ks, k_val)
-      losses <- c(losses, loss)
-    }
-
-    if (!length(ks)) {
-      stop("Calibration failed: no overlap between adjusted and benchmark flows.")
-    }
-
-    best <- which.min(losses)
-    k_used <- ks[best]
-    k_diag <- data.frame(k = ks, loss = losses)
-
+    k_diag <- .calibrate_selection(mpd_od_df, benchmark_od_df, flow_col_bench,
+                                   calibration_aggregate, k_grid, weights, group_cols)
+    names(k_diag)[1] <- "k"
+    k_used <- k_diag$k[which.min(k_diag$loss)]
   } else {
     # no k given, no benchmark: default
     k_used <- 1
@@ -367,7 +251,7 @@ adjust_selection_rate2 <- function(mpd_od_df,
 
   # ---- final run with chosen k ----
 
-  out_final <- compute_with_k(k_used)
+  out_final <- .selection_output(mpd_od_df, weights(k_used), c(group_cols, keep_cols))
   attr(out_final, "k") <- k_used
   if (!is.null(k_diag)) {
     attr(out_final, "k_calibration") <- k_diag

@@ -43,6 +43,9 @@ if \code{FALSE} (default), fit through the origin
 \eqn{F^{bench} = \beta F^{mpd}}.
 if \code{TRUE}, fit \eqn{F^{bench} = \alpha + \beta F^{mpd}} and derive a
 flow-specific correction factor \eqn{CF_{ij} = \hat{F}_{ij}^{bench}/F_{ij}^{mpd}}.
+At origin or destination level the predicted margin is allocated in
+proportion to each route's raw flow. A zero raw margin has no defined
+allocation. Negative fitted counts are returned as missing.
 Ignored for count models, where the functional form is fixed as above.}
 
 \item{by_source}{Logical; if \code{TRUE} and both inputs contain

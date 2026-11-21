@@ -51,6 +51,9 @@
 #'   \eqn{F^{bench} = \beta F^{mpd}}.
 #'   if \code{TRUE}, fit \eqn{F^{bench} = \alpha + \beta F^{mpd}} and derive a
 #'   flow-specific correction factor \eqn{CF_{ij} = \hat{F}_{ij}^{bench}/F_{ij}^{mpd}}.
+#'   At origin or destination level the predicted margin is allocated in
+#'   proportion to each route's raw flow. A zero raw margin has no defined
+#'   allocation. Negative fitted counts are returned as missing.
 #'   Ignored for count models, where the functional form is fixed as above.
 #'
 #' @param by_source Logical; if \code{TRUE} and both inputs contain
@@ -117,10 +120,11 @@ adjust_coefficient <- function(mpd_od_df,
 
   build_xy <- function(mpd, bench, lvl) {
     if (lvl == "od") {
+      keys <- .flow_reference_keys(mpd, bench)
       dplyr::inner_join(
-        mpd  %>% dplyr::select(origin, destination, x = !!rlang::sym(flow_col_mpd)),
-        bench %>% dplyr::select(origin, destination, y = !!rlang::sym(flow_col_bench)),
-        by = c("origin", "destination")
+        mpd %>% dplyr::select(dplyr::all_of(keys), x = dplyr::all_of(flow_col_mpd)),
+        bench %>% dplyr::select(dplyr::all_of(keys), y = dplyr::all_of(flow_col_bench)),
+        by = keys
       )
     } else if (lvl == "origin") {
       dplyr::inner_join(
@@ -265,12 +269,10 @@ adjust_coefficient <- function(mpd_od_df,
     })
 
     coef_tbl <- do.call(rbind, lapply(fits, `[[`, "summary"))
-    betas    <- stats::setNames(coef_tbl$beta, coef_tbl$mpd_source)
 
   } else {
     fit <- fit_one(mpd_od_df, benchmark_od_df, src_label = NA_character_)
     coef_tbl <- fit$summary
-    betas    <- fit$beta
   }
 
   # ---- apply coefficients ----
@@ -284,28 +286,28 @@ adjust_coefficient <- function(mpd_od_df,
     keep_cols <- character(0)
   }
 
-  if (by_source) {
-    out <- dplyr::left_join(
-      out,
-      coef_tbl %>% dplyr::select(mpd_source, beta),
-      by = "mpd_source"
-    )
-    out$coef_factor <- out$beta
-    out$beta <- NULL
+  fit_index <- if (by_source) match(out$mpd_source, coef_tbl$mpd_source) else rep(1L, nrow(out))
+  beta <- coef_tbl$beta[fit_index]
+  x <- out[[flow_col_mpd]]
+  if (model_family == "ols" && fit_intercept) {
+    # Allocate a fitted margin proportionally to its observed routes.
+    total <- x
+    if (level != "od") {
+      groups <- c(level, if (by_source) "mpd_source")
+      total <- out |>
+        dplyr::group_by(dplyr::across(dplyr::all_of(groups))) |>
+        dplyr::mutate(.margin_total = sum(.data[[flow_col_mpd]], na.rm = TRUE)) |>
+        dplyr::pull(".margin_total")
+    }
+    prediction <- coef_tbl$intercept[fit_index] + beta * total
+    prediction[!is.finite(prediction) | prediction < 0] <- NA_real_
+    out$coef_factor <- ifelse(total > 0, prediction / total, NA_real_)
+    out$flow_adj <- if (level == "od") prediction else x * out$coef_factor
   } else {
-    out$coef_factor <- as.numeric(betas)
+    beta[!is.finite(beta) | beta <= 0] <- NA_real_
+    out$coef_factor <- beta
+    out$flow_adj <- x * beta
   }
-
-  # invalid coefficients -> NA
-  out$coef_factor[!is.finite(out$coef_factor) | out$coef_factor <= 0] <- NA_real_
-
-  # compute adjusted flow
-  x_vec <- out[[flow_col_mpd]]
-  out$flow_adj <- ifelse(
-    is.finite(out$coef_factor),
-    x_vec * out$coef_factor,
-    NA_real_
-  )
 
   # final column order
   out <- out %>%

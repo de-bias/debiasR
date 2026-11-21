@@ -60,7 +60,7 @@ origin, destination, mpd_source, (group_cols), flow,
 weight_origin, weight_destination, weight_missing, flow_adj.
 Attributes:
 - "k" : numeric k used.
-- "k_calibration" : data.frame of k vs loss (if calibrated).
+- "k_calibration" : candidate k, loss and number of supported observation rows (n_scored).
 }
 \description{
 Notation used throughout:
@@ -105,4 +105,8 @@ search k_grid, pick k* minimising sum of absolute errors between
 adjusted and benchmark flows (origin-aggregated or OD-level).
 \item Else: default k = 1.
 }
+
+Calibration uses the same matched observations with usable coverage for
+every candidate. An empty comparison raises an error. A candidate that
+cannot predict all supported observations receives infinite loss.
 }

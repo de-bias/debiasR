@@ -81,3 +81,7 @@ auditing, use \code{validate_flow_residuals()} or the lower-level
 Retained for backwards compatibility. New code should prefer
 \code{validate_flow_overall()}.
 }
+\details{
+References must have one row per origin and destination, including
+\code{mpd_source} and \code{mpd_time} in the key when present in both tables.
+}

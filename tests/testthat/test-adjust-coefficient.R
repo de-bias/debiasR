@@ -153,3 +153,21 @@ test_that("adjust_coefficient errors cleanly on invalid settings", {
     "benchmark_od_df"
   )
 })
+
+test_that("OLS intercepts predict routes and are apportioned once per fitted margin", {
+  raw <- data.frame(origin = LETTERS[1:3], destination = "X", flow = 1:3)
+  bench <- transform(raw, flow = 5 + 2 * flow)
+  od <- suppressWarnings(adjust_coefficient(raw, bench, fit_intercept = TRUE))
+  expect_equal(od$flow_adj, c(7, 9, 11))
+  expect_equal(od$coef_factor, od$flow_adj / raw$flow)
+  raw <- rbind(raw, transform(raw, destination = "Y", flow = flow * 2))
+  bench <- transform(raw, flow = 2 * flow + 2.5)
+  src2 <- transform(raw, mpd_source = "two")
+  raw <- rbind(transform(raw, mpd_source = "one"), src2)
+  bench <- rbind(transform(bench, mpd_source = "one"),
+                 transform(src2, flow = 3 * flow + 1))
+  pred <- suppressWarnings(adjust_coefficient(raw, bench, level = "origin",
+                           fit_intercept = TRUE, by_source = TRUE))
+  expect_equal(aggregate(flow_adj ~ origin + mpd_source, pred, sum)$flow_adj,
+               aggregate(flow ~ origin + mpd_source, bench, sum)$flow)
+})

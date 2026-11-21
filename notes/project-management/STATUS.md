@@ -1,10 +1,10 @@
 # Project Status
 
-Last updated: 2026-07-05
+Last updated: 2026-11-21
 
 ## Snapshot
 
-- Project stage: active development (`0.0.0.9006`)
+- Project stage: active development (`0.0.0.9007`)
 - Repository visibility: public on GitHub since 2026-06-04
 - Package scope: OD mobility bias correction methods + Stage 2 validation toolkit + Stage 3 bias residual diagnostics + distributional bias diagnostics
 - API direction: public adjustment functions start with `adjust_`, validation
@@ -12,6 +12,8 @@ Last updated: 2026-07-05
   `measure_`; flow-validation helpers use the `validate_flow_*` family
 - Bayesian component: `adjust_multilevel_bayes()` is the main methodological innovation and now has observed and complete-grid prediction scopes; the default `coverage_offset` Bayesian model variant is approved for observed-flow empirical LAD S1-S4 workflows, while `latent_two_level` is approved as an advanced observed-row repeated-source S3/S4 model variant
 - Current execution board: see [TASK_BOARD.md](TASK_BOARD.md)
+
+The November function audit adds regression coverage for source/time matching, OLS intercepts, bounded raking, calibration support, inverse-penetration weights and local Moran permutations. See NEWS for changes to diagnostic outputs.
 
 ## Stable vs Experimental
 

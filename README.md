@@ -16,6 +16,8 @@ population counts by location and flows between locations.
 The package workflow supports assessment of coverage and
 representativeness bias in population counts, adjustment of biased
 origin-destination (OD) flows and validation of adjusted flows against benchmark data.
+When a reference varies by source or period, include the shared `mpd_source` or
+`mpd_time` identifiers so each observed route matches its own reference.
 Mobile-phone-derived mobility data are used to illustrate the package
 functions in these vignettes, but the same logic can apply to other
 digital trace sources with comparable spatial and temporal aggregation
